@@ -1,39 +1,48 @@
-"use client";
+import { cookies } from "next/headers";
 
-import { useSidebar } from "@/context/SidebarContext";
-import AppHeader from "@/layout/AppHeader";
-import AppSidebar from "@/layout/AppSidebar";
-import Backdrop from "@/layout/Backdrop";
-import React from "react";
+import AdminShell from "@/components/layout/AdminShell";
+import { createClient as createServerSupabaseClient } from "@/lib/utils/supabase/server";
 
-export default function AdminLayout({
+type SidebarAnnee = {
+  id: string;
+  designation: string | null;
+};
+
+type SidebarPromotion = {
+  id: string;
+  designation: string | null;
+};
+
+async function getSidebarData() {
+  const cookieStore = await cookies();
+  const supabase = createServerSupabaseClient(cookieStore);
+
+  const [{ data: annees, error: anneesError }, { data: promotions, error: promotionsError }] =
+    await Promise.all([
+      supabase.from("annees").select("id, designation").order("debut", { ascending: false }),
+      supabase.from("promotions").select("id, designation").order("designation", { ascending: true }),
+    ]);
+
+  if (anneesError) {
+    throw new Error(anneesError.message);
+  }
+
+  if (promotionsError) {
+    throw new Error(promotionsError.message);
+  }
+
+  return {
+    annees: (annees ?? []) as SidebarAnnee[],
+    promotions: (promotions ?? []) as SidebarPromotion[],
+  };
+}
+
+export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { isExpanded, isHovered, isMobileOpen } = useSidebar();
+  const sidebarData = await getSidebarData();
 
-  // Dynamic class for main content margin based on sidebar state
-  const mainContentMargin = isMobileOpen
-    ? "ml-0"
-    : isExpanded || isHovered
-    ? "lg:ml-[290px]"
-    : "lg:ml-[90px]";
-
-  return (
-    <div className="min-h-screen xl:flex">
-      {/* Sidebar and Backdrop */}
-      <AppSidebar />
-      <Backdrop />
-      {/* Main Content Area */}
-      <div
-        className={`flex-1 transition-all  duration-300 ease-in-out ${mainContentMargin}`}
-      >
-        {/* Header */}
-        <AppHeader />
-        {/* Page Content */}
-        <div className="p-4 mx-auto max-w-(--breakpoint-2xl) md:p-6">{children}</div>
-      </div>
-    </div>
-  );
+  return <AdminShell sidebarData={sidebarData}>{children}</AdminShell>;
 }

@@ -18,7 +18,7 @@ async function getEtudiants(): Promise<EtudiantRecord[]> {
   const supabase = createServerSupabaseClient(cookieStore);
   const { data, error } = await supabase
     .from("etudiants")
-    .select("id, created_at, nom, email, matricule, sexe")
+    .select("id, created_at, nom, email, matricule, sexe, entraId")
     .order("created_at", { ascending: false });
 
   if (error) {
