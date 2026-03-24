@@ -2,10 +2,26 @@ import SignInForm from "@/components/auth/SignInForm";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Next.js SignIn Page | TailAdmin - Next.js Dashboard Template",
-  description: "This is Next.js Signin Page TailAdmin Dashboard Template",
+  title: "Connexion SSO | Gestion Finance Ecole",
+  description: "Connexion SSO de l'application de gestion de finance de l'ecole",
 };
 
-export default function SignIn() {
-  return <SignInForm />;
+type SignInPageProps = {
+  searchParams: Promise<{
+    next?: string;
+    error?: string;
+  }>;
+};
+
+export default async function SignIn({ searchParams }: SignInPageProps) {
+  const resolvedSearchParams = await searchParams;
+
+  return (
+    <SignInForm
+      nextPath={resolvedSearchParams.next}
+      errorMessage={resolvedSearchParams.error}
+      schoolName={process.env.NEXT_PUBLIC_SCHOOL_NAME ?? "Votre ecole"}
+      ssoDomain={process.env.NEXT_PUBLIC_SSO_URL ?? ""}
+    />
+  );
 }

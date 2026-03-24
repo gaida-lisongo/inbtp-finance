@@ -30,7 +30,7 @@ export default function AuthLayout({
                   />
                 </Link>
                 <p className="text-center text-gray-400 dark:text-white/60">
-                  Free and Open-Source Tailwind CSS Admin Dashboard Template
+                  {process.env.NEXT_PUBLIC_SCHOOL_NAME ?? "Votre ecole"} - plateforme de gestion de finance et d&apos;authentification SSO.
                 </p>
               </div>
             </div>

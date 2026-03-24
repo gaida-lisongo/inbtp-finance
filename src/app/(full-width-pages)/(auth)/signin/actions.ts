@@ -2,13 +2,11 @@
 
 import { redirect } from "next/navigation";
 
-import { createAzureSignInUrl } from "@/lib/utils/supabase/auth";
+import { getSafeNextPath } from "@/lib/utils/supabase/auth";
 
 export async function signInWithAzureAction(formData: FormData) {
   const nextPath = formData.get("next");
-  const { authorizationUrl } = await createAzureSignInUrl(
-    typeof nextPath === "string" ? nextPath : null,
-  );
+  const safeNextPath = getSafeNextPath(typeof nextPath === "string" ? nextPath : null);
 
-  redirect(authorizationUrl);
+  redirect(`/api/login?next=${encodeURIComponent(safeNextPath)}`);
 }

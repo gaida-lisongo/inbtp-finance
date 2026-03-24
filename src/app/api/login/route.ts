@@ -1,13 +1,74 @@
+import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 
-import { createAzureSignInUrl } from "@/lib/utils/supabase/auth";
+import { getSafeNextPath } from "@/lib/utils/supabase/auth";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
+const schoolSsoDomain = process.env.NEXT_PUBLIC_SSO_URL;
+
+const copyCookies = (source: NextResponse, target: NextResponse) => {
+  source.cookies.getAll().forEach((cookie) => {
+    target.cookies.set(cookie);
+  });
+};
 
 export async function GET(request: NextRequest) {
   try {
-    const nextPath = request.nextUrl.searchParams.get("next");
-    const { authorizationUrl } = await createAzureSignInUrl(nextPath);
+    const nextPath = getSafeNextPath(request.nextUrl.searchParams.get("next"));
+    const callbackUrl = new URL("/auth/callback", request.nextUrl.origin);
+    callbackUrl.searchParams.set("next", nextPath);
 
-    return NextResponse.redirect(authorizationUrl);
+    let response = NextResponse.next({
+      request: {
+        headers: request.headers,
+      },
+    });
+
+    const supabase = createServerClient(
+      supabaseUrl!,
+      supabaseKey!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+            cookiesToSet.forEach(({ name, value, options }) => {
+              response.cookies.set(name, value, options);
+            });
+          },
+        },
+      },
+    );
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "azure",
+      options: {
+        redirectTo: callbackUrl.toString(),
+        skipBrowserRedirect: true,
+        scopes: "openid profile email",
+        queryParams: schoolSsoDomain
+          ? {
+              domain_hint: schoolSsoDomain,
+            }
+          : undefined,
+      },
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    if (!data.url) {
+      throw new Error("Supabase did not return an Azure login URL.");
+    }
+
+    const redirectResponse = NextResponse.redirect(data.url);
+    copyCookies(response, redirectResponse);
+
+    return redirectResponse;
   } catch (error) {
     return NextResponse.json(
       {
