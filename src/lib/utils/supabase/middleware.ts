@@ -76,18 +76,12 @@ export const updateSession = async (request: NextRequest) => {
     data: { user },
     error: userError,
   } = await supabase.auth.getUser();
-  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
-  const hasInvalidSession =
-    isMissingSessionError(userError?.message) ||
-    isMissingSessionError(claimsError?.message);
+  const hasInvalidSession = isMissingSessionError(userError?.message);
 
-  const resolvedUser =
-    hasInvalidSession ? null : user ?? null;
-  const claims =
-    hasInvalidSession ? null : ((claimsData?.claims ?? null) as Record<string, unknown> | null);
+  const resolvedUser = hasInvalidSession ? null : user ?? null;
   const authorization = getAuthAuthorization({
     user: resolvedUser,
-    claims,
+    claims: null,
   });
 
   const pathname = request.nextUrl.pathname;

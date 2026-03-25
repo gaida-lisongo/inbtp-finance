@@ -170,22 +170,9 @@ export const getCurrentAuthProfile = async (): Promise<{
       groups: [],
     };
   }
-
-  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
-
-  console.info("[auth-profile] getClaims()", {
-    claims: claimsData?.claims ?? null,
-    error: claimsError?.message ?? null,
-  });
-
-  if (claimsError && !isMissingSessionError(claimsError.message)) {
-    throw new Error(claimsError.message);
-  }
-
-  const claims = (claimsData?.claims ?? null) as Record<string, unknown> | null;
   const authorization = getAuthAuthorization({
     user,
-    claims,
+    claims: null,
   });
 
   console.info("[auth-profile] authorization", {
@@ -196,7 +183,7 @@ export const getCurrentAuthProfile = async (): Promise<{
 
   return {
     user,
-    claims,
+    claims: null,
     groups: authorization.groups,
   };
 };
