@@ -959,20 +959,20 @@ export const sendPaymentReportByMail = async ({
   const htmlContent = `
     <div style="margin:0;padding:0;background-color:#f4f6fb;font-family:Arial,'Helvetica Neue',Helvetica,sans-serif;color:#1d2939;">
       <div style="max-width:720px;margin:0 auto;padding:32px 20px;">
-        <div style="background:linear-gradient(135deg,#101828 0%,#1d2939 100%);border-radius:28px 28px 0 0;padding:28px 32px 22px 32px;">
+        <div style="background:linear-gradient(135deg,#f8fafc 0%,#eef2f6 100%);border:1px solid #e4e7ec;border-bottom:none;border-radius:28px 28px 0 0;padding:28px 32px 22px 32px;">
           ${
             emailLogo
               ? `<img src="${emailLogo}" alt="ElmesFin" style="display:block;width:160px;max-width:100%;height:auto;margin-bottom:18px;" />`
               : ""
           }
-          <div style="display:inline-block;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,0.08);color:#f2f4f7;font-size:12px;letter-spacing:.12em;text-transform:uppercase;">
+          <div style="display:inline-block;padding:6px 12px;border-radius:999px;background:#e0e7ff;color:#312e81;font-size:12px;letter-spacing:.12em;text-transform:uppercase;">
             ElmesFin · Rapport financier
           </div>
-          <h1 style="margin:18px 0 8px 0;font-size:28px;line-height:1.2;color:#ffffff;">
+          <h1 style="margin:18px 0 8px 0;font-size:28px;line-height:1.2;color:#101828;">
             Transmission a la Direction generale
           </h1>
-          <p style="margin:0;color:rgba(255,255,255,0.78);font-size:15px;line-height:1.7;">
-            Monsieur le Directeur General, veuillez trouver ci-joint le ${context.reportTypeLabel.toLowerCase()} de la modalite <strong style="color:#ffffff;">${context.modalite.designation}</strong>.
+          <p style="margin:0;color:#344054;font-size:15px;line-height:1.7;">
+            Monsieur le Directeur General, veuillez trouver ci-joint le ${context.reportTypeLabel.toLowerCase()} de la modalite <strong style="color:#101828;">${context.modalite.designation}</strong>.
           </p>
         </div>
 
