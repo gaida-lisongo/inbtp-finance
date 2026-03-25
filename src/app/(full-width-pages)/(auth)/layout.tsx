@@ -31,7 +31,7 @@ export default function AuthLayout({
             <div className="relative z-1 flex items-center justify-center">
               {/* <!-- ===== Common Grid Shape Start ===== --> */}
               <GridShape />
-              <div className="animate-float-soft glass-card flex max-w-sm flex-col items-center rounded-[32px] border border-white/40 px-10 py-12 shadow-2xl">
+              <div className="animate-float-soft flex max-w-sm flex-col items-center rounded-[32px] border border-white/15 bg-black/45 px-10 py-12 shadow-2xl backdrop-blur-xl">
                 <Link href="/" className="animate-rise-in block mb-5">
                   <Image
                     width={210}
@@ -42,14 +42,14 @@ export default function AuthLayout({
                   />
                 </Link>
                 <div className="animate-rise-in text-center [animation-delay:140ms]">
-                  <p className="text-sm font-semibold uppercase tracking-[0.32em] text-error-700 dark:text-error-300">
+                  <p className="text-sm font-semibold uppercase tracking-[0.32em] text-error-300">
                     {process.env.NEXT_PUBLIC_SCHOOL_NAME ?? "Votre ecole"}
                   </p>
-                  <h2 className="mt-3 text-3xl font-semibold text-gray-900 dark:text-white">
+                  <h2 className="mt-3 text-3xl font-semibold text-white">
                     Gestion financiere INBTP
                   </h2>
                 </div>
-                <p className="animate-rise-in mt-5 text-center text-sm leading-6 text-gray-600 [animation-delay:220ms] dark:text-white/70">
+                <p className="animate-rise-in mt-5 text-center text-sm leading-6 text-white/75 [animation-delay:220ms]">
                   {process.env.NEXT_PUBLIC_SCHOOL_NAME ?? "Votre ecole"} - plateforme moderne de suivi des encaissements, frais et modalites de paiement.
                 </p>
               </div>
