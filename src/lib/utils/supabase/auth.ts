@@ -38,7 +38,7 @@ export const getAuthOrigin = async () => {
   const protocol =
     forwardedProto ?? (host.includes("localhost") || host.startsWith("127.0.0.1") ? "http" : "https");
 
-  return `${protocol}://${host}`;
+  return `${configuredSsoUrl}`;
 };
 
 export const createAzureSignInUrl = async (nextPath?: string | null) => {
