@@ -7,7 +7,15 @@ import { createClient as createServerSupabaseClient } from "@/lib/utils/supabase
 const DEFAULT_POST_LOGIN_PATH = "/";
 const configuredSsoUrl = process.env.NEXT_PUBLIC_SSO_URL?.trim();
 
-const isMissingSessionError = (message: string) => message === "Auth session missing!";
+const isMissingSessionError = (message: string) => {
+  const normalizedMessage = message.trim().toLowerCase();
+
+  return (
+    normalizedMessage === "auth session missing!" ||
+    normalizedMessage.includes("refresh token not found") ||
+    normalizedMessage.includes("invalid refresh token")
+  );
+};
 
 const normalizeNextPath = (value: string | null | undefined) => {
   if (!value) {
@@ -38,7 +46,7 @@ export const getAuthOrigin = async () => {
   const protocol =
     forwardedProto ?? (host.includes("localhost") || host.startsWith("127.0.0.1") ? "http" : "https");
 
-  return `${configuredSsoUrl}`;
+  return `${protocol}://${host}`;
 };
 
 export const createAzureSignInUrl = async (nextPath?: string | null) => {

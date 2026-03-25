@@ -9,10 +9,37 @@ import {
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
 
+const isMissingSessionError = (message: string | null | undefined) => {
+  if (!message) {
+    return false;
+  }
+
+  const normalizedMessage = message.trim().toLowerCase();
+
+  return (
+    normalizedMessage === "auth session missing!" ||
+    normalizedMessage.includes("refresh token not found") ||
+    normalizedMessage.includes("invalid refresh token")
+  );
+};
+
 const copySupabaseCookies = (source: NextResponse, target: NextResponse) => {
   source.cookies.getAll().forEach((cookie) => {
     target.cookies.set(cookie);
   });
+};
+
+const clearSupabaseCookies = (request: NextRequest, response: NextResponse) => {
+  request.cookies
+    .getAll()
+    .filter((cookie) => cookie.name.startsWith("sb-"))
+    .forEach((cookie) => {
+      response.cookies.set(cookie.name, "", {
+        expires: new Date(0),
+        maxAge: 0,
+        path: "/",
+      });
+    });
 };
 
 export const updateSession = async (request: NextRequest) => {
@@ -54,15 +81,15 @@ export const updateSession = async (request: NextRequest) => {
     error: userError,
   } = await supabase.auth.getUser();
   const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
+  const hasInvalidSession =
+    isMissingSessionError(sessionError?.message) ||
+    isMissingSessionError(userError?.message) ||
+    isMissingSessionError(claimsError?.message);
 
   const resolvedUser =
-    sessionError?.message === "Auth session missing!" || userError?.message === "Auth session missing!"
-      ? null
-      : user ?? null;
+    hasInvalidSession ? null : user ?? null;
   const claims =
-    claimsError?.message === "Auth session missing!"
-      ? null
-      : ((claimsData?.claims ?? null) as Record<string, unknown> | null);
+    hasInvalidSession ? null : ((claimsData?.claims ?? null) as Record<string, unknown> | null);
   const authorization = getAuthAuthorization({
     user: resolvedUser,
     claims,
@@ -85,6 +112,7 @@ export const updateSession = async (request: NextRequest) => {
 
     const redirectResponse = NextResponse.redirect(signInUrl);
     copySupabaseCookies(supabaseResponse, redirectResponse);
+    clearSupabaseCookies(request, redirectResponse);
 
     return redirectResponse;
   }
