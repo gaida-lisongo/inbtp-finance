@@ -10,6 +10,7 @@ import { getSafeNextPath } from "@/lib/utils/supabase/auth";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
+const PRESENTATION_MODE = true;
 
 const copyCookies = (source: NextResponse, target: NextResponse) => {
   source.cookies.getAll().forEach((cookie) => {
@@ -319,7 +320,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    if (!authorization.isAuthorized) {
+    if (!PRESENTATION_MODE && !authorization.isAuthorized) {
       await supabase.auth.signOut();
 
       const signInUrl = new URL("/signin", request.nextUrl.origin);

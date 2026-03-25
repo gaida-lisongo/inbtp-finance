@@ -1,10 +1,10 @@
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 
 import AdminShell from "@/components/layout/AdminShell";
-import { UNAUTHORIZED_GROUP_ERROR, getAuthAuthorization } from "@/lib/utils/supabase/authorization";
 import { getCurrentAuthProfile } from "@/lib/utils/supabase/auth";
 import { createClient as createServerSupabaseClient } from "@/lib/utils/supabase/server";
+
+const PRESENTATION_MODE = true;
 
 type SidebarAnnee = {
   id: string;
@@ -45,19 +45,8 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const authProfile = await getCurrentAuthProfile();
-
-  if (!authProfile.user) {
-    redirect("/signin");
-  }
-
-  const authorization = getAuthAuthorization({
-    user: authProfile.user,
-    claims: authProfile.claims,
-  });
-
-  if (!authorization.isAuthorized) {
-    redirect(`/signin?error=${UNAUTHORIZED_GROUP_ERROR}`);
+  if (!PRESENTATION_MODE) {
+    await getCurrentAuthProfile();
   }
 
   const sidebarData = await getSidebarData();

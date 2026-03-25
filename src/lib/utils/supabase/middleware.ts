@@ -8,6 +8,7 @@ import {
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
+const PRESENTATION_MODE = true;
 
 const isMissingSessionError = (message: string | null | undefined) => {
   if (!message) {
@@ -91,7 +92,7 @@ export const updateSession = async (request: NextRequest) => {
     pathname.startsWith("/api/login") ||
     pathname.startsWith("/api/supabase-test");
 
-  if (!resolvedUser && !isPublicRoute) {
+  if (!PRESENTATION_MODE && !resolvedUser && !isPublicRoute) {
     const signInUrl = new URL("/signin", request.url);
     const nextPath = `${pathname}${request.nextUrl.search}`;
 
@@ -106,7 +107,7 @@ export const updateSession = async (request: NextRequest) => {
     return redirectResponse;
   }
 
-  if (resolvedUser && !authorization.isAuthorized && !isPublicRoute) {
+  if (!PRESENTATION_MODE && resolvedUser && !authorization.isAuthorized && !isPublicRoute) {
     const signInUrl = new URL("/signin", request.url);
 
     signInUrl.searchParams.set("error", UNAUTHORIZED_GROUP_ERROR);
@@ -121,7 +122,7 @@ export const updateSession = async (request: NextRequest) => {
     return redirectResponse;
   }
 
-  if (resolvedUser && authorization.isAuthorized && pathname === "/signin") {
+  if (resolvedUser && (PRESENTATION_MODE || authorization.isAuthorized) && pathname === "/signin") {
     const nextPath = request.nextUrl.searchParams.get("next");
     const redirectUrl = new URL(
       nextPath && nextPath.startsWith("/") ? nextPath : "/",
