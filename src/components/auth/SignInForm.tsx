@@ -7,7 +7,7 @@ import React from "react";
 
 type SignInFormProps = {
   schoolName: string;
-  ssoDomain: string;
+  ssoReturnUrl: string;
   nextPath?: string;
   errorMessage?: string;
 };
@@ -38,7 +38,7 @@ const getLoginUrl = (nextPath?: string) => {
 
 export default function SignInForm({
   schoolName,
-  ssoDomain,
+  ssoReturnUrl,
   nextPath,
   errorMessage,
 }: SignInFormProps) {
@@ -73,7 +73,7 @@ export default function SignInForm({
                 Connexion Microsoft Entra ID
               </p>
               <p className="mt-1 text-sm text-white/65">
-                Domaine SSO: <span className="font-medium">{ssoDomain || "non configure"}</span>
+                URL de retour: <span className="font-medium">{ssoReturnUrl || "non configuree"}</span>
               </p>
             </div>
           </div>

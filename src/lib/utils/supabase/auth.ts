@@ -5,7 +5,7 @@ import { getAuthAuthorization } from "@/lib/utils/supabase/authorization";
 import { createClient as createServerSupabaseClient } from "@/lib/utils/supabase/server";
 
 const DEFAULT_POST_LOGIN_PATH = "/";
-const schoolSsoDomain = process.env.NEXT_PUBLIC_SSO_URL;
+const configuredSsoUrl = process.env.NEXT_PUBLIC_SSO_URL?.trim();
 
 const isMissingSessionError = (message: string) => message === "Auth session missing!";
 
@@ -17,7 +17,15 @@ const normalizeNextPath = (value: string | null | undefined) => {
   return value.startsWith("/") ? value : DEFAULT_POST_LOGIN_PATH;
 };
 
-const getRequestOrigin = async () => {
+export const getAuthOrigin = async () => {
+  if (configuredSsoUrl) {
+    try {
+      return new URL(configuredSsoUrl).origin;
+    } catch {
+      throw new Error("NEXT_PUBLIC_SSO_URL is not a valid absolute URL.");
+    }
+  }
+
   const requestHeaders = await headers();
   const forwardedHost = requestHeaders.get("x-forwarded-host");
   const host = forwardedHost ?? requestHeaders.get("host");
@@ -34,7 +42,7 @@ const getRequestOrigin = async () => {
 };
 
 export const createAzureSignInUrl = async (nextPath?: string | null) => {
-  const origin = await getRequestOrigin();
+  const origin = await getAuthOrigin();
   const cookieStore = await cookies();
   const supabase = createServerSupabaseClient(cookieStore);
   const safeNextPath = normalizeNextPath(nextPath);
@@ -48,11 +56,6 @@ export const createAzureSignInUrl = async (nextPath?: string | null) => {
       redirectTo: callbackUrl.toString(),
       skipBrowserRedirect: true,
       scopes: "openid profile email",
-      queryParams: schoolSsoDomain
-        ? {
-            domain_hint: schoolSsoDomain,
-          }
-        : undefined,
     },
   });
 

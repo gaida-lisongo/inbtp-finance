@@ -21,7 +21,7 @@ export default async function SignIn({ searchParams }: SignInPageProps) {
       nextPath={resolvedSearchParams.next}
       errorMessage={resolvedSearchParams.error}
       schoolName={process.env.NEXT_PUBLIC_SCHOOL_NAME ?? "Votre ecole"}
-      ssoDomain={process.env.NEXT_PUBLIC_SSO_URL ?? ""}
+      ssoReturnUrl={process.env.NEXT_PUBLIC_SSO_URL ?? ""}
     />
   );
 }

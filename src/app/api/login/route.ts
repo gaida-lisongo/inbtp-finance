@@ -1,11 +1,10 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 
-import { getSafeNextPath } from "@/lib/utils/supabase/auth";
+import { getAuthOrigin, getSafeNextPath } from "@/lib/utils/supabase/auth";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
-const schoolSsoDomain = process.env.NEXT_PUBLIC_SSO_URL;
 
 const copyCookies = (source: NextResponse, target: NextResponse) => {
   source.cookies.getAll().forEach((cookie) => {
@@ -16,7 +15,8 @@ const copyCookies = (source: NextResponse, target: NextResponse) => {
 export async function GET(request: NextRequest) {
   try {
     const nextPath = getSafeNextPath(request.nextUrl.searchParams.get("next"));
-    const callbackUrl = new URL("/auth/callback", request.nextUrl.origin);
+    const authOrigin = await getAuthOrigin();
+    const callbackUrl = new URL("/auth/callback", authOrigin);
     callbackUrl.searchParams.set("next", nextPath);
 
     let response = NextResponse.next({
@@ -49,11 +49,6 @@ export async function GET(request: NextRequest) {
         redirectTo: callbackUrl.toString(),
         skipBrowserRedirect: true,
         scopes: "openid profile email",
-        queryParams: schoolSsoDomain
-          ? {
-              domain_hint: schoolSsoDomain,
-            }
-          : undefined,
       },
     });
 
