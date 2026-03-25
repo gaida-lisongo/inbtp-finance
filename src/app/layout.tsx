@@ -3,10 +3,16 @@ import './globals.css';
 import "flatpickr/dist/flatpickr.css";
 import { SidebarProvider } from '@/context/SidebarContext';
 import { ThemeProvider } from '@/context/ThemeContext';
+import type { Metadata } from "next";
 
 const outfit = Outfit({
   subsets: ["latin"],
 });
+
+export const metadata: Metadata = {
+  title: "ElmesFin",
+  description: "Plateforme de gestion financiere de l'etablissement",
+};
 
 export default function RootLayout({
   children,

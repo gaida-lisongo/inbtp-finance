@@ -100,14 +100,19 @@ const AppSidebar: React.FC<{ data: AcademicSidebarData }> = ({ data }) => {
       onMouseLeave={() => setIsHovered(false)}
     >
       <div className={`flex py-8 ${isCompact ? "lg:justify-center" : "justify-start"}`}>
-        <Link href="/">
+        <Link href="/" className="transition-transform duration-300 hover:scale-[1.02]">
           {isExpanded || isHovered || isMobileOpen ? (
-            <>
-              <Image className="dark:hidden" src="/images/logo/logo.svg" alt="Logo" width={150} height={40} />
-              <Image className="hidden dark:block" src="/images/logo/logo-dark.svg" alt="Logo" width={150} height={40} />
-            </>
+            <div className="animate-rise-in flex items-center gap-3">
+              <Image src="/images/logo/logo.png" alt="ElmesFin" width={42} height={42} className="h-10 w-10 rounded-xl object-cover shadow-lg" />
+              <div>
+                <p className="text-sm font-semibold tracking-[0.22em] text-error-600 dark:text-error-300">
+                  ELMESFIN
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Finance INBTP</p>
+              </div>
+            </div>
           ) : (
-            <Image src="/images/logo/logo-icon.svg" alt="Logo" width={32} height={32} />
+            <Image src="/images/logo/logo.png" alt="ElmesFin" width={38} height={38} className="h-9 w-9 rounded-xl object-cover shadow-lg" />
           )}
         </Link>
       </div>

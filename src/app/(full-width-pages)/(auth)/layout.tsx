@@ -12,25 +12,45 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="relative p-6 bg-white z-1 dark:bg-gray-900 sm:p-0">
+    <div className="relative z-1 overflow-hidden bg-white p-6 dark:bg-gray-900 sm:p-0">
+      <div className="absolute inset-0">
+        <Image
+          src="/images/brand/inbtp.jpg"
+          alt="INBTP"
+          fill
+          priority
+          className="object-cover object-center"
+        />
+        <div className="absolute inset-0 bg-white/45 backdrop-blur-md dark:bg-gray-950/70" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(217,45,32,0.18),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(21,94,117,0.18),transparent_35%)]" />
+      </div>
       <ThemeProvider>
-        <div className="relative flex lg:flex-row w-full h-screen justify-center flex-col  dark:bg-gray-900 sm:p-0">
+        <div className="relative flex h-screen w-full flex-col justify-center sm:p-0 lg:flex-row dark:bg-gray-900/10">
           {children}
-          <div className="lg:w-1/2 w-full h-full bg-brand-950 dark:bg-white/5 lg:grid items-center hidden">
-            <div className="relative items-center justify-center  flex z-1">
+          <div className="hidden h-full w-full items-center lg:grid lg:w-1/2">
+            <div className="relative z-1 flex items-center justify-center">
               {/* <!-- ===== Common Grid Shape Start ===== --> */}
               <GridShape />
-              <div className="flex flex-col items-center max-w-xs">
-                <Link href="/" className="block mb-4">
+              <div className="animate-float-soft glass-card flex max-w-sm flex-col items-center rounded-[32px] border border-white/40 px-10 py-12 shadow-2xl">
+                <Link href="/" className="animate-rise-in block mb-5">
                   <Image
-                    width={231}
-                    height={48}
-                    src="./images/logo/auth-logo.svg"
-                    alt="Logo"
+                    width={210}
+                    height={96}
+                    src="/images/logo/logo.png"
+                    alt="ElmesFin"
+                    className="h-auto w-auto drop-shadow-xl"
                   />
                 </Link>
-                <p className="text-center text-gray-400 dark:text-white/60">
-                  {process.env.NEXT_PUBLIC_SCHOOL_NAME ?? "Votre ecole"} - plateforme de gestion de finance et d&apos;authentification SSO.
+                <div className="animate-rise-in text-center [animation-delay:140ms]">
+                  <p className="text-sm font-semibold uppercase tracking-[0.32em] text-error-700 dark:text-error-300">
+                    {process.env.NEXT_PUBLIC_SCHOOL_NAME ?? "Votre ecole"}
+                  </p>
+                  <h2 className="mt-3 text-3xl font-semibold text-gray-900 dark:text-white">
+                    Gestion financiere INBTP
+                  </h2>
+                </div>
+                <p className="animate-rise-in mt-5 text-center text-sm leading-6 text-gray-600 [animation-delay:220ms] dark:text-white/70">
+                  {process.env.NEXT_PUBLIC_SCHOOL_NAME ?? "Votre ecole"} - plateforme moderne de suivi des encaissements, frais et modalites de paiement.
                 </p>
               </div>
             </div>

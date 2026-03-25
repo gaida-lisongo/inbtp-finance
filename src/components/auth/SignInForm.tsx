@@ -113,12 +113,6 @@ export default function SignInForm({
             .
           </p>
         </div>
-
-        <div className="mt-6 text-sm text-gray-500 dark:text-gray-400">
-          <Link href="/" className="transition-colors hover:text-gray-700 dark:hover:text-gray-300">
-            Retour a l&apos;application
-          </Link>
-        </div>
       </div>
     </div>
   );

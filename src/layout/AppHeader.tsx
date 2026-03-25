@@ -84,20 +84,21 @@ const AppHeader: React.FC = () => {
           </button>
 
           <Link href="/" className="lg:hidden">
-            <Image
-              width={154}
-              height={32}
-              className="dark:hidden"
-              src="./images/logo/logo.svg"
-              alt="Logo"
-            />
-            <Image
-              width={154}
-              height={32}
-              className="hidden dark:block"
-              src="./images/logo/logo-dark.svg"
-              alt="Logo"
-            />
+            <div className="animate-rise-in flex items-center gap-2">
+              <Image
+                width={38}
+                height={38}
+                src="/images/logo/logo.png"
+                alt="ElmesFin"
+                className="rounded-xl object-cover shadow-md"
+              />
+              <div>
+                <p className="text-xs font-semibold tracking-[0.2em] text-error-600 dark:text-error-300">
+                  ELMESFIN
+                </p>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400">Finance INBTP</p>
+              </div>
+            </div>
           </Link>
 
           <button
