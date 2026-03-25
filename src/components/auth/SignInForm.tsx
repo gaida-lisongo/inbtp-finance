@@ -59,7 +59,7 @@ export default function SignInForm({
             {schoolName}
           </h1>
           <p className="text-base text-gray-700 dark:text-white/70">
-            Connectez-vous a l&apos;application de gestion de finance de l&apos;ecole avec votre compte Microsoft scolaire.
+            Connectez-vous a l&apos;application de gestion de finance de l&apos;ecole avec votre compte Microsoft 365.
           </p>
         </div>
 

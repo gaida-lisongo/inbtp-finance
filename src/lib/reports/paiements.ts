@@ -439,10 +439,9 @@ export const getPaymentReportContext = async ({
   }
 
   const allPaiements = (paiementsRaw ?? []) as PaiementRow[];
-  const filteredPaiements = allPaiements.filter((paiement) =>
+  const paiements = allPaiements.filter((paiement) =>
     isDateInRange(paiement.created_at, period.start, period.end),
   );
-  const paiements = filteredPaiements.length > 0 ? filteredPaiements : allPaiements;
   const categoriesMap = new Map<PaymentCategoryKey, PaymentCategorySummary>();
   (["success", "pending", "canceled", "no"] as PaymentCategoryKey[]).forEach((key) => {
     categoriesMap.set(key, {
