@@ -2,7 +2,6 @@
 
 import { signInWithAzureAction } from "@/app/(full-width-pages)/(auth)/signin/actions";
 import Button from "@/components/ui/button/Button";
-import Link from "next/link";
 import React from "react";
 
 type SignInFormProps = {
@@ -107,9 +106,9 @@ export default function SignInForm({
 
           <p className="mt-4 text-center text-xs text-white/60">
             Vous pouvez aussi utiliser{" "}
-            <Link href={loginUrl} className="text-brand-300 hover:text-brand-200">
+            <a href={loginUrl} className="text-brand-300 hover:text-brand-200">
               ce lien direct
-            </Link>
+            </a>
             .
           </p>
         </div>

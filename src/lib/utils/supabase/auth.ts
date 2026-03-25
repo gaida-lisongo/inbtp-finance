@@ -137,33 +137,6 @@ export const getCurrentAuthProfile = async (): Promise<{
 }> => {
   const cookieStore = await cookies();
   const supabase = createServerSupabaseClient(cookieStore);
-  const {
-    data: { session },
-    error: sessionError,
-  } = await supabase.auth.getSession();
-
-  console.info("[auth-profile] getSession()", {
-    session: session
-      ? {
-          accessTokenPresent: Boolean(session.access_token),
-          refreshTokenPresent: Boolean(session.refresh_token),
-          expiresAt: session.expires_at ?? null,
-        }
-      : null,
-    error: sessionError?.message ?? null,
-  });
-
-  if (sessionError && !isMissingSessionError(sessionError.message)) {
-    throw new Error(sessionError.message);
-  }
-
-  if (!session) {
-    return {
-      user: null,
-      claims: null,
-      groups: [],
-    };
-  }
 
   const {
     data: { user },
@@ -187,6 +160,10 @@ export const getCurrentAuthProfile = async (): Promise<{
   }
 
   if (!user) {
+    console.info("[auth-profile] no authenticated user", {
+      error: userError?.message ?? null,
+    });
+
     return {
       user: null,
       claims: null,

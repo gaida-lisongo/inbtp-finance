@@ -73,16 +73,11 @@ export const updateSession = async (request: NextRequest) => {
   );
 
   const {
-    data: { session },
-    error: sessionError,
-  } = await supabase.auth.getSession();
-  const {
     data: { user },
     error: userError,
   } = await supabase.auth.getUser();
   const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
   const hasInvalidSession =
-    isMissingSessionError(sessionError?.message) ||
     isMissingSessionError(userError?.message) ||
     isMissingSessionError(claimsError?.message);
 
