@@ -27,10 +27,9 @@ export async function GET() {
 
   return NextResponse.json(
     {
-      ok: diagnostics.ok,
       target: "overview",
       stage: "connectivity",
-      message: diagnostics.message,
+      responseMessage: diagnostics.message,
       env: config.env,
       availableTests: {
         client: "/api/supabase-test/client",
@@ -41,6 +40,8 @@ export async function GET() {
         rootMiddlewarePresent: false,
       },
       ...diagnostics,
+      ok: diagnostics.ok,
+      message: diagnostics.message,
     },
     { status: diagnostics.ok ? 200 : 502 },
   );

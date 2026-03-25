@@ -46,10 +46,9 @@ export async function GET() {
 
   return NextResponse.json(
     {
-      ok,
       target: "client",
       stage: ok ? "complete" : "connectivity",
-      message: ok
+      responseMessage: ok
         ? "Client helper was created and Supabase responded."
         : "Client helper check failed or Supabase did not respond cleanly.",
       env: config.env,
@@ -62,6 +61,12 @@ export async function GET() {
         note: "This route validates the client helper setup from a route-handler context. Browser-only persisted session behavior should still be verified from a real client page.",
       },
       ...diagnostics,
+      ok,
+      message:
+        diagnostics.message ??
+        (ok
+          ? "Client helper was created and Supabase responded."
+          : "Client helper check failed or Supabase did not respond cleanly."),
     },
     { status: ok ? 200 : 502 },
   );

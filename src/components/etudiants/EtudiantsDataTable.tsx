@@ -90,6 +90,7 @@ const getDefaultFormValues = (): Omit<EtudiantRecord, "id" | "created_at" | "ema
   nom: "",
   matricule: "",
   sexe: "",
+  entraId: null,
 });
 
 const actionIconButtonClassName =

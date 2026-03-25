@@ -47,10 +47,9 @@ export async function GET() {
 
   return NextResponse.json(
     {
-      ok,
       target: "server",
       stage: ok ? "complete" : "connectivity",
-      message: ok
+      responseMessage: ok
         ? "Server helper was created and Supabase responded."
         : "Server helper check failed or Supabase did not respond cleanly.",
       env: config.env,
@@ -62,6 +61,12 @@ export async function GET() {
         },
       },
       ...diagnostics,
+      ok,
+      message:
+        diagnostics.message ??
+        (ok
+          ? "Server helper was created and Supabase responded."
+          : "Server helper check failed or Supabase did not respond cleanly."),
     },
     { status: ok ? 200 : 502 },
   );
