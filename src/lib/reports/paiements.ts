@@ -327,6 +327,17 @@ const buildBrandLogoNode = async () => {
   };
 };
 
+const getEmailLogoDataUri = async () => {
+  const pngPath = path.join(process.cwd(), "public/images/logo/logo.png");
+
+  try {
+    const imageBuffer = await fs.readFile(pngPath);
+    return `data:image/png;base64,${imageBuffer.toString("base64")}`;
+  } catch {
+    return null;
+  }
+};
+
 export const resolvePaymentReportType = (value: string): PaymentReportType | null => {
   const normalized = value.trim().toLowerCase();
 
@@ -944,6 +955,85 @@ export const sendPaymentReportByMail = async ({
   const accessToken = await getGraphAccessToken();
   const sender = context.currentUserEmail;
   const filename = `rapport-${context.reportType}-${context.modalite.slug || context.modaliteId}-${context.generatedAt.getTime()}.pdf`;
+  const emailLogo = await getEmailLogoDataUri();
+  const htmlContent = `
+    <div style="margin:0;padding:0;background-color:#f4f6fb;font-family:Arial,'Helvetica Neue',Helvetica,sans-serif;color:#1d2939;">
+      <div style="max-width:720px;margin:0 auto;padding:32px 20px;">
+        <div style="background:linear-gradient(135deg,#101828 0%,#1d2939 100%);border-radius:28px 28px 0 0;padding:28px 32px 22px 32px;">
+          ${
+            emailLogo
+              ? `<img src="${emailLogo}" alt="ElmesFin" style="display:block;width:160px;max-width:100%;height:auto;margin-bottom:18px;" />`
+              : ""
+          }
+          <div style="display:inline-block;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,0.08);color:#f2f4f7;font-size:12px;letter-spacing:.12em;text-transform:uppercase;">
+            ElmesFin · Rapport financier
+          </div>
+          <h1 style="margin:18px 0 8px 0;font-size:28px;line-height:1.2;color:#ffffff;">
+            Transmission a la Direction generale
+          </h1>
+          <p style="margin:0;color:rgba(255,255,255,0.78);font-size:15px;line-height:1.7;">
+            Monsieur le Directeur General, veuillez trouver ci-joint le ${context.reportTypeLabel.toLowerCase()} de la modalite <strong style="color:#ffffff;">${context.modalite.designation}</strong>.
+          </p>
+        </div>
+
+        <div style="background:#ffffff;border:1px solid #e4e7ec;border-top:none;border-radius:0 0 28px 28px;padding:32px;">
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:28px;">
+            <div style="background:#f8fafc;border:1px solid #e4e7ec;border-radius:18px;padding:18px;">
+              <div style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#667085;margin-bottom:8px;">Modalite</div>
+              <div style="font-size:18px;font-weight:700;color:#101828;margin-bottom:6px;">${context.modalite.designation}</div>
+              <div style="font-size:14px;color:#475467;">Slug : ${context.modalite.slug}</div>
+              <div style="font-size:14px;color:#475467;margin-top:4px;">Montant : ${formatCurrency(context.modalite.montant)}</div>
+            </div>
+            <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:18px;padding:18px;">
+              <div style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#c2410c;margin-bottom:8px;">Reference</div>
+              <div style="font-size:16px;font-weight:700;color:#7c2d12;margin-bottom:6px;">${context.documentReference}</div>
+              <div style="font-size:14px;color:#9a3412;">Periode : ${context.periodLabel}</div>
+              <div style="font-size:14px;color:#9a3412;margin-top:4px;">Genere le : ${formatDateTime(context.generatedAt)}</div>
+            </div>
+          </div>
+
+          <div style="background:#f9fafb;border:1px solid #eaecf0;border-radius:20px;padding:20px;margin-bottom:28px;">
+            <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#667085;margin-bottom:14px;">Synthese de perception</div>
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+              <tbody>
+                ${context.categories
+                  .map(
+                    (category) => `
+                  <tr>
+                    <td style="padding:10px 0;border-bottom:1px solid #eaecf0;color:#344054;font-size:14px;">${category.label}</td>
+                    <td style="padding:10px 0;border-bottom:1px solid #eaecf0;color:#101828;font-size:14px;text-align:center;font-weight:600;">${category.quantity}</td>
+                    <td style="padding:10px 0;border-bottom:1px solid #eaecf0;color:#101828;font-size:14px;text-align:right;font-weight:700;">${formatCurrency(category.montant)}</td>
+                  </tr>`,
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+
+          <div style="padding:22px;border-radius:22px;background:linear-gradient(135deg,#eff6ff 0%,#eef2ff 100%);border:1px solid #c7d2fe;margin-bottom:28px;">
+            <div style="font-size:20px;font-weight:700;color:#1e3a8a;margin-bottom:8px;">Consulter les paiements en ligne</div>
+            <p style="margin:0 0 18px 0;font-size:14px;line-height:1.7;color:#3730a3;">
+              Avant d'ouvrir la piece jointe, vous pouvez consulter directement le detail des transactions liees a ce rapport via le lien securise ci-dessous.
+            </p>
+            <a href="${context.detailUrl}" style="display:inline-block;padding:14px 22px;border-radius:14px;background:#1d4ed8;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;">
+              Voir le detail des paiements
+            </a>
+          </div>
+
+          <div style="font-size:14px;line-height:1.8;color:#475467;">
+            <p style="margin:0 0 10px 0;">
+              Frais rattache : <strong style="color:#101828;">${context.frais.designation}</strong><br />
+              Promotion : <strong style="color:#101828;">${context.frais.promotionDesignation}</strong><br />
+              Operateur emetteur : <strong style="color:#101828;">${context.currentUserName}</strong>
+            </p>
+            <p style="margin:0;">
+              Le document PDF officiel est joint a ce message pour archivage, verification et exploitation par le Comite de gestion.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
 
   const response = await fetch(
     `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`,
@@ -958,11 +1048,7 @@ export const sendPaymentReportByMail = async ({
           subject: `${context.reportTypeLabel} - ${context.modalite.designation}`,
           body: {
             contentType: "HTML",
-            content: [
-              "<p>Bonjour,</p>",
-              `<p>Veuillez trouver en piece jointe le ${context.reportTypeLabel.toLowerCase()} de la modalite <strong>${context.modalite.designation}</strong>.</p>`,
-              `<p>Periode : <strong>${context.periodLabel}</strong><br/>Reference : <strong>${context.documentReference}</strong></p>`,
-            ].join(""),
+            content: htmlContent,
           },
           toRecipients: [
             {
