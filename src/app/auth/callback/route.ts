@@ -1,3 +1,4 @@
+import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -5,8 +6,16 @@ import {
   getAuthAuthorization,
   UNAUTHORIZED_GROUP_ERROR,
 } from "@/lib/utils/supabase/authorization";
-import { createClient as createServerSupabaseClient } from "@/lib/utils/supabase/server";
 import { getSafeNextPath } from "@/lib/utils/supabase/auth";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
+
+const copyCookies = (source: NextResponse, target: NextResponse) => {
+  source.cookies.getAll().forEach((cookie) => {
+    target.cookies.set(cookie);
+  });
+};
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
@@ -185,8 +194,22 @@ export async function GET(request: NextRequest) {
 
   try {
     const cookieStore = await cookies();
-    const supabase = createServerSupabaseClient(cookieStore);
     const initialCookieNames = cookieStore.getAll().map((cookie) => cookie.name);
+    let response = NextResponse.redirect(redirectUrl);
+
+    const supabase = createServerClient(supabaseUrl!, supabaseKey!, {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options);
+          });
+        },
+      },
+    });
 
     console.info("[azure-sso] callback before exchange", {
       nextPath,
@@ -312,10 +335,12 @@ export async function GET(request: NextRequest) {
         redirectTo: signInUrl.toString(),
       });
 
-      return NextResponse.redirect(signInUrl);
+      const redirectResponse = NextResponse.redirect(signInUrl);
+      copyCookies(response, redirectResponse);
+
+      return redirectResponse;
     }
 
-    const response = NextResponse.redirect(redirectUrl);
     response.headers.set("cache-control", "no-store");
 
     console.info("[azure-sso] callback success", {
