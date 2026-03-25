@@ -196,7 +196,11 @@ export async function GET(request: NextRequest) {
   try {
     const cookieStore = await cookies();
     const initialCookieNames = cookieStore.getAll().map((cookie) => cookie.name);
-    let response = NextResponse.redirect(redirectUrl);
+    let response = NextResponse.next({
+      request: {
+        headers: request.headers,
+      },
+    });
 
     const supabase = createServerClient(supabaseUrl!, supabaseKey!, {
       cookies: {
@@ -255,7 +259,7 @@ export async function GET(request: NextRequest) {
       error: userError,
     } = await supabase.auth.getUser();
     const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
-    const cookiesAfterExchange = cookieStore.getAll().map((cookie) => ({
+    const cookiesAfterExchange = response.cookies.getAll().map((cookie) => ({
       name: cookie.name,
       hasValue: Boolean(cookie.value),
     }));
@@ -342,7 +346,9 @@ export async function GET(request: NextRequest) {
       return redirectResponse;
     }
 
-    response.headers.set("cache-control", "no-store");
+    const redirectResponse = NextResponse.redirect(redirectUrl);
+    copyCookies(response, redirectResponse);
+    redirectResponse.headers.set("cache-control", "no-store");
 
     console.info("[azure-sso] callback success", {
       redirectTo: redirectUrl.toString(),
@@ -350,7 +356,7 @@ export async function GET(request: NextRequest) {
       cookieNames: cookiesAfterExchange.map((cookie) => cookie.name),
     });
 
-    return response;
+    return redirectResponse;
   } catch (error) {
     const message = getErrorMessage(error);
 
