@@ -1,9 +1,11 @@
 "use client";
 
-import { useRef } from "react";
+import Link from "next/link";
+import { useRef, useState } from "react";
 
 import { BoxCubeIcon } from "@/icons";
 import { ChevronLeftIcon, ChevronUpIcon } from "@/icons";
+import { Modal } from "@/components/ui/modal";
 import type { DashboardFraisItem } from "./ListeWhatchlist";
 
 export type DashboardModaliteItem = {
@@ -26,6 +28,15 @@ type BlocProductProps = {
   modalites: DashboardModaliteItem[];
 };
 
+const reportOptions = ["Journalier", "Hebdomadaire", "Mensuel", "Semestriel", "Annuel"] as const;
+const reportTypeValueMap: Record<(typeof reportOptions)[number], string> = {
+  Journalier: "journalier",
+  Hebdomadaire: "hebdomadaire",
+  Mensuel: "mensuel",
+  Semestriel: "semestriel",
+  Annuel: "annuel",
+};
+
 const formatCurrency = (value: number | null) =>
   new Intl.NumberFormat("fr-FR", {
     style: "currency",
@@ -35,6 +46,12 @@ const formatCurrency = (value: number | null) =>
 
 export default function BlocProduct({ frais, modalites }: BlocProductProps) {
   const railRef = useRef<HTMLDivElement>(null);
+  const [reportModalite, setReportModalite] = useState<DashboardModaliteItem | null>(null);
+  const [selectedReportType, setSelectedReportType] =
+    useState<(typeof reportOptions)[number]>("Journalier");
+  const [reportMessage, setReportMessage] = useState("");
+  const [isDownloadingReport, setIsDownloadingReport] = useState(false);
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
 
   if (!frais) {
     return (
@@ -55,6 +72,92 @@ export default function BlocProduct({ frais, modalites }: BlocProductProps) {
       left: direction === "left" ? -360 : 360,
       behavior: "smooth",
     });
+  };
+
+  const handleDownloadReport = async () => {
+    if (!reportModalite) {
+      return;
+    }
+
+    setReportMessage("");
+    setIsDownloadingReport(true);
+
+    try {
+      const response = await fetch(
+        `/api/rapports/modalite/${reportModalite.id}/${reportTypeValueMap[selectedReportType]}`,
+        {
+          method: "GET",
+          cache: "no-store",
+        },
+      );
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as
+          | {
+              message?: string;
+            }
+          | null;
+
+        throw new Error(payload?.message ?? "Impossible de generer le rapport.");
+      }
+
+      const blob = await response.blob();
+      const downloadUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = downloadUrl;
+      link.download = `rapport-${reportTypeValueMap[selectedReportType]}-${reportModalite.slug || reportModalite.id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(downloadUrl);
+
+      setReportMessage(
+        `Le rapport ${selectedReportType.toLowerCase()} a ete genere pour ${reportModalite.designation}.`,
+      );
+      setReportModalite(null);
+    } catch (error) {
+      setReportMessage(error instanceof Error ? error.message : "Impossible de telecharger le rapport.");
+    } finally {
+      setIsDownloadingReport(false);
+    }
+  };
+
+  const handleSubmitReport = async () => {
+    if (!reportModalite) {
+      return;
+    }
+
+    setReportMessage("");
+    setIsSubmittingReport(true);
+
+    try {
+      const response = await fetch(
+        `/api/rapports/modalite/${reportModalite.id}/${reportTypeValueMap[selectedReportType]}`,
+        {
+          method: "POST",
+          cache: "no-store",
+        },
+      );
+
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            ok?: boolean;
+            message?: string;
+          }
+        | null;
+
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.message ?? "Impossible de soumettre le rapport.");
+      }
+
+      setReportMessage(payload.message ?? "Le rapport a ete soumis.");
+      setReportModalite(null);
+    } catch (error) {
+      setReportMessage(error instanceof Error ? error.message : "Impossible de soumettre le rapport.");
+    } finally {
+      setIsSubmittingReport(false);
+    }
   };
 
   return (
@@ -79,6 +182,12 @@ export default function BlocProduct({ frais, modalites }: BlocProductProps) {
             </p>
           </div>
         </div>
+
+        {reportMessage ? (
+          <div className="mb-4 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300">
+            {reportMessage}
+          </div>
+        ) : null}
 
         <div className="mb-4 flex items-center justify-end gap-2">
           <button
@@ -138,6 +247,25 @@ export default function BlocProduct({ frais, modalites }: BlocProductProps) {
                       {formatCurrency(modalite.collectedAmount)}
                     </p>
                   </div>
+
+                  <div className="mt-4 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedReportType("Journalier");
+                        setReportModalite(modalite);
+                      }}
+                      className="inline-flex flex-1 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-white/[0.03]"
+                    >
+                      Rapport
+                    </button>
+                    <Link
+                      href={`/paiements/${modalite.id}`}
+                      className="inline-flex flex-1 items-center justify-center rounded-lg bg-brand-500 px-3 py-2 text-sm font-medium text-white transition hover:bg-brand-600"
+                    >
+                      Paiement
+                    </Link>
+                  </div>
                 </div>
               </div>
             </article>
@@ -150,6 +278,66 @@ export default function BlocProduct({ frais, modalites }: BlocProductProps) {
           </div>
         ) : null}
       </div>
+
+      <Modal
+        isOpen={Boolean(reportModalite)}
+        onClose={() => setReportModalite(null)}
+        className="m-4 max-w-[620px]"
+      >
+        <div className="p-6 sm:p-8">
+          <div className="mb-6">
+            <h3 className="text-xl font-semibold text-gray-800 dark:text-white/90">
+              Rapport de modalite
+            </h3>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Choisissez la periodicite du rapport pour {reportModalite?.designation}.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {reportOptions.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setSelectedReportType(option)}
+                className={`rounded-xl border px-4 py-3 text-left text-sm font-medium transition ${
+                  selectedReportType === option
+                    ? "border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300"
+                    : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-white/[0.03]"
+                }`}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-6 flex justify-end gap-3 border-t border-gray-100 pt-5 dark:border-gray-800">
+            <button
+              type="button"
+              onClick={() => setReportModalite(null)}
+              className="inline-flex items-center justify-center rounded-lg bg-white px-5 py-3 text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 transition hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:bg-white/[0.03]"
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadReport}
+              disabled={isDownloadingReport || isSubmittingReport}
+              className="inline-flex items-center justify-center rounded-lg border border-brand-200 bg-brand-50 px-5 py-3 text-sm font-medium text-brand-700 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300"
+            >
+              {isDownloadingReport ? "Generation..." : "Telecharger le rapport"}
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmitReport}
+              disabled={isSubmittingReport || isDownloadingReport}
+              className="inline-flex items-center justify-center rounded-lg bg-brand-500 px-5 py-3 text-sm font-medium text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSubmittingReport ? "Soumission..." : "Soumettre le rapport"}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </>
   );
 }

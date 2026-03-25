@@ -31,7 +31,7 @@ export default function ListeWhatchlist({
   onSelect,
 }: ListeWhatchlistProps) {
   return (
-    <div className="h-[520px] rounded-2xl border border-gray-200 bg-white px-5 py-5 dark:border-gray-800 dark:bg-white/[0.03] sm:px-6 sm:py-6">
+    <div className="h-[650px] rounded-2xl border border-gray-200 bg-white px-5 py-5 dark:border-gray-800 dark:bg-white/[0.03] sm:px-6 sm:py-6">
       <div className="mb-4">
         <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
           Liste des frais
@@ -41,7 +41,7 @@ export default function ListeWhatchlist({
         </p>
       </div>
 
-      <div className="custom-scrollbar h-[420px] space-y-3 overflow-y-auto pr-1">
+      <div className="custom-scrollbar h-[520px] space-y-3 overflow-y-auto pr-1">
         {frais.length > 0 ? (
           frais.map((item) => {
             const isActive = item.id === selectedFraisId;
