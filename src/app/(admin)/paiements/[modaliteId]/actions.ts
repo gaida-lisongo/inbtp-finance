@@ -27,6 +27,13 @@ export type PaiementBulkInsertResult = {
   insertedCount: number;
 };
 
+export type PaiementAssignmentResult = {
+  ok: boolean;
+  message: string;
+  affectedCount: number;
+  details?: string[];
+};
+
 const normalizeValue = (value: FormDataEntryValue | null) =>
   typeof value === "string" ? value.trim() : "";
 
@@ -35,6 +42,9 @@ const normalizeMatricule = (value: string) => value.replace(/\s+/g, "");
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const ENTRA_TENANT_ID = process.env.ENTRA_TENANT_ID;
+const ENTRA_CLIENT_ID = process.env.ENTRA_CLIENT_ID;
+const ENTRA_CLIENT_SECRET = process.env.ENTRA_CLIENT_SECRET;
 
 const parseMontant = (value: string) => {
   if (!value) {
@@ -47,6 +57,44 @@ const parseMontant = (value: string) => {
 const getSupabase = async () => {
   const cookieStore = await cookies();
   return createServerSupabaseClient(cookieStore);
+};
+
+const assertEntraConfig = () => {
+  if (!ENTRA_TENANT_ID || !ENTRA_CLIENT_ID || !ENTRA_CLIENT_SECRET) {
+    throw new Error("Configuration Entra ID incomplete pour l'affectation des paiements.");
+  }
+};
+
+const getEntraAccessToken = async () => {
+  assertEntraConfig();
+
+  const tokenResponse = await fetch(
+    `https://login.microsoftonline.com/${ENTRA_TENANT_ID}/oauth2/v2.0/token`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        client_id: ENTRA_CLIENT_ID!,
+        client_secret: ENTRA_CLIENT_SECRET!,
+        scope: "https://graph.microsoft.com/.default",
+        grant_type: "client_credentials",
+      }),
+      cache: "no-store",
+    },
+  );
+
+  const tokenPayload = (await tokenResponse.json()) as {
+    access_token?: string;
+    error_description?: string;
+  };
+
+  if (!tokenResponse.ok || !tokenPayload.access_token) {
+    throw new Error(tokenPayload.error_description ?? "Impossible d'obtenir un jeton Microsoft Graph.");
+  }
+
+  return tokenPayload.access_token;
 };
 
 const revalidatePaiementsPage = (modaliteId: string) => {
@@ -450,4 +498,181 @@ export async function bulkCreatePaiementsAction(
     message: `${insertedCount} paiement(s) ajoute(s).`,
     insertedCount,
   };
+}
+
+export async function assignPaiementsToModaliteGroupAction({
+  modaliteId,
+  paiementIds,
+}: {
+  modaliteId: string;
+  paiementIds: string[];
+}): Promise<PaiementAssignmentResult> {
+  const normalizedModaliteId = normalizeValue(modaliteId);
+  const normalizedPaiementIds = Array.from(
+    new Set(
+      paiementIds
+        .map((id) => normalizeValue(id))
+        .filter(Boolean),
+    ),
+  );
+
+  if (!normalizedModaliteId || !Number.isInteger(Number(normalizedModaliteId))) {
+    return {
+      ok: false,
+      message: "Modalite invalide pour l'affectation.",
+      affectedCount: 0,
+    };
+  }
+
+  if (normalizedPaiementIds.length === 0) {
+    return {
+      ok: false,
+      message: "Aucun paiement selectionne pour l'affectation.",
+      affectedCount: 0,
+    };
+  }
+
+  try {
+    const supabase = await getSupabase();
+    const numericModaliteId = Number(normalizedModaliteId);
+
+    const [{ data: modalite, error: modaliteError }, { data: paiementsRaw, error: paiementsError }] =
+      await Promise.all([
+        supabase
+          .from("modalites")
+          .select("id, designation, groupe_id")
+          .eq("id", numericModaliteId)
+          .single(),
+        supabase
+          .from("paiements")
+          .select("id, affectation_id, etudiants(id, nom, matricule, entraId)")
+          .eq("modalite_id", numericModaliteId)
+          .in("id", normalizedPaiementIds),
+      ]);
+
+    if (modaliteError) {
+      return {
+        ok: false,
+        message: modaliteError.message,
+        affectedCount: 0,
+      };
+    }
+
+    if (paiementsError) {
+      return {
+        ok: false,
+        message: paiementsError.message,
+        affectedCount: 0,
+      };
+    }
+
+    if (!modalite?.groupe_id) {
+      return {
+        ok: false,
+        message: "Aucun groupe de securite n'est configure pour cette modalite.",
+        affectedCount: 0,
+      };
+    }
+
+    const accessToken = await getEntraAccessToken();
+    let affectedCount = 0;
+    const details: string[] = [];
+
+    for (const paiement of ((paiementsRaw ?? []) as Array<{
+      id: string;
+      affectation_id: string | null;
+      etudiants:
+        | {
+            id: string;
+            nom: string | null;
+            matricule: string | null;
+            entraId: string | null;
+          }
+        | {
+            id: string;
+            nom: string | null;
+            matricule: string | null;
+            entraId: string | null;
+          }[]
+        | null;
+    }>)) {
+      const etudiant = Array.isArray(paiement.etudiants)
+        ? paiement.etudiants[0] ?? null
+        : paiement.etudiants;
+      const etudiantLabel = etudiant?.nom ?? etudiant?.matricule ?? paiement.id;
+
+      if (paiement.affectation_id) {
+        details.push(`${etudiantLabel} deja affecte.`);
+        continue;
+      }
+
+      if (!etudiant?.entraId) {
+        details.push(`${etudiantLabel} ne dispose pas d'un identifiant Entra ID.`);
+        continue;
+      }
+
+      const graphResponse = await fetch(
+        `https://graph.microsoft.com/v1.0/groups/${modalite.groupe_id}/members/$ref`,
+        {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${accessToken}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            "@odata.id": `https://graph.microsoft.com/v1.0/directoryObjects/${etudiant.entraId}`,
+          }),
+          cache: "no-store",
+        },
+      );
+
+      if (!graphResponse.ok) {
+        const graphPayload = (await graphResponse.json().catch(() => null)) as
+          | {
+              error?: {
+                message?: string;
+              };
+            }
+          | null;
+        const graphMessage = graphPayload?.error?.message ?? "Erreur Graph inconnue.";
+
+        if (!graphMessage.toLowerCase().includes("already exist")) {
+          details.push(`${etudiantLabel} : ${graphMessage}`);
+          continue;
+        }
+      }
+
+      const affectationId = `${modalite.groupe_id}:${etudiant.entraId}`;
+      const { error: updateError } = await supabase
+        .from("paiements")
+        .update({ affectation_id: affectationId })
+        .eq("id", paiement.id);
+
+      if (updateError) {
+        details.push(`${etudiantLabel} : ${updateError.message}`);
+        continue;
+      }
+
+      affectedCount += 1;
+      details.push(`${etudiantLabel} affecte au groupe de securite.`);
+    }
+
+    revalidatePaiementsPage(normalizedModaliteId);
+
+    return {
+      ok: affectedCount > 0,
+      message:
+        affectedCount > 0
+          ? `${affectedCount} paiement(s) affecte(s) au groupe de securite.`
+          : "Aucune affectation n'a pu etre realisee.",
+      affectedCount,
+      details,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "Erreur lors de l'affectation des paiements.",
+      affectedCount: 0,
+    };
+  }
 }

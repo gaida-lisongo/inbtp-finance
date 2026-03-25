@@ -31,17 +31,17 @@ export default async function PaiementsPage({ params }: PaiementsPageProps) {
     await Promise.all([
       supabase
         .from("modalites")
-        .select("id, designation, slug")
+        .select("id, designation, slug, groupe_id")
         .eq("id", numericModaliteId)
         .single(),
       supabase
         .from("paiements")
-        .select("id, created_at, montant, status, orderNumber, etudiant_id, modalite_id, etudiants(id, nom, matricule)")
+        .select("id, created_at, montant, status, orderNumber, etudiant_id, modalite_id, affectation_id, etudiants(id, nom, matricule, entraId)")
         .eq("modalite_id", numericModaliteId)
         .order("created_at", { ascending: false }),
       supabase
         .from("etudiants")
-        .select("id, nom, matricule, email")
+        .select("id, nom, matricule, email, entraId")
         .order("nom", { ascending: true }),
     ]);
 
@@ -65,16 +65,19 @@ export default async function PaiementsPage({ params }: PaiementsPageProps) {
     orderNumber: string | null;
     etudiant_id: string | null;
     modalite_id: number | null;
+    affectation_id: string | null;
     etudiants:
       | {
           id: string;
           nom: string | null;
           matricule: string | null;
+          entraId: string | null;
         }
       | {
           id: string;
           nom: string | null;
           matricule: string | null;
+          entraId: string | null;
         }[]
       | null;
   }>).map((paiement) => {
@@ -90,8 +93,10 @@ export default async function PaiementsPage({ params }: PaiementsPageProps) {
       orderNumber: paiement.orderNumber,
       etudiant_id: paiement.etudiant_id,
       modalite_id: paiement.modalite_id,
+      affectation_id: paiement.affectation_id,
       etudiantNom: etudiant?.nom ?? null,
       etudiantMatricule: etudiant?.matricule ?? null,
+      etudiantEntraId: etudiant?.entraId ?? null,
     };
   }) as PaiementRecord[];
 
@@ -107,6 +112,7 @@ export default async function PaiementsPage({ params }: PaiementsPageProps) {
       >
         <PaiementsDataTable
           modaliteId={modaliteId}
+          modaliteGroupId={modalite.groupe_id ?? null}
           paiements={paiements}
           etudiants={etudiants}
         />

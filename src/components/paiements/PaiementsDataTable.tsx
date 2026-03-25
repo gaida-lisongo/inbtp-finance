@@ -14,10 +14,12 @@ import InputField from "@/components/form/input/InputField";
 import { Modal } from "@/components/ui/modal";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import {
+  assignPaiementsToModaliteGroupAction,
   bulkCreatePaiementsAction,
   deletePaiementAction,
   savePaiementAction,
   type PaiementActionResult,
+  type PaiementAssignmentResult,
   type PaiementBulkInput,
 } from "@/app/(admin)/paiements/[modaliteId]/actions";
 
@@ -29,8 +31,10 @@ export type PaiementRecord = {
   orderNumber: string | null;
   etudiant_id: string | null;
   modalite_id: number | null;
+  affectation_id: string | null;
   etudiantNom: string | null;
   etudiantMatricule: string | null;
+  etudiantEntraId: string | null;
 };
 
 export type PaiementEtudiantOption = {
@@ -41,6 +45,7 @@ export type PaiementEtudiantOption = {
 
 type PaiementsDataTableProps = {
   modaliteId: string;
+  modaliteGroupId: string | null;
   paiements: PaiementRecord[];
   etudiants: PaiementEtudiantOption[];
 };
@@ -84,17 +89,28 @@ const formatDate = (value: string | null) => {
 
 export default function PaiementsDataTable({
   modaliteId,
+  modaliteGroupId,
   paiements,
   etudiants,
 }: PaiementsDataTableProps) {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "success" | "pending" | "canceled" | "no">("all");
+  const [assignmentFilter, setAssignmentFilter] = useState<"all" | "assigned" | "unassigned">("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [editingPaiement, setEditingPaiement] = useState<PaiementRecord | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
   const [actionState, setActionState] = useState<PaiementActionResult>(initialActionState);
+  const [assignmentState, setAssignmentState] = useState<PaiementAssignmentResult | null>(null);
+  const [isAssigning, setIsAssigning] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  const normalizeStatus = (value: string | null) => (value ?? "").trim().toLowerCase();
+  const isAssigned = (paiement: PaiementRecord) => Boolean(paiement.affectation_id);
+  const isSelectable = (paiement: PaiementRecord) =>
+    Boolean(modaliteGroupId) && !paiement.affectation_id && Boolean(paiement.etudiantEntraId);
 
   const filteredPaiements = useMemo(
     () =>
@@ -107,10 +123,16 @@ export default function PaiementsDataTable({
         ]
           .join(" ")
           .toLowerCase()
-          .includes(searchTerm.trim().toLowerCase()),
+          .includes(searchTerm.trim().toLowerCase()) &&
+        (statusFilter === "all" || normalizeStatus(paiement.status) === statusFilter) &&
+        (assignmentFilter === "all" ||
+          (assignmentFilter === "assigned" ? isAssigned(paiement) : !isAssigned(paiement))),
       ),
-    [paiements, searchTerm],
+    [paiements, searchTerm, statusFilter, assignmentFilter],
   );
+
+  const selectableVisiblePaiements = filteredPaiements.filter(isSelectable);
+  const selectedPaiements = filteredPaiements.filter((paiement) => selectedIds.includes(paiement.id));
 
   const closeModal = () => {
     if (isSubmitting) {
@@ -167,6 +189,44 @@ export default function PaiementsDataTable({
     setIsDeletingId(null);
 
     if (result.ok) {
+      router.refresh();
+    }
+  };
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
+    );
+  };
+
+  const toggleSelectAllVisible = () => {
+    const visibleIds = selectableVisiblePaiements.map((paiement) => paiement.id);
+
+    setSelectedIds((current) =>
+      visibleIds.every((id) => current.includes(id))
+        ? current.filter((id) => !visibleIds.includes(id))
+        : Array.from(new Set([...current, ...visibleIds])),
+    );
+  };
+
+  const handleBulkAssign = async () => {
+    if (selectedPaiements.length === 0 || !modaliteGroupId) {
+      return;
+    }
+
+    setAssignmentState(null);
+    setIsAssigning(true);
+
+    const result = await assignPaiementsToModaliteGroupAction({
+      modaliteId,
+      paiementIds: selectedPaiements.map((paiement) => paiement.id),
+    });
+
+    setAssignmentState(result);
+    setIsAssigning(false);
+
+    if (result.ok) {
+      setSelectedIds([]);
       router.refresh();
     }
   };
@@ -252,17 +312,59 @@ export default function PaiementsDataTable({
   return (
     <>
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="w-full lg:max-w-sm">
-          <Label htmlFor="paiements-search">Recherche</Label>
-          <InputField
-            id="paiements-search"
-            placeholder="Etudiant, matricule, commande ou statut"
-            defaultValue={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
-          />
+        <div className="grid w-full gap-4 lg:max-w-4xl lg:grid-cols-3">
+          <div>
+            <Label htmlFor="paiements-search">Recherche</Label>
+            <InputField
+              id="paiements-search"
+              placeholder="Etudiant, matricule, commande ou statut"
+              defaultValue={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+            />
+          </div>
+          <div>
+            <Label htmlFor="status-filter">Filtre statut</Label>
+            <select
+              id="status-filter"
+              value={statusFilter}
+              onChange={(event) =>
+                setStatusFilter(event.target.value as "all" | "success" | "pending" | "canceled" | "no")
+              }
+              className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800"
+            >
+              <option value="all">Tous les statuts</option>
+              <option value="success">Success</option>
+              <option value="pending">Pending</option>
+              <option value="canceled">Canceled</option>
+              <option value="no">Sans statut reconnu</option>
+            </select>
+          </div>
+          <div>
+            <Label htmlFor="assignment-filter">Filtre affectation</Label>
+            <select
+              id="assignment-filter"
+              value={assignmentFilter}
+              onChange={(event) =>
+                setAssignmentFilter(event.target.value as "all" | "assigned" | "unassigned")
+              }
+              className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800"
+            >
+              <option value="all">Tous les paiements</option>
+              <option value="assigned">Deja affectes</option>
+              <option value="unassigned">Non affectes</option>
+            </select>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-end gap-3">
+          <button
+            type="button"
+            disabled={!modaliteGroupId || selectedPaiements.length === 0 || isAssigning}
+            onClick={() => void handleBulkAssign()}
+            className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isAssigning ? "Affectation..." : `Affecter la selection (${selectedPaiements.length})`}
+          </button>
           <button
             type="button"
             onClick={() => setIsBulkModalOpen(true)}
@@ -292,12 +394,53 @@ export default function PaiementsDataTable({
         </div>
       ) : null}
 
+      {assignmentState?.message ? (
+        <div
+          className={`rounded-xl border px-4 py-3 text-sm ${
+            assignmentState.ok
+              ? "border-success-200 bg-success-50 text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400"
+              : "border-error-200 bg-error-50 text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400"
+          }`}
+        >
+          <p>{assignmentState.message}</p>
+          {assignmentState.details?.length ? (
+            <div className="mt-2 space-y-1 font-medium">
+              {assignmentState.details.map((detail) => (
+                <p key={detail} className="break-all">
+                  {detail}
+                </p>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {!modaliteGroupId ? (
+        <div className="rounded-xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400">
+          Aucun groupe de securite n&apos;est encore configure pour cette modalite. L&apos;affectation Entra ID est indisponible.
+        </div>
+      ) : null}
+
       <div className="overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800">
         <div className="max-w-full overflow-x-auto">
           <Table>
             <TableHeader className="border-b border-gray-100 bg-gray-50 dark:border-gray-800 dark:bg-white/[0.02]">
               <TableRow>
-                {["Etudiant", "Matricule", "Commande", "Montant", "Statut", "Creation", "Actions"].map((label) => (
+                <TableCell
+                  isHeader
+                  className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400"
+                >
+                  <input
+                    type="checkbox"
+                    checked={
+                      selectableVisiblePaiements.length > 0 &&
+                      selectableVisiblePaiements.every((paiement) => selectedIds.includes(paiement.id))
+                    }
+                    onChange={toggleSelectAllVisible}
+                    className="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500/20"
+                  />
+                </TableCell>
+                {["Etudiant", "Matricule", "Commande", "Montant", "Statut", "Affectation", "Creation", "Actions"].map((label) => (
                   <TableCell
                     key={label}
                     isHeader
@@ -313,6 +456,15 @@ export default function PaiementsDataTable({
               {filteredPaiements.length > 0 ? (
                 filteredPaiements.map((paiement) => (
                   <TableRow key={paiement.id}>
+                    <TableCell className="px-5 py-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(paiement.id)}
+                        disabled={!isSelectable(paiement)}
+                        onChange={() => toggleSelection(paiement.id)}
+                        className="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                      />
+                    </TableCell>
                     <TableCell className="px-5 py-4 text-sm font-medium text-gray-800 dark:text-white/90">
                       {paiement.etudiantNom ?? "Etudiant inconnu"}
                     </TableCell>
@@ -327,6 +479,21 @@ export default function PaiementsDataTable({
                     </TableCell>
                     <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
                       {paiement.status ?? "-"}
+                    </TableCell>
+                    <TableCell className="px-5 py-4 text-sm">
+                      {paiement.affectation_id ? (
+                        <span className="inline-flex rounded-full bg-success-50 px-2.5 py-1 text-xs font-medium text-success-700 dark:bg-success-500/10 dark:text-success-400">
+                          Affecte
+                        </span>
+                      ) : paiement.etudiantEntraId ? (
+                        <span className="inline-flex rounded-full bg-warning-50 px-2.5 py-1 text-xs font-medium text-warning-700 dark:bg-warning-500/10 dark:text-warning-400">
+                          Non affecte
+                        </span>
+                      ) : (
+                        <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                          Sans Entra ID
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
                       {formatDate(paiement.created_at)}
@@ -354,7 +521,7 @@ export default function PaiementsDataTable({
                 ))
               ) : (
                 <TableRow>
-                  <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <td colSpan={9} className="px-5 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
                     Aucun paiement ne correspond a votre recherche.
                   </td>
                 </TableRow>
