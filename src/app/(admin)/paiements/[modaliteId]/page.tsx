@@ -36,7 +36,7 @@ export default async function PaiementsPage({ params }: PaiementsPageProps) {
         .single(),
       supabase
         .from("paiements")
-        .select("id, created_at, montant, status, orderNumber, etudiant_id, modalite_id, affectation_id, etudiants(id, nom, matricule, entraId)")
+        .select("*, etudiants(id, nom, matricule, entraId)")
         .eq("modalite_id", numericModaliteId)
         .order("created_at", { ascending: false }),
       supabase
@@ -65,7 +65,7 @@ export default async function PaiementsPage({ params }: PaiementsPageProps) {
     orderNumber: string | null;
     etudiant_id: string | null;
     modalite_id: number | null;
-    affectation_id: string | null;
+    affection_id?: string | null;
     etudiants:
       | {
           id: string;
@@ -93,7 +93,7 @@ export default async function PaiementsPage({ params }: PaiementsPageProps) {
       orderNumber: paiement.orderNumber,
       etudiant_id: paiement.etudiant_id,
       modalite_id: paiement.modalite_id,
-      affectation_id: paiement.affectation_id,
+      affection_id: paiement.affection_id ?? null,
       etudiantNom: etudiant?.nom ?? null,
       etudiantMatricule: etudiant?.matricule ?? null,
       etudiantEntraId: etudiant?.entraId ?? null,

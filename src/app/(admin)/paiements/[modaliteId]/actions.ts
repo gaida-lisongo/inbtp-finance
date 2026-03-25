@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 import { createClient as createServerSupabaseClient } from "@/lib/utils/supabase/server";
 
@@ -57,6 +58,19 @@ const parseMontant = (value: string) => {
 const getSupabase = async () => {
   const cookieStore = await cookies();
   return createServerSupabaseClient(cookieStore);
+};
+
+const getSupabaseAdmin = () => {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error("Configuration Supabase admin incomplete pour l'affectation des paiements.");
+  }
+
+  return createSupabaseClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
 };
 
 const assertEntraConfig = () => {
@@ -534,6 +548,7 @@ export async function assignPaiementsToModaliteGroupAction({
 
   try {
     const supabase = await getSupabase();
+    const supabaseAdmin = getSupabaseAdmin();
     const numericModaliteId = Number(normalizedModaliteId);
 
     const [{ data: modalite, error: modaliteError }, { data: paiementsRaw, error: paiementsError }] =
@@ -545,7 +560,7 @@ export async function assignPaiementsToModaliteGroupAction({
           .single(),
         supabase
           .from("paiements")
-          .select("id, affectation_id, etudiants(id, nom, matricule, entraId)")
+          .select("*, etudiants(id, nom, matricule, entraId)")
           .eq("modalite_id", numericModaliteId)
           .in("id", normalizedPaiementIds),
       ]);
@@ -575,12 +590,40 @@ export async function assignPaiementsToModaliteGroupAction({
     }
 
     const accessToken = await getEntraAccessToken();
+    const normalizedGroupId = modalite.groupe_id.trim();
+
+    const groupResponse = await fetch(`https://graph.microsoft.com/v1.0/groups/${normalizedGroupId}?$select=id`, {
+      method: "GET",
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+      },
+      cache: "no-store",
+    });
+
+    if (!groupResponse.ok) {
+      const groupPayload = (await groupResponse.json().catch(() => null)) as
+        | {
+            error?: {
+              message?: string;
+            };
+          }
+        | null;
+
+      return {
+        ok: false,
+        message:
+          groupPayload?.error?.message ??
+          "Le groupe de securite Entra ID configure pour cette modalite est introuvable ou inaccessible.",
+        affectedCount: 0,
+      };
+    }
+
     let affectedCount = 0;
     const details: string[] = [];
 
     for (const paiement of ((paiementsRaw ?? []) as Array<{
       id: string;
-      affectation_id: string | null;
+      affection_id?: string | null;
       etudiants:
         | {
             id: string;
@@ -601,7 +644,9 @@ export async function assignPaiementsToModaliteGroupAction({
         : paiement.etudiants;
       const etudiantLabel = etudiant?.nom ?? etudiant?.matricule ?? paiement.id;
 
-      if (paiement.affectation_id) {
+      const existingAffectationId = paiement.affection_id ?? null;
+
+      if (existingAffectationId) {
         details.push(`${etudiantLabel} deja affecte.`);
         continue;
       }
@@ -611,8 +656,38 @@ export async function assignPaiementsToModaliteGroupAction({
         continue;
       }
 
+      const normalizedEntraUserId = etudiant.entraId.trim();
+
+      const userResponse = await fetch(
+        `https://graph.microsoft.com/v1.0/users/${normalizedEntraUserId}?$select=id,displayName`,
+        {
+          method: "GET",
+          headers: {
+            authorization: `Bearer ${accessToken}`,
+          },
+          cache: "no-store",
+        },
+      );
+
+      if (!userResponse.ok) {
+        const userPayload = (await userResponse.json().catch(() => null)) as
+          | {
+              error?: {
+                message?: string;
+              };
+            }
+          | null;
+
+        details.push(
+          `${etudiantLabel} : ${
+            userPayload?.error?.message ?? "Utilisateur Entra ID introuvable ou inaccessible."
+          }`,
+        );
+        continue;
+      }
+
       const graphResponse = await fetch(
-        `https://graph.microsoft.com/v1.0/groups/${modalite.groupe_id}/members/$ref`,
+        `https://graph.microsoft.com/v1.0/groups/${normalizedGroupId}/members/$ref`,
         {
           method: "POST",
           headers: {
@@ -620,7 +695,7 @@ export async function assignPaiementsToModaliteGroupAction({
             "content-type": "application/json",
           },
           body: JSON.stringify({
-            "@odata.id": `https://graph.microsoft.com/v1.0/directoryObjects/${etudiant.entraId}`,
+            "@odata.id": `https://graph.microsoft.com/v1.0/directoryObjects/${normalizedEntraUserId}`,
           }),
           cache: "no-store",
         },
@@ -631,25 +706,33 @@ export async function assignPaiementsToModaliteGroupAction({
           | {
               error?: {
                 message?: string;
+                code?: string;
               };
             }
           | null;
         const graphMessage = graphPayload?.error?.message ?? "Erreur Graph inconnue.";
+        const graphCode = (graphPayload?.error?.code ?? "").toLowerCase();
+        const normalizedGraphMessage = graphMessage.toLowerCase();
 
-        if (!graphMessage.toLowerCase().includes("already exist")) {
+        if (
+          !normalizedGraphMessage.includes("already exist") &&
+          !normalizedGraphMessage.includes("added object references already exist") &&
+          !normalizedGraphMessage.includes("one or more added object references already exist") &&
+          !graphCode.includes("objectconflict")
+        ) {
           details.push(`${etudiantLabel} : ${graphMessage}`);
           continue;
         }
       }
 
-      const affectationId = `${modalite.groupe_id}:${etudiant.entraId}`;
-      const { error: updateError } = await supabase
+      const affectationId = `${normalizedGroupId}:${normalizedEntraUserId}`;
+      const updateResult = await supabaseAdmin
         .from("paiements")
-        .update({ affectation_id: affectationId })
+        .update({ affection_id: affectationId })
         .eq("id", paiement.id);
 
-      if (updateError) {
-        details.push(`${etudiantLabel} : ${updateError.message}`);
+      if (updateResult.error?.message) {
+        details.push(`${etudiantLabel} : ${updateResult.error.message}`);
         continue;
       }
 

@@ -31,7 +31,7 @@ export type PaiementRecord = {
   orderNumber: string | null;
   etudiant_id: string | null;
   modalite_id: number | null;
-  affectation_id: string | null;
+  affection_id: string | null;
   etudiantNom: string | null;
   etudiantMatricule: string | null;
   etudiantEntraId: string | null;
@@ -108,9 +108,9 @@ export default function PaiementsDataTable({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const normalizeStatus = (value: string | null) => (value ?? "").trim().toLowerCase();
-  const isAssigned = (paiement: PaiementRecord) => Boolean(paiement.affectation_id);
+  const isAssigned = (paiement: PaiementRecord) => Boolean(paiement.affection_id);
   const isSelectable = (paiement: PaiementRecord) =>
-    Boolean(modaliteGroupId) && !paiement.affectation_id && Boolean(paiement.etudiantEntraId);
+    Boolean(modaliteGroupId) && !paiement.affection_id && Boolean(paiement.etudiantEntraId);
 
   const filteredPaiements = useMemo(
     () =>
@@ -481,7 +481,7 @@ export default function PaiementsDataTable({
                       {paiement.status ?? "-"}
                     </TableCell>
                     <TableCell className="px-5 py-4 text-sm">
-                      {paiement.affectation_id ? (
+                      {paiement.affection_id ? (
                         <span className="inline-flex rounded-full bg-success-50 px-2.5 py-1 text-xs font-medium text-success-700 dark:bg-success-500/10 dark:text-success-400">
                           Affecte
                         </span>
