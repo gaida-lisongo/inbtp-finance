@@ -1,5 +1,5 @@
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_PUBLISHABLE_DEFAULT_KEY;
 
 type SupabaseEnvStatus = {
   hasSupabaseUrl: boolean;
@@ -51,7 +51,7 @@ export const getSupabaseDiagnosticsConfig = (): SupabaseDiagnosticsConfig => {
     return {
       valid: false,
       env,
-      message: "NEXT_PUBLIC_SUPABASE_URL is not a valid URL.",
+      message: "SUPABASE_URL is not a valid URL.",
     };
   }
 
