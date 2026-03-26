@@ -17,9 +17,14 @@ type SignInPageProps = {
 export default async function SignIn({ searchParams }: SignInPageProps) {
   const [user, params] = await Promise.all([getAuthenticatedUser(), searchParams]);
 
-  if (user) {
+  if (user?.canAccessAdmin) {
     redirect("/");
   }
 
-  return <SignInForm error={params.error} />;
+  const error =
+    params.error === "access_denied"
+      ? "Votre compte est connecte, mais il ne dispose pas d'un acces aux vues administratives."
+      : params.error;
+
+  return <SignInForm error={error} />;
 }

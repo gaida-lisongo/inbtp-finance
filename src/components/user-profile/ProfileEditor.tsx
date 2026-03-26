@@ -108,12 +108,6 @@ export default function ProfileEditor({ agent, status, message }: ProfileEditorP
               </label>
               <input id="grade" name="grade" defaultValue={agent.grade ?? ""} className={fieldClassName} />
             </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400" htmlFor="role">
-                Role
-              </label>
-              <input id="role" name="role" defaultValue={agent.role ?? ""} className={fieldClassName} />
-            </div>
             <div className="sm:col-span-2">
               <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400" htmlFor="bio">
                 Bio

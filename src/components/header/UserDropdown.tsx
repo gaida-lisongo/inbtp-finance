@@ -88,6 +88,62 @@ export default function UserDropdown({ user }: UserDropdownProps) {
         </div>
 
         <ul className="flex flex-col gap-1 py-3 border-b border-gray-200 dark:border-gray-800">
+          {user.canManageYears ? (
+            <li>
+              <DropdownItem
+                onItemClick={closeDropdown}
+                tag="a"
+                href="/annees"
+                className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+              >
+                <svg
+                  className="fill-gray-500 group-hover:fill-gray-700 dark:fill-gray-400 dark:group-hover:fill-gray-300"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M7.75 2C6.7835 2 6 2.7835 6 3.75V4H5.25C3.73122 4 2.5 5.23122 2.5 6.75V18.75C2.5 20.2688 3.73122 21.5 5.25 21.5H18.75C20.2688 21.5 21.5 20.2688 21.5 18.75V6.75C21.5 5.23122 20.2688 4 18.75 4H18V3.75C18 2.7835 17.2165 2 16.25 2C15.2835 2 14.5 2.7835 14.5 3.75V4H9.5V3.75C9.5 2.7835 8.7165 2 7.75 2ZM8 5.5H16V4.5H8V5.5ZM5.25 5.5C4.55964 5.5 4 6.05964 4 6.75V8H20V6.75C20 6.05964 19.4404 5.5 18.75 5.5H17.5V5.75C17.5 6.16421 17.1642 6.5 16.75 6.5C16.3358 6.5 16 6.16421 16 5.75V5.5H8V5.75C8 6.16421 7.66421 6.5 7.25 6.5C6.83579 6.5 6.5 6.16421 6.5 5.75V5.5H5.25ZM20 9.5H4V18.75C4 19.4404 4.55964 20 5.25 20H18.75C19.4404 20 20 19.4404 20 18.75V9.5Z"
+                    fill=""
+                  />
+                </svg>
+                Annees
+              </DropdownItem>
+            </li>
+          ) : null}
+
+          {user.canManageAuthorizations ? (
+            <li>
+              <DropdownItem
+                onItemClick={closeDropdown}
+                tag="a"
+                href="/autorisations"
+                className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+              >
+                <svg
+                  className="fill-gray-500 group-hover:fill-gray-700 dark:fill-gray-400 dark:group-hover:fill-gray-300"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M12 2C9.65279 2 7.75 3.90279 7.75 6.25C7.75 8.59721 9.65279 10.5 12 10.5C14.3472 10.5 16.25 8.59721 16.25 6.25C16.25 3.90279 14.3472 2 12 2ZM9.25 6.25C9.25 4.73122 10.4812 3.5 12 3.5C13.5188 3.5 14.75 4.73122 14.75 6.25C14.75 7.76878 13.5188 9 12 9C10.4812 9 9.25 7.76878 9.25 6.25ZM6.25736 13.4514C7.84291 12.4835 9.89538 12 12 12C14.1046 12 16.1571 12.4835 17.7426 13.4514C19.3053 14.4053 20.5 15.9018 20.5 17.75V18.5C20.5 19.8807 19.3807 21 18 21H6C4.61929 21 3.5 19.8807 3.5 18.5V17.75C3.5 15.9018 4.69472 14.4053 6.25736 13.4514ZM5 17.75C5 16.5627 5.75729 15.4877 7.03897 14.7053C8.29825 13.9365 10.0102 13.5 12 13.5C13.9898 13.5 15.7018 13.9365 16.961 14.7053C18.2427 15.4877 19 16.5627 19 17.75V18.5C19 19.0523 18.5523 19.5 18 19.5H6C5.44771 19.5 5 19.0523 5 18.5V17.75Z"
+                    fill=""
+                  />
+                </svg>
+                Autorisations
+              </DropdownItem>
+            </li>
+          ) : null}
+
           <li>
             <DropdownItem
               onItemClick={closeDropdown}

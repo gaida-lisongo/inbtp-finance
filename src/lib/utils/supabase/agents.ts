@@ -4,6 +4,9 @@ import { type User } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 import { createClient as createServerSupabaseClient } from "@/lib/utils/supabase/server";
 
+export type AccountType = "agent" | "student";
+export type AgentRole = "organisateur" | "titulaire" | "gestionnaire";
+
 export type AgentRecord = {
   id: string;
   user_id: string | null;
@@ -32,8 +35,18 @@ export type AgentProfile = AgentRecord & {
   photoUrl: string | null;
 };
 
+export type AgentAccess = {
+  accountType: AccountType;
+  agent: AgentRecord | null;
+  role: AgentRole | null;
+  canAccessAdmin: boolean;
+  canManageYears: boolean;
+  canManageAuthorizations: boolean;
+};
+
 const supabaseBucket = process.env.SUPABASE_BUCKET;
 const signedUrlExpiresInSeconds = 60 * 60;
+const allowedAgentRoles = new Set<AgentRole>(["organisateur", "titulaire", "gestionnaire"]);
 
 const emptyToNull = (value: FormDataEntryValue | null) => {
   if (typeof value !== "string") {
@@ -42,6 +55,20 @@ const emptyToNull = (value: FormDataEntryValue | null) => {
 
   const trimmedValue = value.trim();
   return trimmedValue.length > 0 ? trimmedValue : null;
+};
+
+export const normalizeAgentRole = (value: string | null | undefined): AgentRole | null => {
+  if (!value) {
+    return null;
+  }
+
+  const normalizedValue = value.trim().toLowerCase();
+
+  if (allowedAgentRoles.has(normalizedValue as AgentRole)) {
+    return normalizedValue as AgentRole;
+  }
+
+  return null;
 };
 
 const getIdentityData = (user: User) => {
@@ -58,34 +85,6 @@ const getEntraId = (user: User) => {
     user.app_metadata?.provider_id;
 
   return typeof entraId === "string" && entraId.length > 0 ? entraId : null;
-};
-
-const splitUserName = (user: User) => {
-  const identityData = getIdentityData(user);
-  const fullName =
-    user.user_metadata?.full_name ??
-    user.user_metadata?.name ??
-    identityData?.full_name ??
-    identityData?.name;
-
-  if (typeof fullName !== "string" || fullName.trim().length === 0) {
-    return {
-      prenom: null,
-      nom: null,
-      post_nom: null,
-    };
-  }
-
-  const parts = fullName
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-
-  return {
-    prenom: parts[0] ?? null,
-    nom: parts.length > 1 ? parts[parts.length - 1] : null,
-    post_nom: parts.length > 2 ? parts.slice(1, -1).join(" ") : null,
-  };
 };
 
 const buildDisplayName = (agent: Pick<AgentRecord, "prenom" | "post_nom" | "nom">, email: string) => {
@@ -176,40 +175,100 @@ const getAgentByUserId = async (userId: string) => {
   return data as AgentRecord | null;
 };
 
-export const ensureCurrentAgentProfile = async () => {
-  const user = await getCurrentAuthUser();
-  const existingAgent = await getAgentByUserId(user.id);
-
-  if (existingAgent) {
-    return mapAgentProfile(existingAgent, user.email!);
-  }
-
+const getAgentByEntraId = async (entraId: string) => {
   const admin = createAdminClient();
-  const defaultNames = splitUserName(user);
-  const initialPhoto =
-    typeof user.user_metadata?.avatar_url === "string" ? user.user_metadata.avatar_url : null;
   const { data, error } = await admin
     .from("agents")
-    .insert({
+    .select("*")
+    .eq("entra_id", entraId)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as AgentRecord | null;
+};
+
+const attachAgentToUser = async (agent: AgentRecord, user: User) => {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("agents")
+    .update({
       user_id: user.id,
-      prenom: defaultNames.prenom,
-      nom: defaultNames.nom,
-      post_nom: defaultNames.post_nom,
-      photo: initialPhoto,
       entra_id: getEntraId(user),
     })
     .select("*")
+    .eq("id", agent.id)
     .single();
 
   if (error) {
     throw new Error(error.message);
   }
 
-  return mapAgentProfile(data as AgentRecord, user.email!);
+  return data as AgentRecord;
+};
+
+export const findAgentRecordForUser = async (user: User) => {
+  const agentByUserId = await getAgentByUserId(user.id);
+
+  if (agentByUserId) {
+    return agentByUserId;
+  }
+
+  const entraId = getEntraId(user);
+
+  if (!entraId) {
+    return null;
+  }
+
+  const agentByEntraId = await getAgentByEntraId(entraId);
+
+  if (!agentByEntraId) {
+    return null;
+  }
+
+  if (!agentByEntraId.user_id) {
+    return attachAgentToUser(agentByEntraId, user);
+  }
+
+  return agentByEntraId.user_id === user.id ? agentByEntraId : null;
+};
+
+export const getCurrentAccountType = async (): Promise<AccountType> => {
+  const user = await getCurrentAuthUser();
+  const agent = await findAgentRecordForUser(user);
+  return agent ? "agent" : "student";
+};
+
+export const getCurrentAgentAccess = async (): Promise<AgentAccess> => {
+  const user = await getCurrentAuthUser();
+  const agent = await findAgentRecordForUser(user);
+  const role = normalizeAgentRole(agent?.role);
+  const canAccessAdmin = Boolean(agent && role);
+  const isOrganizer = role === "organisateur";
+
+  return {
+    accountType: agent ? "agent" : "student",
+    agent,
+    role,
+    canAccessAdmin,
+    canManageYears: isOrganizer,
+    canManageAuthorizations: isOrganizer,
+  };
 };
 
 export const getCurrentAgentProfile = async () => {
-  return ensureCurrentAgentProfile();
+  const user = await getCurrentAuthUser();
+  const agent = await findAgentRecordForUser(user);
+
+  if (!agent) {
+    return null;
+  }
+
+  return mapAgentProfile(agent, user.email!);
 };
 
 export const uploadAgentPhoto = async (userId: string, file: File) => {
@@ -237,7 +296,11 @@ export const uploadAgentPhoto = async (userId: string, file: File) => {
 
 export const updateCurrentAgentProfile = async (formData: FormData) => {
   const user = await getCurrentAuthUser();
-  const agent = await ensureCurrentAgentProfile();
+  const agent = await findAgentRecordForUser(user);
+
+  if (!agent) {
+    throw new Error("access_denied");
+  }
 
   let photoPath = agent.photo;
   const uploadedPhoto = formData.get("photo");
@@ -249,7 +312,6 @@ export const updateCurrentAgentProfile = async (formData: FormData) => {
   const updates = {
     grade: emptyToNull(formData.get("grade")),
     photo: photoPath,
-    role: emptyToNull(formData.get("role")),
     nom: emptyToNull(formData.get("nom")),
     post_nom: emptyToNull(formData.get("post_nom")),
     prenom: emptyToNull(formData.get("prenom")),

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { EcommerceMetrics } from "@/components/ecommerce/EcommerceMetrics";
+import Microsoft365Workspace from "@/components/microsoft-365/Microsoft365Workspace";
 import React from "react";
 import MonthlyTarget from "@/components/ecommerce/MonthlyTarget";
 import MonthlySalesChart from "@/components/ecommerce/MonthlySalesChart";
@@ -29,6 +30,8 @@ export default function Ecommerce() {
       <div className="col-span-12">
         <StatisticsChart />
       </div>
+
+      <Microsoft365Workspace />
 
       <div className="col-span-12 xl:col-span-5">
         <DemographicCard />

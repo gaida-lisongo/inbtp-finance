@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { Metadata } from "next";
 
 import ProfileEditor from "@/components/user-profile/ProfileEditor";
@@ -18,6 +19,10 @@ type ProfilePageProps = {
 
 export default async function Profile({ searchParams }: ProfilePageProps) {
   const [agent, params] = await Promise.all([getCurrentAgentProfile(), searchParams]);
+
+  if (!agent) {
+    redirect("/signin?error=access_denied");
+  }
 
   return (
     <div className="space-y-6">

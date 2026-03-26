@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { type User } from "@supabase/supabase-js";
 
+import { findAgentRecordForUser, normalizeAgentRole, type AccountType, type AgentRole } from "@/lib/utils/supabase/agents";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 import { createClient as createServerSupabaseClient } from "@/lib/utils/supabase/server";
 
@@ -9,6 +10,12 @@ export type AuthenticatedUser = {
   email: string;
   name: string;
   avatarUrl: string | null;
+  accountType: AccountType;
+  agentId: string | null;
+  role: AgentRole | null;
+  canAccessAdmin: boolean;
+  canManageYears: boolean;
+  canManageAuthorizations: boolean;
 };
 
 const supabaseBucket = process.env.SUPABASE_BUCKET;
@@ -98,11 +105,22 @@ const buildAuthenticatedUser = async (user: User): Promise<AuthenticatedUser | n
     return null;
   }
 
+  const agentRecord = await findAgentRecordForUser(user);
+  const accountType: AccountType = agentRecord ? "agent" : "student";
+  const role = normalizeAgentRole(agentRecord?.role);
+  const isOrganizer = role === "organisateur";
+
   return {
     id: user.id,
     email: user.email,
     name: getUserName(user),
     avatarUrl: await resolveAvatarUrl(getAvatarUrl(user)),
+    accountType,
+    agentId: agentRecord?.id ?? null,
+    role,
+    canAccessAdmin: Boolean(agentRecord && role),
+    canManageYears: isOrganizer,
+    canManageAuthorizations: isOrganizer,
   };
 };
 

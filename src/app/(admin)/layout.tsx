@@ -14,5 +14,9 @@ export default async function AdminLayout({
     redirect("/signin");
   }
 
+  if (!user.canAccessAdmin) {
+    redirect("/signin?error=access_denied");
+  }
+
   return <AdminShell user={user}>{children}</AdminShell>;
 }
