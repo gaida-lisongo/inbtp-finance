@@ -60,32 +60,40 @@ export const getAgentsForRoleAssignment = async () => {
 
 export const getAutorisations = async () => {
   const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("autorisation")
-    .select("id, created_at, designation, agent_id, is_active, agents:agents!autorisation_agent_id_fkey(id, nom, post_nom, prenom, role)")
-    .order("created_at", { ascending: false });
+  const [{ data: autorisationsData, error: autorisationsError }, { data: agentsData, error: agentsError }] =
+    await Promise.all([
+      admin
+        .from("autorisation")
+        .select("id, created_at, designation, agent_id, is_active")
+        .order("created_at", { ascending: false }),
+      admin.from("agents").select("id, nom, post_nom, prenom, role"),
+    ]);
 
-  if (error) {
-    throw new Error(error.message);
+  if (autorisationsError) {
+    throw new Error(autorisationsError.message);
   }
 
-  return ((data ?? []) as Array<
-    AutorisationRecord & {
-      agents: AgentOption[] | null;
-    }
-  >).map((item) => {
-    const agent = item.agents?.[0] ?? null;
+  if (agentsError) {
+    throw new Error(agentsError.message);
+  }
+
+  const agentsById = new Map(
+    ((agentsData ?? []) as AgentOption[]).map((agent) => [agent.id, agent] as const),
+  );
+
+  return ((autorisationsData ?? []) as AutorisationRecord[]).map((item) => {
+    const agent = item.agent_id ? agentsById.get(item.agent_id) ?? null : null;
 
     return {
-    id: item.id,
-    created_at: item.created_at,
-    designation: item.designation,
-    agent_id: item.agent_id,
-    is_active: item.is_active,
-    agent,
-    agentRole: normalizeAgentRole(agent?.role),
-    agentDisplayName: buildAgentDisplayName(agent),
-  };
+      id: item.id,
+      created_at: item.created_at,
+      designation: item.designation,
+      agent_id: item.agent_id,
+      is_active: item.is_active,
+      agent,
+      agentRole: normalizeAgentRole(agent?.role),
+      agentDisplayName: buildAgentDisplayName(agent),
+    };
   }) as AutorisationWithAgent[];
 };
 
