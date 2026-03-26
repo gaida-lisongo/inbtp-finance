@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { ensureCurrentAgentProfile } from "@/lib/utils/supabase/agents";
 import { exchangeCodeForSession, getSafeNextPath } from "@/lib/utils/supabase/auth";
+import { syncAuthenticatedUser } from "@/lib/utils/supabase/session";
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
@@ -14,6 +16,8 @@ export async function GET(request: NextRequest) {
 
   try {
     await exchangeCodeForSession(code);
+    await syncAuthenticatedUser();
+    await ensureCurrentAgentProfile();
     return NextResponse.redirect(redirectUrl);
   } catch (error) {
     const signInUrl = new URL("/signin", request.nextUrl.origin);

@@ -40,6 +40,7 @@ export const createAzureSignInUrl = async (nextPath?: string | null) => {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "azure",
     options: {
+      scopes: 'openid profile email User.Read', // Scopes standards Entra ID
       redirectTo: callbackUrl.toString(),
       skipBrowserRedirect: true,
     },
