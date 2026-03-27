@@ -24,6 +24,15 @@ export const getAdminSidebarMenu = async (user: AuthenticatedUser): Promise<Side
     },
   ];
 
+  // Ajouter l'élément Agents pour les gestionnaires
+  if (user.role === "gestionnaire") {
+    items.push({
+      name: "Agents",
+      path: "/agents",
+      iconKey: "user",
+    });
+  }
+
   if (!user.agentId) {
     return items;
   }

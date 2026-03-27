@@ -8,9 +8,7 @@ import { Modal } from "@/components/ui/modal";
 import Form from "@/components/form/Form";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
-import { AgentRecord } from "@/lib/utils/supabase/agents";
 import { DocumentRecord } from "@/lib/utils/supabase/documents";
-import { getAgentsAction, createAgentAction, updateAgentAction, deleteAgentAction } from "@/app/actions/agents";
 import { getDocumentsAction, createDocumentAction, updateDocumentAction, deleteDocumentAction } from "@/app/actions/documents";
 
 interface SecretaireContentProps {
@@ -18,25 +16,16 @@ interface SecretaireContentProps {
 }
 
 export default function SecretaireContent({ programmeId }: SecretaireContentProps) {
-  const [agents, setAgents] = useState<AgentRecord[]>([]);
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
+  const releves = documents.filter(doc => (doc.caracteristique as any)?.categorie === "Relevés");
+  const fichesValidation = documents.filter(doc => (doc.caracteristique as any)?.categorie === "Fiche de validation");
   const [loading, setLoading] = useState(true);
 
   // Modals
-  const [agentModalOpen, setAgentModalOpen] = useState(false);
   const [documentModalOpen, setDocumentModalOpen] = useState(false);
-  const [editingAgent, setEditingAgent] = useState<AgentRecord | null>(null);
   const [editingDocument, setEditingDocument] = useState<DocumentRecord | null>(null);
 
   // Forms
-  const [agentForm, setAgentForm] = useState({
-    nom: "",
-    post_nom: "",
-    prenom: "",
-    email: "",
-    grade: "",
-  });
-
   const [documentForm, setDocumentForm] = useState({
     designation: "",
     description: "",
@@ -52,11 +41,7 @@ export default function SecretaireContent({ programmeId }: SecretaireContentProp
   const loadData = async () => {
     setLoading(true);
     try {
-      const [agentsData, documentsData] = await Promise.all([
-        getAgentsAction(),
-        getDocumentsAction(programmeId),
-      ]);
-      setAgents(agentsData);
+      const documentsData = await getDocumentsAction(programmeId);
       setDocuments(documentsData);
     } catch (error) {
       console.error("Error loading data:", error);
@@ -65,72 +50,13 @@ export default function SecretaireContent({ programmeId }: SecretaireContentProp
     }
   };
 
-  const handleAddAgent = () => {
-    setEditingAgent(null);
-    setAgentForm({
-      nom: "",
-      post_nom: "",
-      prenom: "",
-      email: "",
-      grade: "",
-    });
-    setAgentModalOpen(true);
-  };
-
-  const handleEditAgent = (agent: AgentRecord) => {
-    setEditingAgent(agent);
-    setAgentForm({
-      nom: agent.nom || "",
-      post_nom: agent.post_nom || "",
-      prenom: agent.prenom || "",
-      email: agent.email || "",
-      grade: agent.grade || "",
-    });
-    setAgentModalOpen(true);
-  };
-
-  const handleDeleteAgent = async (agent: AgentRecord) => {
-    if (confirm("Êtes-vous sûr de vouloir supprimer cet agent ?")) {
-      try {
-        await deleteAgentAction(agent.id);
-        loadData(); // Reload data
-      } catch (error) {
-        console.error("Error deleting agent:", error);
-        alert("Erreur lors de la suppression");
-      }
-    }
-  };
-
-  const handleSubmitAgent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const formData = new FormData();
-      formData.append("nom", agentForm.nom);
-      formData.append("post_nom", agentForm.post_nom);
-      formData.append("prenom", agentForm.prenom);
-      formData.append("email", agentForm.email);
-      formData.append("grade", agentForm.grade);
-
-      if (editingAgent) {
-        await updateAgentAction(editingAgent.id, formData);
-      } else {
-        await createAgentAction(formData);
-      }
-      setAgentModalOpen(false);
-      loadData(); // Reload data
-    } catch (error) {
-      console.error("Error saving agent:", error);
-      alert("Erreur lors de la sauvegarde");
-    }
-  };
-
-  const handleAddDocument = () => {
+  const handleAddDocument = (categorie: string) => {
     setEditingDocument(null);
     setDocumentForm({
       designation: "",
       description: "",
       montant: "",
-      categorie: "Fiche de validation",
+      categorie,
       is_active: "true",
     });
     setDocumentModalOpen(true);
@@ -184,19 +110,9 @@ export default function SecretaireContent({ programmeId }: SecretaireContentProp
     }
   };
 
-  const agentColumns = [
-    {
-      key: "nom_complet",
-      label: "Nom complet",
-      render: (agent: AgentRecord) => `${agent.prenom || ""} ${agent.post_nom || ""} ${agent.nom || ""}`.trim(),
-    },
-    { key: "email", label: "Email" },
-    { key: "grade", label: "Grade" },
-  ];
-
   const documentColumns = [
     { key: "designation", label: "Désignation" },
-    { key: "description", label: "Description" },
+    // { key: "description", label: "Description" }, // Masqué selon la demande
     {
       key: "categorie",
       label: "Catégorie",
@@ -223,35 +139,35 @@ export default function SecretaireContent({ programmeId }: SecretaireContentProp
       <Tab
         tabs={[
           {
-            key: "agents",
-            label: "Agents",
+            key: "releves",
+            label: "Relevés",
             content: (
-              <ComponentCard title="Gestion des Agents">
+              <ComponentCard title="Gestion des Relevés">
                 <DataTable
-                  data={agents}
-                  columns={agentColumns}
-                  searchPlaceholder="Rechercher un agent..."
-                  onAdd={handleAddAgent}
-                  onEdit={handleEditAgent}
-                  onDelete={handleDeleteAgent}
-                  addButtonLabel="Ajouter Agent"
+                  data={releves}
+                  columns={documentColumns}
+                  searchPlaceholder="Rechercher un relevé..."
+                  onAdd={() => handleAddDocument("Relevés")}
+                  onEdit={handleEditDocument}
+                  onDelete={handleDeleteDocument}
+                  addButtonLabel="Ajouter Relevé"
                 />
               </ComponentCard>
             ),
           },
           {
-            key: "documents",
-            label: "Documents",
+            key: "fiches-validation",
+            label: "Fiches de validation",
             content: (
-              <ComponentCard title="Gestion des Documents">
+              <ComponentCard title="Gestion des Fiches de validation">
                 <DataTable
-                  data={documents}
+                  data={fichesValidation}
                   columns={documentColumns}
-                  searchPlaceholder="Rechercher un document..."
-                  onAdd={handleAddDocument}
+                  searchPlaceholder="Rechercher une fiche de validation..."
+                  onAdd={() => handleAddDocument("Fiche de validation")}
                   onEdit={handleEditDocument}
                   onDelete={handleDeleteDocument}
-                  addButtonLabel="Ajouter Document"
+                  addButtonLabel="Ajouter Fiche de validation"
                 />
               </ComponentCard>
             ),
@@ -259,84 +175,8 @@ export default function SecretaireContent({ programmeId }: SecretaireContentProp
         ]}
       />
 
-      {/* Agent Modal */}
-      <Modal isOpen={agentModalOpen} onClose={() => setAgentModalOpen(false)}>
-        <div className="p-6">
-          <h2 className="text-xl font-semibold mb-4">
-            {editingAgent ? "Modifier Agent" : "Ajouter Agent"}
-          </h2>
-          <Form onSubmit={handleSubmitAgent}>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="nom">Nom</Label>
-                <input
-                  id="nom"
-                  type="text"
-                  value={agentForm.nom}
-                  onChange={(e) => setAgentForm({ ...agentForm, nom: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="post_nom">Post-nom</Label>
-                <input
-                  id="post_nom"
-                  type="text"
-                  value={agentForm.post_nom}
-                  onChange={(e) => setAgentForm({ ...agentForm, post_nom: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="prenom">Prénom</Label>
-                <input
-                  id="prenom"
-                  type="text"
-                  value={agentForm.prenom}
-                  onChange={(e) => setAgentForm({ ...agentForm, prenom: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="email">Email</Label>
-                <input
-                  id="email"
-                  type="email"
-                  value={agentForm.email}
-                  onChange={(e) => setAgentForm({ ...agentForm, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="grade">Grade académique</Label>
-                <input
-                  id="grade"
-                  type="text"
-                  value={agentForm.grade}
-                  onChange={(e) => setAgentForm({ ...agentForm, grade: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  required
-                />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 mt-6">
-              <Button type="button" variant="outline" onClick={() => setAgentModalOpen(false)}>
-                Annuler
-              </Button>
-              <Button type="submit">
-                {editingAgent ? "Modifier" : "Ajouter"}
-              </Button>
-            </div>
-          </Form>
-        </div>
-      </Modal>
-
       {/* Document Modal */}
-      <Modal isOpen={documentModalOpen} onClose={() => setDocumentModalOpen(false)}>
+      <Modal isOpen={documentModalOpen} onClose={() => setDocumentModalOpen(false)} size="lg">
         <div className="p-6">
           <h2 className="text-xl font-semibold mb-4">
             {editingDocument ? "Modifier Document" : "Ajouter Document"}
@@ -374,18 +214,8 @@ export default function SecretaireContent({ programmeId }: SecretaireContentProp
                   className="w-full px-3 py-2 border border-gray-300 rounded-md"
                 />
               </div>
-              <div>
-                <Label htmlFor="categorie">Catégorie</Label>
-                <select
-                  id="categorie"
-                  value={documentForm.categorie}
-                  onChange={(e) => setDocumentForm({ ...documentForm, categorie: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                >
-                  <option value="Fiche de validation">Fiche de validation</option>
-                  <option value="Relevés">Relevés</option>
-                </select>
-              </div>
+              {/* Catégorie masquée car déterminée par l'onglet */}
+              <input type="hidden" name="categorie" value={documentForm.categorie} />
               <div>
                 <Label htmlFor="is_active">Actif</Label>
                 <select

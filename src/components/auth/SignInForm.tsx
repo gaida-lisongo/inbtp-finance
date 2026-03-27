@@ -1,6 +1,5 @@
 import Link from "next/link";
 
-import { signInWithAzureAction } from "@/app/actions/auth";
 import Button from "@/components/ui/button/Button";
 import { ChevronLeftIcon } from "@/icons";
 
@@ -38,8 +37,7 @@ export default function SignInForm({ error }: SignInFormProps) {
             </div>
           ) : null}
 
-          <form action={signInWithAzureAction}>
-            <input type="hidden" name="next" value="/" />
+          <Link href="/api/login?next=%2F" className="block">
             <Button className="w-full justify-center" size="sm">
               <span className="inline-flex items-center gap-3">
                 <svg
@@ -57,7 +55,7 @@ export default function SignInForm({ error }: SignInFormProps) {
                 Se connecter avec Azure SSO
               </span>
             </Button>
-          </form>
+          </Link>
         </div>
       </div>
     </div>

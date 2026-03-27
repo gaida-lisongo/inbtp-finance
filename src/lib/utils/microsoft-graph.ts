@@ -280,6 +280,15 @@ type CreateMicrosoft365TeamInput = {
   mailNickname: string;
 };
 
+type Microsoft365GraphUser = {
+  id: string;
+  displayName: string | null;
+  mail: string | null;
+  userPrincipalName: string | null;
+};
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export const sendMicrosoft365Mail = async (input: SendMicrosoft365MailInput) => {
   await microsoftGraphService.sendMail(input);
 };
@@ -291,7 +300,17 @@ export const createMicrosoft365Team = async ({
   description,
   mailNickname,
 }: CreateMicrosoft365TeamInput) => {
-  const graphClient = await microsoftGraphService.getAppClient();
+  const graphClient = await microsoftGraphService.getDelegatedClient();
+  const currentUser = (await graphClient.api("/me").select("id,displayName,mail,userPrincipalName").get()) as {
+    id?: string;
+    displayName?: string;
+    mail?: string;
+    userPrincipalName?: string;
+  };
+
+  if (!currentUser.id) {
+    throw new Error("graph_current_user_missing");
+  }
 
   const group = (await graphClient.api("/groups").post({
     displayName,
@@ -306,7 +325,14 @@ export const createMicrosoft365Team = async ({
     throw new Error("graph_group_creation_failed");
   }
 
-  await graphClient.api(`/groups/${group.id}/team`).put({
+  const directoryObjectRef = {
+    "@odata.id": `${microsoftGraphBaseUrl}/directoryObjects/${currentUser.id}`,
+  };
+
+  await graphClient.api(`/groups/${group.id}/owners/$ref`).post(directoryObjectRef);
+  await graphClient.api(`/groups/${group.id}/members/$ref`).post(directoryObjectRef);
+
+  const provisioningPayload = {
     memberSettings: {
       allowCreateUpdateChannels: true,
     },
@@ -318,9 +344,37 @@ export const createMicrosoft365Team = async ({
       allowGiphy: true,
       giphyContentRating: "strict",
     },
-  });
+  };
+
+  const retryDelays = [0, 3000, 6000, 10000, 15000];
+  let lastError: unknown = null;
+
+  for (const delay of retryDelays) {
+    if (delay > 0) {
+      await sleep(delay);
+    }
+
+    try {
+      await graphClient.api(`/groups/${group.id}/team`).put(provisioningPayload);
+      await graphClient.api(`/teams/${group.id}`).get();
+      lastError = null;
+      break;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (lastError) {
+    throw lastError;
+  }
 
   return {
     groupId: group.id,
+    owner: {
+      id: currentUser.id,
+      displayName: currentUser.displayName ?? null,
+      mail: currentUser.mail ?? null,
+      userPrincipalName: currentUser.userPrincipalName ?? null,
+    } satisfies Microsoft365GraphUser,
   };
 };

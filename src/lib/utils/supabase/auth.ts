@@ -3,8 +3,9 @@ import { cookies, headers } from "next/headers";
 import { createClient as createServerSupabaseClient } from "@/lib/utils/supabase/server";
 
 const DEFAULT_POST_LOGIN_PATH = "/";
-const configuredAppUrl =
-  process.env.NEXT_PUBLIC_HOST_URL
+const configuredAppUrl = process.env.NEXT_PUBLIC_HOST_URL;
+const configuredDelegatedScopes = process.env.ENTRA_DELEGATED_SCOPES;
+const defaultDelegatedScopes = "openid profile email offline_access User.Read";
 
 const normalizeNextPath = (value: string | null | undefined) => {
   if (!value) {
@@ -44,13 +45,14 @@ export const createAzureSignInUrl = async (nextPath?: string | null) => {
   const supabase = createServerSupabaseClient(cookieStore);
   const safeNextPath = normalizeNextPath(nextPath);
   const callbackUrl = new URL("/auth/callback", origin);
+  const delegatedScopes = configuredDelegatedScopes?.trim() || defaultDelegatedScopes;
 
   callbackUrl.searchParams.set("next", safeNextPath);
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "azure",
     options: {
-      scopes: "openid profile email offline_access User.Read Mail.Read Mail.Send Calendars.Read Files.Read",
+      scopes: delegatedScopes,
       redirectTo: callbackUrl.toString(),
       skipBrowserRedirect: true,
     },

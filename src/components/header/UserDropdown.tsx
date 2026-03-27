@@ -200,6 +200,34 @@ export default function UserDropdown({ user }: UserDropdownProps) {
             </li>
           ) : null}
 
+          {user.role === "gestionnaire" ? (
+            <li>
+              <DropdownItem
+                onItemClick={closeDropdown}
+                tag="a"
+                href="/agents"
+                className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+              >
+                <svg
+                  className="fill-gray-500 group-hover:fill-gray-700 dark:fill-gray-400 dark:group-hover:fill-gray-300"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M12 3.5C7.30558 3.5 3.5 7.30558 3.5 12C3.5 14.1526 4.3002 16.1184 5.61936 17.616C6.17279 15.3096 8.24852 13.5955 10.7246 13.5955H13.2746C15.7509 13.5955 17.8268 15.31 18.38 17.6167C19.6996 16.119 20.5 14.153 20.5 12C20.5 7.30558 16.6944 3.5 12 3.5ZM5 12C5 8.13401 8.13401 5 12 5C15.866 5 19 8.13401 19 12C19 13.3777 18.5355 14.6497 17.7417 15.6703C17.4027 14.0197 15.8649 12.8455 13.9746 12.8455H10.0246C8.13427 12.8455 6.59647 14.0197 6.25747 15.6703C5.46351 14.6497 5 13.3777 5 12ZM10.7246 15.3455C9.89538 15.3455 9.22461 16.0163 9.22461 16.8455V16.856C10.1198 17.3898 11.0291 17.75 12 17.75C12.9705 17.75 13.8798 17.3898 14.7746 16.856V16.8455C14.7746 16.0163 14.1038 15.3455 13.2746 15.3455H10.7246ZM12 7.25C10.4812 7.25 9.25 8.48122 9.25 10C9.25 11.5188 10.4812 12.75 12 12.75C13.5188 12.75 14.75 11.5188 14.75 10C14.75 8.48122 13.5188 7.25 12 7.25ZM10.75 10C10.75 9.30964 11.3096 8.75 12 8.75C12.6904 8.75 13.25 9.30964 13.25 10C13.25 10.6904 12.6904 11.25 12 11.25C11.3096 11.25 10.75 10.6904 10.75 10Z"
+                    fill=""
+                  />
+                </svg>
+                Agents
+              </DropdownItem>
+            </li>
+          ) : null}
+
           <li>
             <DropdownItem
               onItemClick={closeDropdown}
