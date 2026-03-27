@@ -29,7 +29,7 @@ const assertCanManageSecretaryDocuments = async () => {
 const getDocumentNotificationContent = (document: DocumentRecord) => {
   const category = getDocumentCategory(document);
   const label = document.designation || category;
-  const relativeUrl = `/commande/docmuent/${document.id}`;
+  const relativeUrl = `/commande/document/${document.id}`;
   const absoluteUrl = appUrl ? `${appUrl.replace(/\/$/, "")}${relativeUrl}` : relativeUrl;
 
   if (category.toLowerCase() === "relevés" || category.toLowerCase() === "releves") {

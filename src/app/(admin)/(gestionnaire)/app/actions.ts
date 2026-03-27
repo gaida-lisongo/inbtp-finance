@@ -7,6 +7,7 @@ import {
   bulkCreateParcoursFromCsv,
   deleteParcours,
   deleteSession,
+  notifyStudentsForSession,
   saveParcours,
   saveParcoursRecord,
   saveSession,
@@ -145,8 +146,20 @@ export async function deleteParcoursAction(formData: FormData) {
 
 export async function saveSessionModalAction(input: SessionInput) {
   const session = await saveSessionRecord(input);
+  const shouldNotify = !input.id;
+  let notification: { notifiedCount: number; skippedCount: number } | null = null;
+  let notificationError: string | null = null;
+
+  if (shouldNotify) {
+    try {
+      notification = await notifyStudentsForSession(input.programme_id, session.id);
+    } catch (error) {
+      notificationError = error instanceof Error ? error.message : "session_notification_failed";
+    }
+  }
+
   revalidatePath("/app");
-  return session;
+  return { session, notification, notificationError };
 }
 
 export async function deleteSessionByIdAction(id: string) {

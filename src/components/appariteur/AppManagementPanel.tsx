@@ -38,11 +38,15 @@ type SessionFormState = {
   description: string;
   date_debut: string;
   date_fin: string;
-  matieres: string;
+  matieres: SessionMatiereFormState[];
   montant: string;
   is_active: string;
-  slug: string;
   entra_id: string;
+};
+
+type SessionMatiereFormState = {
+  matiere: string;
+  date_epreuve: string;
 };
 
 type ParcoursFormState = {
@@ -58,10 +62,9 @@ const emptySessionForm: SessionFormState = {
   description: "",
   date_debut: "",
   date_fin: "",
-  matieres: "",
+  matieres: [{ matiere: "", date_epreuve: "" }],
   montant: "",
-  is_active: "",
-  slug: "",
+  is_active: "false",
   entra_id: "",
 };
 
@@ -96,6 +99,62 @@ const formatJsonField = (value: unknown) => {
   return JSON.stringify(value, null, 2);
 };
 
+const slugify = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+const getGeneratedSessionSlug = (form: Pick<SessionFormState, "designation" | "date_debut" | "date_fin">) => {
+  const parts = [form.designation.trim(), form.date_debut.trim(), form.date_fin.trim()].filter(Boolean);
+  return slugify(parts.join("-"));
+};
+
+const parseSessionDescription = (value: unknown) => {
+  if (!value) {
+    return "";
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (typeof value === "object" && "text" in (value as Record<string, unknown>)) {
+    return String((value as Record<string, unknown>).text ?? "");
+  }
+
+  return formatJsonField(value);
+};
+
+const parseSessionMatieres = (value: unknown): SessionMatiereFormState[] => {
+  if (!Array.isArray(value)) {
+    return emptySessionForm.matieres;
+  }
+
+  const items = value
+    .map((item) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+
+      const record = item as Record<string, unknown>;
+      return {
+        matiere: typeof record.matiere === "string" ? record.matiere : "",
+        date_epreuve:
+          typeof record.date_epreuve === "string"
+            ? record.date_epreuve
+            : typeof record.date === "string"
+              ? record.date
+              : "",
+      };
+    })
+    .filter(Boolean) as SessionMatiereFormState[];
+
+  return items.length > 0 ? items : emptySessionForm.matieres;
+};
+
 const getMessage = (message?: string) => {
   if (!message) {
     return null;
@@ -108,11 +167,43 @@ const getMessage = (message?: string) => {
       return "Selectionnez un etudiant avant d'enregistrer le parcours.";
     case "programme_required":
       return "La promotion cible est obligatoire.";
+    case "session_designation_required":
+      return "La designation de la session est obligatoire.";
+    case "session_date_debut_required":
+      return "La date de debut est obligatoire.";
+    case "session_date_fin_required":
+      return "La date de fin est obligatoire.";
+    case "session_invalid_period":
+      return "La date de fin doit etre posterieure ou egale a la date de debut.";
+    case "session_invalid_montant":
+      return "Le montant doit etre un nombre positif ou nul.";
+    case "session_matieres_required":
+      return "Ajoutez au moins une matiere avec sa date d'epreuve.";
+    case "invalid_session_status":
+      return "Le statut de la session doit etre true ou false.";
+    case "session_notification_no_student_email":
+      return "Session creee, mais aucun email etudiant exploitable n'a ete trouve.";
+    case "session_not_found":
+      return "Session creee, mais la relance de notification n'a pas retrouve la session.";
+    case "session_notification_failed":
+      return "Session creee, mais la notification a echoue.";
+    case "graph_mail_sender_not_configured":
+      return "Session creee, mais l'adresse emettrice Microsoft 365 n'est pas configuree.";
     case "invalid_parcours_status":
       return "Le statut doit etre ok, pending ou no.";
     case "csv_invalid_header":
       return "Le fichier CSV doit contenir les colonnes email, reference, status.";
     default:
+      if (message.startsWith("session_matiere_required_")) {
+        const line = message.replace("session_matiere_required_", "");
+        return `La matiere de la ligne ${line} est obligatoire.`;
+      }
+
+      if (message.startsWith("session_matiere_date_required_")) {
+        const line = message.replace("session_matiere_date_required_", "");
+        return `La date d'epreuve de la ligne ${line} est obligatoire.`;
+      }
+
       if (message.startsWith("email_not_found_line_")) {
         const line = message.replace("email_not_found_line_", "");
         return `Aucun etudiant trouve pour l'email de la ligne ${line}.`;
@@ -130,13 +221,12 @@ const buildSessionForm = (session: SessionRecord | null): SessionFormState => {
   return {
     id: session.id,
     designation: session.designation ?? "",
-    description: formatJsonField(session.description),
+    description: parseSessionDescription(session.description),
     date_debut: session.date_debut ?? "",
     date_fin: session.date_fin ?? "",
-    matieres: formatJsonField(session.matieres),
+    matieres: parseSessionMatieres(session.matieres),
     montant: session.montant != null ? String(session.montant) : "",
-    is_active: session.is_active ?? "",
-    slug: session.slug ?? "",
+    is_active: session.is_active ?? "false",
     entra_id: session.entra_id ?? "",
   };
 };
@@ -183,6 +273,7 @@ export default function AppManagementPanel({
   const [sessionModalOpen, setSessionModalOpen] = useState(Boolean(editingSession) || mode === "session-create");
   const [parcoursModalOpen, setParcoursModalOpen] = useState(Boolean(editingParcours) || mode === "parcours-create");
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [sessionStep, setSessionStep] = useState<1 | 2>(1);
   const [isSavingSession, setIsSavingSession] = useState(false);
   const [isSavingParcours, setIsSavingParcours] = useState(false);
   const [isBulkCreating, setIsBulkCreating] = useState(false);
@@ -195,6 +286,7 @@ export default function AppManagementPanel({
     if (editingSession) {
       setSessionForm(buildSessionForm(editingSession));
       setSessionModalOpen(true);
+      setSessionStep(1);
       setActiveTab("sessions");
     }
   }, [editingSession]);
@@ -224,6 +316,11 @@ export default function AppManagementPanel({
     [students],
   );
 
+  const generatedSessionSlug = useMemo(
+    () => getGeneratedSessionSlug(sessionForm),
+    [sessionForm.date_debut, sessionForm.date_fin, sessionForm.designation],
+  );
+
   const closeSessionModal = () => {
     if (isSavingSession) {
       return;
@@ -231,6 +328,7 @@ export default function AppManagementPanel({
 
     setSessionModalOpen(false);
     setSessionForm(emptySessionForm);
+    setSessionStep(1);
   };
 
   const closeParcoursModal = () => {
@@ -256,6 +354,7 @@ export default function AppManagementPanel({
     setFeedback(null);
     setSessionForm(emptySessionForm);
     setSessionModalOpen(true);
+    setSessionStep(1);
     setActiveTab("sessions");
   };
 
@@ -263,7 +362,54 @@ export default function AppManagementPanel({
     setFeedback(null);
     setSessionForm(buildSessionForm(session));
     setSessionModalOpen(true);
+    setSessionStep(1);
     setActiveTab("sessions");
+  };
+
+  const updateSessionMatiere = (index: number, field: keyof SessionMatiereFormState, value: string) => {
+    setSessionForm((current) => ({
+      ...current,
+      matieres: current.matieres.map((item, itemIndex) => (itemIndex === index ? { ...item, [field]: value } : item)),
+    }));
+  };
+
+  const addSessionMatiere = () => {
+    setSessionForm((current) => ({
+      ...current,
+      matieres: [...current.matieres, { matiere: "", date_epreuve: "" }],
+    }));
+  };
+
+  const removeSessionMatiere = (index: number) => {
+    setSessionForm((current) => ({
+      ...current,
+      matieres: current.matieres.length === 1 ? current.matieres : current.matieres.filter((_, itemIndex) => itemIndex !== index),
+    }));
+  };
+
+  const goToSessionStepTwo = () => {
+    if (!sessionForm.designation.trim()) {
+      setFeedback({ type: "error", message: getMessage("session_designation_required") ?? "session_designation_required" });
+      return;
+    }
+
+    if (!sessionForm.date_debut.trim()) {
+      setFeedback({ type: "error", message: getMessage("session_date_debut_required") ?? "session_date_debut_required" });
+      return;
+    }
+
+    if (!sessionForm.date_fin.trim()) {
+      setFeedback({ type: "error", message: getMessage("session_date_fin_required") ?? "session_date_fin_required" });
+      return;
+    }
+
+    if (sessionForm.date_fin < sessionForm.date_debut) {
+      setFeedback({ type: "error", message: getMessage("session_invalid_period") ?? "session_invalid_period" });
+      return;
+    }
+
+    setFeedback(null);
+    setSessionStep(2);
   };
 
   const handleOpenParcoursCreate = () => {
@@ -286,7 +432,7 @@ export default function AppManagementPanel({
     setFeedback(null);
 
     try {
-      const savedSession = await saveSessionModalAction({
+      const result = await saveSessionModalAction({
         id: sessionForm.id,
         designation: sessionForm.designation,
         description: sessionForm.description,
@@ -296,9 +442,9 @@ export default function AppManagementPanel({
         matieres: sessionForm.matieres,
         montant: sessionForm.montant.trim().length > 0 ? Number(sessionForm.montant) : null,
         is_active: sessionForm.is_active,
-        slug: sessionForm.slug,
         entra_id: sessionForm.entra_id,
       });
+      const savedSession = result.session;
 
       setSessionsState((current) => {
         const existingIndex = current.findIndex((item) => item.id === savedSession.id);
@@ -314,10 +460,29 @@ export default function AppManagementPanel({
 
       setSessionModalOpen(false);
       setSessionForm(emptySessionForm);
-      setFeedback({
-        type: "success",
-        message: sessionForm.id ? "Session mise a jour." : "Session creee.",
-      });
+      setSessionStep(1);
+
+      if (sessionForm.id) {
+        setFeedback({
+          type: "success",
+          message: "Session mise a jour.",
+        });
+      } else if (result.notification) {
+        setFeedback({
+          type: "success",
+          message: `Session creee. ${result.notification.notifiedCount} etudiant(s) notifie(s). ${result.notification.skippedCount > 0 ? `${result.notification.skippedCount} sans email.` : ""}`.trim(),
+        });
+      } else if (result.notificationError) {
+        setFeedback({
+          type: "success",
+          message: `Session creee. Notification non envoyee: ${getMessage(result.notificationError) ?? result.notificationError}`,
+        });
+      } else {
+        setFeedback({
+          type: "success",
+          message: "Session creee.",
+        });
+      }
     } catch (error) {
       setFeedback({
         type: "error",
@@ -658,107 +823,181 @@ export default function AppManagementPanel({
 
       <Modal isOpen={sessionModalOpen} onClose={closeSessionModal} size="xl">
         <div className="space-y-6 p-1">
-          <div>
+          <div className="space-y-4">
             <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">
               {sessionForm.id ? "Modifier une session" : "Nouvelle session"}
             </h2>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setSessionStep(1)}
+                className={`rounded-2xl border px-4 py-3 text-left ${
+                  sessionStep === 1
+                    ? "border-brand-300 bg-brand-50 text-brand-700 dark:border-brand-500/40 dark:bg-brand-500/10 dark:text-brand-300"
+                    : "border-gray-200 text-gray-500 dark:border-gray-800 dark:text-gray-400"
+                }`}
+              >
+                <p className="text-xs uppercase tracking-wide">Etape 1</p>
+                <p className="mt-1 text-sm font-semibold">Description de la session</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSessionStep(2)}
+                className={`rounded-2xl border px-4 py-3 text-left ${
+                  sessionStep === 2
+                    ? "border-brand-300 bg-brand-50 text-brand-700 dark:border-brand-500/40 dark:bg-brand-500/10 dark:text-brand-300"
+                    : "border-gray-200 text-gray-500 dark:border-gray-800 dark:text-gray-400"
+                }`}
+              >
+                <p className="text-xs uppercase tracking-wide">Etape 2</p>
+                <p className="mt-1 text-sm font-semibold">Matieres et dates d'epreuve</p>
+              </button>
+            </div>
           </div>
 
-          <form onSubmit={handleSaveSession} className="grid gap-5 lg:grid-cols-2">
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Designation</label>
-              <input
-                value={sessionForm.designation}
-                onChange={(event) => setSessionForm((current) => ({ ...current, designation: event.target.value }))}
-                className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-              />
-            </div>
+          <form onSubmit={handleSaveSession} className="space-y-6">
+            {sessionStep === 1 ? (
+              <div className="grid gap-5 lg:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Designation</label>
+                  <input
+                    value={sessionForm.designation}
+                    onChange={(event) => setSessionForm((current) => ({ ...current, designation: event.target.value }))}
+                    className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                  />
+                </div>
 
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Slug</label>
-              <input
-                value={sessionForm.slug}
-                onChange={(event) => setSessionForm((current) => ({ ...current, slug: event.target.value }))}
-                className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-              />
-            </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Slug genere</label>
+                  <input
+                    value={generatedSessionSlug}
+                    readOnly
+                    className="h-11 w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-500 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-400"
+                  />
+                </div>
 
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Date debut</label>
-              <input
-                type="date"
-                value={sessionForm.date_debut}
-                onChange={(event) => setSessionForm((current) => ({ ...current, date_debut: event.target.value }))}
-                className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-              />
-            </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Date debut</label>
+                  <input
+                    type="date"
+                    value={sessionForm.date_debut}
+                    onChange={(event) => setSessionForm((current) => ({ ...current, date_debut: event.target.value }))}
+                    className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                  />
+                </div>
 
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Date fin</label>
-              <input
-                type="date"
-                value={sessionForm.date_fin}
-                onChange={(event) => setSessionForm((current) => ({ ...current, date_fin: event.target.value }))}
-                className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-              />
-            </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Date fin</label>
+                  <input
+                    type="date"
+                    value={sessionForm.date_fin}
+                    onChange={(event) => setSessionForm((current) => ({ ...current, date_fin: event.target.value }))}
+                    className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                  />
+                </div>
 
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Montant</label>
-              <input
-                type="number"
-                step="0.01"
-                value={sessionForm.montant}
-                onChange={(event) => setSessionForm((current) => ({ ...current, montant: event.target.value }))}
-                className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-              />
-            </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Montant</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={sessionForm.montant}
+                    onChange={(event) => setSessionForm((current) => ({ ...current, montant: event.target.value }))}
+                    className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                  />
+                </div>
 
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Etat</label>
-              <input
-                value={sessionForm.is_active}
-                onChange={(event) => setSessionForm((current) => ({ ...current, is_active: event.target.value }))}
-                className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-              />
-            </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Statut</label>
+                  <select
+                    value={sessionForm.is_active}
+                    onChange={(event) => setSessionForm((current) => ({ ...current, is_active: event.target.value }))}
+                    className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                  >
+                    <option value="false">false</option>
+                    <option value="true">true</option>
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Par defaut la session reste inactive tant que vous ne la basculez pas sur `true`.</p>
+                </div>
 
-            <div className="lg:col-span-2">
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Description</label>
-              <textarea
-                rows={4}
-                value={sessionForm.description}
-                onChange={(event) => setSessionForm((current) => ({ ...current, description: event.target.value }))}
-                className="w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 font-mono text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-              />
-            </div>
+                <div className="lg:col-span-2">
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Description</label>
+                  <textarea
+                    rows={5}
+                    value={sessionForm.description}
+                    onChange={(event) => setSessionForm((current) => ({ ...current, description: event.target.value }))}
+                    className="w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-800 dark:text-white/90">Matieres de la session</p>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      Precisez chaque matiere et la date de l'epreuve qui sera envoyee aux etudiants.
+                    </p>
+                  </div>
+                  <Button type="button" variant="outline" onClick={addSessionMatiere}>
+                    Ajouter une matiere
+                  </Button>
+                </div>
 
-            <div className="lg:col-span-2">
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Matieres</label>
-              <textarea
-                rows={5}
-                value={sessionForm.matieres}
-                onChange={(event) => setSessionForm((current) => ({ ...current, matieres: event.target.value }))}
-                className="w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 font-mono text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-              />
-            </div>
+                <div className="space-y-4">
+                  {sessionForm.matieres.map((matiere, index) => (
+                    <div key={`${index}-${matiere.matiere}`} className="grid gap-4 rounded-2xl border border-gray-200 p-4 dark:border-gray-800 lg:grid-cols-[minmax(0,1fr)_220px_auto]">
+                      <div>
+                        <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+                          Matiere {index + 1}
+                        </label>
+                        <input
+                          value={matiere.matiere}
+                          onChange={(event) => updateSessionMatiere(index, "matiere", event.target.value)}
+                          className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                        />
+                      </div>
 
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Entra ID</label>
-              <input
-                value={sessionForm.entra_id}
-                onChange={(event) => setSessionForm((current) => ({ ...current, entra_id: event.target.value }))}
-                className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-              />
-            </div>
+                      <div>
+                        <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Date epreuve</label>
+                        <input
+                          type="date"
+                          value={matiere.date_epreuve}
+                          onChange={(event) => updateSessionMatiere(index, "date_epreuve", event.target.value)}
+                          className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                        />
+                      </div>
 
-            <div className="flex justify-end gap-3 lg:col-span-2">
+                      <div className="flex items-end">
+                        <Button type="button" variant="outline" onClick={() => removeSessionMatiere(index)} disabled={sessionForm.matieres.length === 1}>
+                          Retirer
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3">
               <Button type="button" variant="outline" onClick={closeSessionModal} disabled={isSavingSession}>
                 Annuler
               </Button>
-              <Button type="submit" disabled={isSavingSession}>
-                {isSavingSession ? "Enregistrement..." : sessionForm.id ? "Mettre a jour" : "Creer"}
-              </Button>
+
+              {sessionStep === 2 ? (
+                <>
+                  <Button type="button" variant="outline" onClick={() => setSessionStep(1)} disabled={isSavingSession}>
+                    Retour
+                  </Button>
+                  <Button type="submit" disabled={isSavingSession}>
+                    {isSavingSession ? "Enregistrement..." : sessionForm.id ? "Mettre a jour" : "Creer"}
+                  </Button>
+                </>
+              ) : (
+                <Button type="button" onClick={goToSessionStepTwo}>
+                  Continuer
+                </Button>
+              )}
             </div>
           </form>
         </div>
