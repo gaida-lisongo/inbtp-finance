@@ -145,6 +145,22 @@ const getAgentDisplayName = (agent: {
   return name.length > 0 ? name : "Chef de section";
 };
 
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const formatDescriptionForEmail = (value: string | null) => {
+  if (!value || value.trim().length === 0) {
+    return "Aucune description";
+  }
+
+  return escapeHtml(value).replace(/\r\n|\n|\r/g, "<br />");
+};
+
 const buildPdfBuffer = (lines: string[]) => {
   const sanitizedLines = lines.map((line) =>
     line
@@ -223,18 +239,24 @@ const sendRetraitDecisionMail = async ({
   attachmentBase64?: string;
 }) => {
   const title = accepted ? "Retrait valide" : "Retrait invalide";
-  const accentColor = accepted ? "#166534" : "#b91c1c";
-  const backgroundColor = accepted ? "#f0fdf4" : "#fef2f2";
+  const headerBackground = accepted
+    ? "linear-gradient(135deg,#dcfce7,#bbf7d0)"
+    : "linear-gradient(135deg,#fee2e2,#fecaca)";
+  const headerBorder = accepted ? "#86efac" : "#fca5a5";
+  const overlineColor = accepted ? "#15803d" : "#b91c1c";
+  const headingColor = accepted ? "#166534" : "#991b1b";
+  const introColor = accepted ? "#14532d" : "#7f1d1d";
   const retraitUrl = await getAppOrigin().then((origin) => new URL("/", origin).toString());
+  const descriptionHtml = formatDescriptionForEmail(retrait.description);
 
   const html = `
     <div style="margin:0;padding:32px;background:#f3f4f6;font-family:Arial,sans-serif;color:#111827;">
       <div style="max-width:680px;margin:0 auto;background:#ffffff;border-radius:24px;overflow:hidden;border:1px solid #e5e7eb;">
-        <div style="padding:32px;background:${backgroundColor};border-bottom:1px solid #e5e7eb;">
-          <div style="font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:${accentColor};">Traitement du retrait</div>
-          <h1 style="margin:12px 0 0;font-size:28px;line-height:1.2;color:#111827;">${title}</h1>
-          <p style="margin:12px 0 0;font-size:15px;line-height:1.7;color:#4b5563;">
-            Bonjour ${requester.displayName}, votre demande de retrait a ete ${accepted ? "validee" : "invalidee"}.
+        <div style="padding:32px;background:${headerBackground};border-bottom:1px solid ${headerBorder};">
+          <div style="font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:${overlineColor};">Traitement du retrait</div>
+          <h1 style="margin:12px 0 0;font-size:28px;line-height:1.2;color:${headingColor};">${title}</h1>
+          <p style="margin:12px 0 0;font-size:15px;line-height:1.7;color:${introColor};">
+            Bonjour ${escapeHtml(requester.displayName)}, votre demande de retrait a ete ${accepted ? "validee" : "invalidee"}.
           </p>
         </div>
         <div style="padding:32px;">
@@ -246,6 +268,10 @@ const sendRetraitDecisionMail = async ({
               <tr><td style="padding:8px 0;color:#6b7280;">Statut final</td><td style="padding:8px 0;text-align:right;font-weight:600;">${accepted ? "Success" : "No"}</td></tr>
               <tr><td style="padding:8px 0;color:#6b7280;">Solde de section</td><td style="padding:8px 0;text-align:right;font-weight:600;">${formatCurrency(availableBalance)}</td></tr>
             </table>
+          </div>
+          <div style="margin-top:18px;padding:20px;border:1px solid #e5e7eb;border-radius:18px;background:#f9fafb;">
+            <div style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:0.12em;">Description du retrait</div>
+            <p style="margin:12px 0 0;font-size:14px;line-height:1.8;color:#374151;">${descriptionHtml}</p>
           </div>
           <div style="margin-top:18px;padding:20px;border-radius:18px;background:#f9fafb;border:1px solid #e5e7eb;">
             <p style="margin:0;font-size:14px;line-height:1.7;color:#374151;">
@@ -540,14 +566,15 @@ export const confirmRetrait = async (id: string) => {
 
   const origin = await getAppOrigin();
   const retraitUrl = new URL(`/retrait/${reviewDetails.retrait.id}`, origin).toString();
+  const descriptionHtml = formatDescriptionForEmail(reviewDetails.retrait.description);
 
   const html = `
     <div style="margin:0;padding:32px;background:#f3f4f6;font-family:Arial,sans-serif;color:#111827;">
       <div style="max-width:680px;margin:0 auto;background:#ffffff;border-radius:24px;overflow:hidden;border:1px solid #e5e7eb;">
-        <div style="padding:32px;background:linear-gradient(135deg,#1d4ed8,#0f172a);color:#ffffff;">
-          <div style="font-size:12px;letter-spacing:0.18em;text-transform:uppercase;opacity:0.8;">Demande de retrait</div>
-          <h1 style="margin:12px 0 0;font-size:28px;line-height:1.2;">Validation requise</h1>
-          <p style="margin:12px 0 0;font-size:15px;line-height:1.7;opacity:0.92;">
+        <div style="padding:32px;background:linear-gradient(135deg,#dbeafe,#bfdbfe);border-bottom:1px solid #93c5fd;">
+          <div style="font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:#1d4ed8;">Demande de retrait</div>
+          <h1 style="margin:12px 0 0;font-size:28px;line-height:1.2;color:#1e3a8a;">Validation requise</h1>
+          <p style="margin:12px 0 0;font-size:15px;line-height:1.7;color:#334155;">
             Une nouvelle demande de retrait vient d'etre soumise et attend votre validation.
           </p>
         </div>
@@ -566,6 +593,10 @@ export const confirmRetrait = async (id: string) => {
                 <tr><td style="padding:8px 0;color:#6b7280;">Montant</td><td style="padding:8px 0;color:#111827;font-weight:600;text-align:right;">${formatCurrency(reviewDetails.retrait.montant)}</td></tr>
                 <tr><td style="padding:8px 0;color:#6b7280;">Statut</td><td style="padding:8px 0;color:#111827;font-weight:600;text-align:right;">Pending</td></tr>
               </table>
+            </div>
+            <div style="padding:20px;border:1px solid #e5e7eb;border-radius:18px;background:#f9fafb;">
+              <div style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:0.12em;">Description du retrait</div>
+              <p style="margin:12px 0 0;font-size:14px;line-height:1.8;color:#374151;">${descriptionHtml}</p>
             </div>
             <div style="padding:20px;border-radius:18px;background:#eff6ff;border:1px solid #bfdbfe;">
               <p style="margin:0;font-size:14px;line-height:1.7;color:#1e3a8a;">
