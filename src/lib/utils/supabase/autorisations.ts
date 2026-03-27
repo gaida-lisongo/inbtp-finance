@@ -9,6 +9,8 @@ export type AutorisationRecord = {
   is_active: string | null;
 };
 
+export type AutorisationCode = "CS" | "CE" | "CR" | "APP" | "SEC" | "T" | "J";
+
 export type AgentOption = Pick<AgentRecord, "id" | "nom" | "post_nom" | "prenom" | "role">;
 
 export type AutorisationWithAgent = AutorisationRecord & {
@@ -24,6 +26,32 @@ const emptyToNull = (value: FormDataEntryValue | null) => {
 
   const trimmedValue = value.trim();
   return trimmedValue.length > 0 ? trimmedValue : null;
+};
+
+const knownAutorisationCodes = new Set<AutorisationCode>(["CS", "CE", "CR", "APP", "SEC", "T", "J"]);
+
+export const normalizeAutorisationCode = (value: string | null | undefined): AutorisationCode | null => {
+  if (!value) {
+    return null;
+  }
+
+  const normalizedValue = value.trim().toUpperCase();
+
+  if (knownAutorisationCodes.has(normalizedValue as AutorisationCode)) {
+    return normalizedValue as AutorisationCode;
+  }
+
+  return null;
+};
+
+export const autorisationLabels: Record<AutorisationCode, string> = {
+  CS: "Chef de Section",
+  CE: "Charge de l'enseignement",
+  CR: "Charge de la Recherche",
+  APP: "Appariteur",
+  SEC: "Secretaire",
+  T: "Titulaire",
+  J: "Jury",
 };
 
 const buildAgentDisplayName = (agent: AgentOption | null) => {
@@ -95,6 +123,34 @@ export const getAutorisations = async () => {
       agentDisplayName: buildAgentDisplayName(agent),
     };
   }) as AutorisationWithAgent[];
+};
+
+export const getActiveAutorisationCodesForAgent = async (agentId: string) => {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("autorisation")
+    .select("designation, is_active")
+    .eq("agent_id", agentId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const codes = new Set<AutorisationCode>();
+
+  for (const item of (data ?? []) as Array<Pick<AutorisationRecord, "designation" | "is_active">>) {
+    if (item.is_active?.toLowerCase() !== "oui") {
+      continue;
+    }
+
+    const code = normalizeAutorisationCode(item.designation);
+
+    if (code) {
+      codes.add(code);
+    }
+  }
+
+  return Array.from(codes);
 };
 
 export const getAutorisationById = async (id: string) => {

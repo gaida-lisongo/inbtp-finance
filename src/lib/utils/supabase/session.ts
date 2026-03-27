@@ -109,6 +109,7 @@ const buildAuthenticatedUser = async (user: User): Promise<AuthenticatedUser | n
   const accountType: AccountType = agentRecord ? "agent" : "student";
   const role = normalizeAgentRole(agentRecord?.role);
   const isOrganizer = role === "organisateur";
+  const isGestionnaire = role === "gestionnaire";
 
   return {
     id: user.id,
@@ -120,7 +121,7 @@ const buildAuthenticatedUser = async (user: User): Promise<AuthenticatedUser | n
     role,
     canAccessAdmin: Boolean(agentRecord && role),
     canManageYears: isOrganizer,
-    canManageAuthorizations: isOrganizer,
+    canManageAuthorizations: isGestionnaire,
   };
 };
 

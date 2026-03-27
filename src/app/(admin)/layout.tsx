@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { getAdminSidebarMenu } from "@/lib/navigation/admin-sidebar";
 import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 import AdminShell from "@/layout/AdminShell";
 
@@ -18,5 +19,11 @@ export default async function AdminLayout({
     redirect("/signin?error=access_denied");
   }
 
-  return <AdminShell user={user}>{children}</AdminShell>;
+  const sidebarMenu = await getAdminSidebarMenu(user);
+
+  return (
+    <AdminShell user={user} sidebarMenu={sidebarMenu}>
+      {children}
+    </AdminShell>
+  );
 }

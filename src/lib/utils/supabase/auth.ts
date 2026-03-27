@@ -3,6 +3,8 @@ import { cookies, headers } from "next/headers";
 import { createClient as createServerSupabaseClient } from "@/lib/utils/supabase/server";
 
 const DEFAULT_POST_LOGIN_PATH = "/";
+const configuredAppUrl =
+  process.env.NEXT_PUBLIC_HOST_URL
 
 const normalizeNextPath = (value: string | null | undefined) => {
   if (!value) {
@@ -13,6 +15,14 @@ const normalizeNextPath = (value: string | null | undefined) => {
 };
 
 const getRequestOrigin = async () => {
+  if (configuredAppUrl) {
+    try {
+      return new URL(configuredAppUrl).origin;
+    } catch {
+      // Fall back to the current request when the configured URL is invalid.
+    }
+  }
+
   const requestHeaders = await headers();
   const forwardedHost = requestHeaders.get("x-forwarded-host");
   const host = forwardedHost ?? requestHeaders.get("host");
