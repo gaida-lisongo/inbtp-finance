@@ -35,6 +35,11 @@ type SendMicrosoft365MailInput = {
   subject: string;
   html: string;
   from?: string;
+  attachments?: Array<{
+    name: string;
+    contentBytes: string;
+    contentType: string;
+  }>;
 };
 
 type TokenCache = {
@@ -163,7 +168,7 @@ class MicrosoftGraphService {
     throw new Error("graph_mail_sender_not_configured");
   }
 
-  async sendMail({ to, subject, html, from }: SendMicrosoft365MailInput) {
+  async sendMail({ to, subject, html, from, attachments }: SendMicrosoft365MailInput) {
     const graphClient = await this.getAppClient();
     const recipients = Array.isArray(to) ? to : [to];
     const senderAddress = from ?? this.getDefaultSenderAddress();
@@ -180,6 +185,13 @@ class MicrosoftGraphService {
             address,
           },
         })),
+        attachments:
+          attachments?.map((attachment) => ({
+            "@odata.type": "#microsoft.graph.fileAttachment",
+            name: attachment.name,
+            contentType: attachment.contentType,
+            contentBytes: attachment.contentBytes,
+          })) ?? [],
       },
       saveToSentItems: true,
     });

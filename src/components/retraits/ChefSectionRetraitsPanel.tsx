@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -26,7 +25,9 @@ type ChefSectionRetraitsPanelProps = {
 
 const PAGE_SIZE = 10;
 
-const amountFormatter = new Intl.NumberFormat("fr-FR", {
+const amountFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
@@ -43,7 +44,11 @@ const getStatusBadgeClassName = (status: string | null) => {
     return "bg-success-50 text-success-700 ring-success-600/20 dark:bg-success-500/10 dark:text-success-300";
   }
 
-  if (normalizedStatus === "rejected") {
+  if (normalizedStatus === "success") {
+    return "bg-success-50 text-success-700 ring-success-600/20 dark:bg-success-500/10 dark:text-success-300";
+  }
+
+  if (normalizedStatus === "no") {
     return "bg-error-50 text-error-700 ring-error-600/20 dark:bg-error-500/10 dark:text-error-300";
   }
 
@@ -61,8 +66,12 @@ const formatStatusLabel = (status: string | null) => {
     return "Approuve";
   }
 
-  if (normalizedStatus === "rejected") {
-    return "Rejete";
+  if (normalizedStatus === "success") {
+    return "Success";
+  }
+
+  if (normalizedStatus === "no") {
+    return "No";
   }
 
   if (normalizedStatus === "paid") {
@@ -78,7 +87,7 @@ const formatStatusLabel = (status: string | null) => {
 
 const formatAmount = (value: number | null) => {
   if (typeof value !== "number" || Number.isNaN(value)) {
-    return "0,00";
+    return "$0.00";
   }
 
   return amountFormatter.format(value);
@@ -180,8 +189,9 @@ export default function ChefSectionRetraitsPanel({
                 <option value="all">Tous les statuts</option>
                 <option value="brouillon">Brouillon</option>
                 <option value="pending">Pending</option>
+                <option value="success">Success</option>
                 <option value="approved">Approuve</option>
-                <option value="rejected">Rejete</option>
+                <option value="no">No</option>
                 <option value="paid">Paye</option>
               </select>
             </div>
@@ -252,7 +262,6 @@ export default function ChefSectionRetraitsPanel({
                           <p className="text-xs text-gray-500 dark:text-gray-400">
                             {retrait.orderNumber || "Aucun numero de retrait pour le moment"}
                           </p>
-                          <p className="text-xs text-gray-400 dark:text-gray-500">{retrait.description || "Aucune description"}</p>
                         </div>
                       </TableCell>
 
@@ -278,13 +287,6 @@ export default function ChefSectionRetraitsPanel({
 
                       <TableCell className="px-5 py-4">
                         <div className="flex flex-wrap items-center justify-end gap-3">
-                          <Link
-                            href={`/retrait/${retrait.id}`}
-                            className="text-sm font-medium text-brand-500 hover:text-brand-600"
-                          >
-                            Ouvrir
-                          </Link>
-
                           {canConfirm ? (
                             <form action={confirmAction}>
                               <input type="hidden" name="id" value={retrait.id} />

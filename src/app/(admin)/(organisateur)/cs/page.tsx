@@ -59,6 +59,14 @@ const getFeedbackMessage = (status?: string, message?: string) => {
       return "Seuls les retraits en brouillon peuvent etre confirmes.";
     }
 
+    if (message === "retrait_owner_cannot_access_review") {
+      return "Le demandeur ne peut pas acceder a la page de validation du retrait.";
+    }
+
+    if (message === "only_pending_retrait_can_be_processed") {
+      return "Seuls les retraits pending peuvent etre valides ou invalides.";
+    }
+
     if (message === "only_pending_retrait_can_be_deleted") {
       return "Seuls les retraits avec le statut pending peuvent etre supprimes.";
     }
@@ -73,6 +81,10 @@ const getFeedbackMessage = (status?: string, message?: string) => {
 
     if (message === "control_mail_not_configured") {
       return "La variable d'environnement CONTROL_MAIL est absente.";
+    }
+
+    if (message === "retrait_requester_email_missing") {
+      return "Le demandeur du retrait n'a pas d'email exploitable pour la notification.";
     }
 
     if (message === "app_origin_not_available") {

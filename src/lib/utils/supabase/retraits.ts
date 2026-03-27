@@ -5,7 +5,7 @@ import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 import { getActiveAutorisationCodesForAgent } from "@/lib/utils/supabase/autorisations";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 
-export type RetraitStatus = "brouillon" | "pending" | "approved" | "rejected" | "paid";
+export type RetraitStatus = "brouillon" | "pending" | "success" | "no" | "paid" | "approved";
 
 export type RetraitRecord = {
   id: string;
@@ -21,9 +21,26 @@ export type RetraitRecord = {
   annee_id: string | null;
 };
 
-export type RetraitWithAgent = RetraitRecord & {
-  agentDisplayName: string;
-  agentEmail: string | null;
+export type RetraitRequester = {
+  id: string;
+  displayName: string;
+  email: string | null;
+  role: string | null;
+};
+
+export type SectionFinancialSituation = {
+  totalCommandesSuccess: number;
+  totalRetraitsSuccess: number;
+  availableBalance: number;
+  linkedRevenueCount: number;
+  isReliable: boolean;
+  warning: string | null;
+};
+
+export type RetraitReviewDetails = {
+  retrait: RetraitRecord;
+  requester: RetraitRequester | null;
+  sectionFinancialSituation: SectionFinancialSituation;
 };
 
 const controlMailAddress = process.env.CONTROL_MAIL;
@@ -38,6 +55,16 @@ const emptyToNull = (value: FormDataEntryValue | null) => {
   return trimmedValue.length > 0 ? trimmedValue : null;
 };
 
+const sanitizeOrderNumber = (value: FormDataEntryValue | null) => {
+  const normalizedValue = emptyToNull(value);
+
+  if (!normalizedValue) {
+    return null;
+  }
+
+  return normalizedValue.replace(/\s+/g, " ").trim();
+};
+
 const normalizeStatus = (value: string | null | undefined): RetraitStatus | null => {
   if (!value) {
     return null;
@@ -48,9 +75,10 @@ const normalizeStatus = (value: string | null | undefined): RetraitStatus | null
   if (
     normalizedValue === "brouillon" ||
     normalizedValue === "pending" ||
-    normalizedValue === "approved" ||
-    normalizedValue === "rejected" ||
-    normalizedValue === "paid"
+    normalizedValue === "success" ||
+    normalizedValue === "no" ||
+    normalizedValue === "paid" ||
+    normalizedValue === "approved"
   ) {
     return normalizedValue;
   }
@@ -58,12 +86,22 @@ const normalizeStatus = (value: string | null | undefined): RetraitStatus | null
   return null;
 };
 
+const formatCurrency = (value: number | null | undefined) =>
+  typeof value === "number" && Number.isFinite(value)
+    ? new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(value)
+    : "$0.00";
+
 const getAppOrigin = async () => {
   if (configuredAppUrl) {
     try {
       return new URL(configuredAppUrl).origin;
     } catch {
-      // Fall back to the current request headers.
+      // Fall back to request headers.
     }
   }
 
@@ -107,6 +145,139 @@ const getAgentDisplayName = (agent: {
   return name.length > 0 ? name : "Chef de section";
 };
 
+const buildPdfBuffer = (lines: string[]) => {
+  const sanitizedLines = lines.map((line) =>
+    line
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^\x20-\x7E]/g, ""),
+  );
+  const contentLines = sanitizedLines
+    .map((line, index) => `BT /F1 12 Tf 50 ${760 - index * 22} Td (${line.replace(/[()\\]/g, "\\$&")}) Tj ET`)
+    .join("\n");
+  const objects = [
+    "1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj",
+    "2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj",
+    "3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj",
+    `4 0 obj << /Length ${contentLines.length} >> stream\n${contentLines}\nendstream endobj`,
+    "5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj",
+  ];
+
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+
+  for (const object of objects) {
+    offsets.push(pdf.length);
+    pdf += `${object}\n`;
+  }
+
+  const xrefOffset = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n`;
+  pdf += "0000000000 65535 f \n";
+
+  for (let index = 1; index < offsets.length; index += 1) {
+    pdf += `${offsets[index].toString().padStart(10, "0")} 00000 n \n`;
+  }
+
+  pdf += `trailer << /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+
+  return Buffer.from(pdf, "utf-8");
+};
+
+const buildValidationPdfBase64 = (retrait: RetraitRecord, requester: RetraitRequester | null, balanceAfter: number) => {
+  const dateValue = new Intl.DateTimeFormat("fr-FR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date());
+
+  const buffer = buildPdfBuffer([
+    "RAPPORT DE VALIDATION DE RETRAIT",
+    "",
+    `Date: ${dateValue}`,
+    `Retrait: ${retrait.designation ?? retrait.id}`,
+    `Montant: ${formatCurrency(retrait.montant)}`,
+    `Categorie: ${retrait.categorie ?? "-"}`,
+    `Statut: SUCCESS`,
+    `Demandeur: ${requester?.displayName ?? "Inconnu"}`,
+    `Email: ${requester?.email ?? "Non disponible"}`,
+    `Solde apres validation: ${formatCurrency(balanceAfter)}`,
+    `Reference: ${retrait.orderNumber ?? "Non attribuee"}`,
+  ]);
+
+  return buffer.toString("base64");
+};
+
+const sendRetraitDecisionMail = async ({
+  requester,
+  retrait,
+  accepted,
+  reason,
+  availableBalance,
+  attachmentBase64,
+}: {
+  requester: RetraitRequester;
+  retrait: RetraitRecord;
+  accepted: boolean;
+  reason?: string;
+  availableBalance: number;
+  attachmentBase64?: string;
+}) => {
+  const title = accepted ? "Retrait valide" : "Retrait invalide";
+  const accentColor = accepted ? "#166534" : "#b91c1c";
+  const backgroundColor = accepted ? "#f0fdf4" : "#fef2f2";
+  const retraitUrl = await getAppOrigin().then((origin) => new URL("/", origin).toString());
+
+  const html = `
+    <div style="margin:0;padding:32px;background:#f3f4f6;font-family:Arial,sans-serif;color:#111827;">
+      <div style="max-width:680px;margin:0 auto;background:#ffffff;border-radius:24px;overflow:hidden;border:1px solid #e5e7eb;">
+        <div style="padding:32px;background:${backgroundColor};border-bottom:1px solid #e5e7eb;">
+          <div style="font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:${accentColor};">Traitement du retrait</div>
+          <h1 style="margin:12px 0 0;font-size:28px;line-height:1.2;color:#111827;">${title}</h1>
+          <p style="margin:12px 0 0;font-size:15px;line-height:1.7;color:#4b5563;">
+            Bonjour ${requester.displayName}, votre demande de retrait a ete ${accepted ? "validee" : "invalidee"}.
+          </p>
+        </div>
+        <div style="padding:32px;">
+          <div style="padding:20px;border:1px solid #e5e7eb;border-radius:18px;">
+            <div style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:0.12em;">Synthese</div>
+            <table style="width:100%;margin-top:14px;border-collapse:collapse;font-size:14px;">
+              <tr><td style="padding:8px 0;color:#6b7280;">Designation</td><td style="padding:8px 0;text-align:right;font-weight:600;">${retrait.designation ?? "-"}</td></tr>
+              <tr><td style="padding:8px 0;color:#6b7280;">Montant</td><td style="padding:8px 0;text-align:right;font-weight:600;">${formatCurrency(retrait.montant)}</td></tr>
+              <tr><td style="padding:8px 0;color:#6b7280;">Statut final</td><td style="padding:8px 0;text-align:right;font-weight:600;">${accepted ? "Success" : "No"}</td></tr>
+              <tr><td style="padding:8px 0;color:#6b7280;">Solde de section</td><td style="padding:8px 0;text-align:right;font-weight:600;">${formatCurrency(availableBalance)}</td></tr>
+            </table>
+          </div>
+          <div style="margin-top:18px;padding:20px;border-radius:18px;background:#f9fafb;border:1px solid #e5e7eb;">
+            <p style="margin:0;font-size:14px;line-height:1.7;color:#374151;">
+              ${accepted ? "Le rapport PDF de validation est joint a ce message." : reason ?? "Le retrait n'a pas pu etre approuve."}
+            </p>
+          </div>
+          <div style="margin-top:20px;">
+            <a href="${retraitUrl}" style="display:inline-block;padding:14px 22px;border-radius:999px;background:#111827;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;">
+              Ouvrir l'application
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  await sendMicrosoft365Mail({
+    to: requester.email,
+    subject: `${title} - ${retrait.designation ?? retrait.id}`,
+    html,
+    attachments: attachmentBase64
+      ? [
+          {
+            name: `rapport-retrait-${retrait.id}.pdf`,
+            contentType: "application/pdf",
+            contentBytes: attachmentBase64,
+          },
+        ]
+      : undefined,
+  });
+};
+
 export const getRetraitsForAgent = async (agentId: string, anneeId: string, programmeId: string) => {
   const admin = createAdminClient();
   const { data, error } = await admin
@@ -139,72 +310,162 @@ export const getRetraitById = async (id: string) => {
   return data as RetraitRecord | null;
 };
 
-const getRetraitWithAgent = async (id: string) => {
+const getRequesterForRetrait = async (agentId: string | null) => {
+  if (!agentId) {
+    return null;
+  }
+
   const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("retraits")
-    .select("id, created_at, montant, designation, description, status, categorie, orderNumber, agent_id, pgrogramme_id, annee_id")
-    .eq("id", id)
+  const { data: agent, error } = await admin
+    .from("agents")
+    .select("id, nom, post_nom, prenom, role, user_id")
+    .eq("id", agentId)
     .maybeSingle();
 
   if (error) {
     throw new Error(error.message);
   }
 
-  if (!data) {
+  if (!agent) {
     return null;
   }
 
-  let agent:
-    | {
-        nom: string | null;
-        post_nom: string | null;
-        prenom: string | null;
-        user_id: string | null;
-      }
-    | null = null;
+  let email: string | null = null;
 
-  if (data.agent_id) {
-    const { data: agentData, error: agentError } = await admin
-      .from("agents")
-      .select("nom, post_nom, prenom, user_id")
-      .eq("id", data.agent_id)
-      .maybeSingle();
-
-    if (agentError) {
-      throw new Error(agentError.message);
-    }
-
-    agent = agentData;
-  }
-
-  let agentEmail: string | null = null;
-
-  if (agent?.user_id) {
+  if (agent.user_id) {
     const { data: authUser, error: userError } = await admin.auth.admin.getUserById(agent.user_id);
 
     if (userError) {
       throw new Error(userError.message);
     }
 
-    agentEmail = authUser.user?.email ?? null;
+    email = authUser.user?.email ?? null;
   }
 
   return {
-    id: data.id,
-    created_at: data.created_at,
-    montant: data.montant,
-    designation: data.designation,
-    description: data.description,
-    status: data.status,
-    categorie: data.categorie,
-    orderNumber: data.orderNumber,
-    agent_id: data.agent_id,
-    pgrogramme_id: data.pgrogramme_id,
-    annee_id: data.annee_id,
-    agentDisplayName: agent ? getAgentDisplayName(agent) : "Chef de section",
-    agentEmail,
-  } as RetraitWithAgent;
+    id: agent.id,
+    displayName: getAgentDisplayName(agent),
+    email,
+    role: agent.role ?? null,
+  } as RetraitRequester;
+};
+
+const getStudentIdsForSection = async (programmeId: string, anneeId: string) => {
+  const admin = createAdminClient();
+  const { data: sampleStudent, error: sampleError } = await admin.from("students").select("*").limit(1).maybeSingle();
+
+  if (sampleError) {
+    throw new Error(sampleError.message);
+  }
+
+  const availableColumns = sampleStudent ? Object.keys(sampleStudent) : [];
+  const programmeColumn = ["pgrogramme_id", "programme_id", "classe_id", "programme"].find((column) =>
+    availableColumns.includes(column),
+  );
+  const yearColumn = ["annee_id", "academic_year_id", "year_id"].find((column) => availableColumns.includes(column));
+
+  if (!programmeColumn) {
+    return {
+      studentIds: [] as string[],
+      isReliable: false,
+      warning: "Le rattachement des recettes a cette section n'est pas configure dans la source des commandes.",
+    };
+  }
+
+  let query = admin.from("students").select("id").eq(programmeColumn, programmeId);
+
+  if (yearColumn) {
+    query = query.eq(yearColumn, anneeId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return {
+    studentIds: ((data ?? []) as Array<{ id: string }>).map((student) => student.id),
+    isReliable: Boolean(yearColumn || availableColumns.length > 0),
+    warning: yearColumn ? null : "L'annee de rattachement des recettes est introuvable. Le calcul est filtre uniquement par section.",
+  };
+};
+
+export const getSectionFinancialSituation = async (programmeId: string, anneeId: string): Promise<SectionFinancialSituation> => {
+  const admin = createAdminClient();
+  const studentResolution = await getStudentIdsForSection(programmeId, anneeId);
+  const studentIds = studentResolution.studentIds;
+
+  let totalCommandesSuccess = 0;
+
+  if (studentIds.length > 0) {
+    const { data: commandes, error: commandesError } = await admin
+      .from("commande")
+      .select("total")
+      .in("student_id", studentIds)
+      .eq("status", "success");
+
+    if (commandesError) {
+      throw new Error(commandesError.message);
+    }
+
+    totalCommandesSuccess = ((commandes ?? []) as Array<{ total: number | null }>).reduce(
+      (sum, item) => sum + (typeof item.total === "number" ? item.total : 0),
+      0,
+    );
+  }
+
+  const { data: retraits, error: retraitsError } = await admin
+    .from("retraits")
+    .select("montant")
+    .eq("pgrogramme_id", programmeId)
+    .eq("annee_id", anneeId)
+    .eq("status", "success");
+
+  if (retraitsError) {
+    throw new Error(retraitsError.message);
+  }
+
+  const totalRetraitsSuccess = ((retraits ?? []) as Array<{ montant: number | null }>).reduce(
+    (sum, item) => sum + (typeof item.montant === "number" ? item.montant : 0),
+    0,
+  );
+
+  return {
+    totalCommandesSuccess,
+    totalRetraitsSuccess,
+    availableBalance: totalCommandesSuccess - totalRetraitsSuccess,
+    linkedRevenueCount: studentIds.length,
+    isReliable: studentResolution.isReliable,
+    warning: studentResolution.warning,
+  };
+};
+
+export const getRetraitReviewDetails = async (id: string): Promise<RetraitReviewDetails | null> => {
+  const retrait = await getRetraitById(id);
+
+  if (!retrait) {
+    return null;
+  }
+
+  const requester = await getRequesterForRetrait(retrait.agent_id);
+  const sectionFinancialSituation =
+    retrait.pgrogramme_id && retrait.annee_id
+      ? await getSectionFinancialSituation(retrait.pgrogramme_id, retrait.annee_id)
+      : {
+          totalCommandesSuccess: 0,
+          totalRetraitsSuccess: 0,
+          availableBalance: 0,
+          linkedRevenueCount: 0,
+          isReliable: false,
+          warning: "Les donnees de section sont incompletes pour ce retrait.",
+        };
+
+  return {
+    retrait,
+    requester,
+    sectionFinancialSituation,
+  };
 };
 
 export const createRetrait = async (formData: FormData) => {
@@ -267,19 +528,18 @@ export const confirmRetrait = async (id: string) => {
     throw new Error("control_mail_not_configured");
   }
 
-  const retrait = await getRetraitWithAgent(id);
+  const reviewDetails = await getRetraitReviewDetails(id);
 
-  if (!retrait) {
+  if (!reviewDetails) {
     throw new Error("retrait_not_found");
   }
 
-  if (normalizeStatus(retrait.status) !== "brouillon") {
+  if (normalizeStatus(reviewDetails.retrait.status) !== "brouillon") {
     throw new Error("only_draft_retrait_can_be_confirmed");
   }
 
   const origin = await getAppOrigin();
-  const retraitUrl = new URL(`/retrait/${retrait.id}`, origin).toString();
-  const amount = typeof retrait.montant === "number" ? retrait.montant.toLocaleString("fr-FR") : "0";
+  const retraitUrl = new URL(`/retrait/${reviewDetails.retrait.id}`, origin).toString();
 
   const html = `
     <div style="margin:0;padding:32px;background:#f3f4f6;font-family:Arial,sans-serif;color:#111827;">
@@ -295,28 +555,16 @@ export const confirmRetrait = async (id: string) => {
           <div style="display:grid;gap:16px;">
             <div style="padding:20px;border:1px solid #e5e7eb;border-radius:18px;background:#f9fafb;">
               <div style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:0.12em;">Chef de section</div>
-              <div style="margin-top:8px;font-size:18px;font-weight:700;color:#111827;">${retrait.agentDisplayName}</div>
-              <div style="margin-top:6px;font-size:14px;color:#6b7280;">${retrait.agentEmail ?? "Email non disponible"}</div>
+              <div style="margin-top:8px;font-size:18px;font-weight:700;color:#111827;">${reviewDetails.requester?.displayName ?? "Chef de section"}</div>
+              <div style="margin-top:6px;font-size:14px;color:#6b7280;">${reviewDetails.requester?.email ?? "Email non disponible"}</div>
             </div>
             <div style="padding:20px;border:1px solid #e5e7eb;border-radius:18px;">
               <div style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:0.12em;">Details du retrait</div>
               <table style="width:100%;margin-top:14px;border-collapse:collapse;font-size:14px;">
-                <tr>
-                  <td style="padding:8px 0;color:#6b7280;">Designation</td>
-                  <td style="padding:8px 0;color:#111827;font-weight:600;text-align:right;">${retrait.designation ?? "-"}</td>
-                </tr>
-                <tr>
-                  <td style="padding:8px 0;color:#6b7280;">Categorie</td>
-                  <td style="padding:8px 0;color:#111827;font-weight:600;text-align:right;">${retrait.categorie ?? "-"}</td>
-                </tr>
-                <tr>
-                  <td style="padding:8px 0;color:#6b7280;">Montant</td>
-                  <td style="padding:8px 0;color:#111827;font-weight:600;text-align:right;">${amount}</td>
-                </tr>
-                <tr>
-                  <td style="padding:8px 0;color:#6b7280;">Statut</td>
-                  <td style="padding:8px 0;color:#111827;font-weight:600;text-align:right;">Pending</td>
-                </tr>
+                <tr><td style="padding:8px 0;color:#6b7280;">Designation</td><td style="padding:8px 0;color:#111827;font-weight:600;text-align:right;">${reviewDetails.retrait.designation ?? "-"}</td></tr>
+                <tr><td style="padding:8px 0;color:#6b7280;">Categorie</td><td style="padding:8px 0;color:#111827;font-weight:600;text-align:right;">${reviewDetails.retrait.categorie ?? "-"}</td></tr>
+                <tr><td style="padding:8px 0;color:#6b7280;">Montant</td><td style="padding:8px 0;color:#111827;font-weight:600;text-align:right;">${formatCurrency(reviewDetails.retrait.montant)}</td></tr>
+                <tr><td style="padding:8px 0;color:#6b7280;">Statut</td><td style="padding:8px 0;color:#111827;font-weight:600;text-align:right;">Pending</td></tr>
               </table>
             </div>
             <div style="padding:20px;border-radius:18px;background:#eff6ff;border:1px solid #bfdbfe;">
@@ -337,7 +585,7 @@ export const confirmRetrait = async (id: string) => {
 
   await sendMicrosoft365Mail({
     to: controlMailAddress,
-    subject: `Validation retrait - ${retrait.designation ?? retrait.id}`,
+    subject: `Validation retrait - ${reviewDetails.retrait.designation ?? reviewDetails.retrait.id}`,
     html,
   });
 
@@ -351,6 +599,131 @@ export const confirmRetrait = async (id: string) => {
   if (error) {
     throw new Error(error.message);
   }
+};
+
+export const validateRetrait = async (id: string, orderNumberInput: FormDataEntryValue | null) => {
+  const user = await getAuthenticatedUser();
+
+  if (!user || !user.canAccessAdmin || !user.agentId) {
+    throw new Error("access_denied");
+  }
+
+  const reviewDetails = await getRetraitReviewDetails(id);
+
+  if (!reviewDetails) {
+    throw new Error("retrait_not_found");
+  }
+
+  if (reviewDetails.retrait.agent_id === user.agentId) {
+    throw new Error("retrait_owner_cannot_access_review");
+  }
+
+  if (normalizeStatus(reviewDetails.retrait.status) !== "pending") {
+    throw new Error("only_pending_retrait_can_be_processed");
+  }
+
+  if (!reviewDetails.requester?.email) {
+    throw new Error("retrait_requester_email_missing");
+  }
+
+  const orderNumber = sanitizeOrderNumber(orderNumberInput);
+
+  if (!orderNumber) {
+    throw new Error("order_number_required");
+  }
+
+  const retraitAmount = reviewDetails.retrait.montant ?? 0;
+  const canSupportRetrait = reviewDetails.sectionFinancialSituation.availableBalance >= retraitAmount;
+  const admin = createAdminClient();
+
+  if (canSupportRetrait) {
+    const { error } = await admin
+      .from("retraits")
+      .update({ status: "success", orderNumber })
+      .eq("id", id)
+      .eq("status", "pending");
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const validatedRetrait = {
+      ...reviewDetails.retrait,
+      orderNumber,
+      status: "success",
+    };
+    const balanceAfter = reviewDetails.sectionFinancialSituation.availableBalance - retraitAmount;
+    const pdfBase64 = buildValidationPdfBase64(validatedRetrait, reviewDetails.requester, balanceAfter);
+
+    await sendRetraitDecisionMail({
+      requester: reviewDetails.requester,
+      retrait: validatedRetrait,
+      accepted: true,
+      availableBalance: balanceAfter,
+      attachmentBase64: pdfBase64,
+    });
+
+    return "success";
+  }
+
+  const { error } = await admin.from("retraits").update({ status: "no" }).eq("id", id).eq("status", "pending");
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  await sendRetraitDecisionMail({
+    requester: reviewDetails.requester,
+    retrait: reviewDetails.retrait,
+    accepted: false,
+    availableBalance: reviewDetails.sectionFinancialSituation.availableBalance,
+    reason: "Le solde de la section ne permet pas de supporter ce retrait pour le moment.",
+  });
+
+  return "no";
+};
+
+export const rejectRetrait = async (id: string) => {
+  const user = await getAuthenticatedUser();
+
+  if (!user || !user.canAccessAdmin || !user.agentId) {
+    throw new Error("access_denied");
+  }
+
+  const reviewDetails = await getRetraitReviewDetails(id);
+
+  if (!reviewDetails) {
+    throw new Error("retrait_not_found");
+  }
+
+  if (reviewDetails.retrait.agent_id === user.agentId) {
+    throw new Error("retrait_owner_cannot_access_review");
+  }
+
+  if (normalizeStatus(reviewDetails.retrait.status) !== "pending") {
+    throw new Error("only_pending_retrait_can_be_processed");
+  }
+
+  if (!reviewDetails.requester?.email) {
+    throw new Error("retrait_requester_email_missing");
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("retraits").update({ status: "no" }).eq("id", id).eq("status", "pending");
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  await sendRetraitDecisionMail({
+    requester: reviewDetails.requester,
+    retrait: reviewDetails.retrait,
+    accepted: false,
+    availableBalance: reviewDetails.sectionFinancialSituation.availableBalance,
+    reason: "La demande de retrait a ete invalidee apres revision du dossier.",
+  });
+
+  return "no";
 };
 
 export const deleteRetrait = async (id: string) => {
