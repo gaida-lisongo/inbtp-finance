@@ -16,6 +16,9 @@ export type AuthenticatedUser = {
   canAccessAdmin: boolean;
   canManageYears: boolean;
   canManageAuthorizations: boolean;
+  canManageFiliere: boolean;
+  canManageProgramme: boolean;
+  canManageCharges: boolean;
 };
 
 const supabaseBucket = process.env.SUPABASE_BUCKET;
@@ -108,8 +111,10 @@ const buildAuthenticatedUser = async (user: User): Promise<AuthenticatedUser | n
   const agentRecord = await findAgentRecordForUser(user);
   const accountType: AccountType = agentRecord ? "agent" : "student";
   const role = normalizeAgentRole(agentRecord?.role);
+  console.log("Agent record for user:", agentRecord);
   const isOrganizer = role === "organisateur";
   const isGestionnaire = role === "gestionnaire";
+  const isTitulaire = role === "titulaire";
 
   return {
     id: user.id,
@@ -121,7 +126,10 @@ const buildAuthenticatedUser = async (user: User): Promise<AuthenticatedUser | n
     role,
     canAccessAdmin: Boolean(agentRecord && role),
     canManageYears: isOrganizer,
-    canManageAuthorizations: isGestionnaire,
+    canManageAuthorizations: isOrganizer,
+    canManageFiliere: isGestionnaire,
+    canManageProgramme: isGestionnaire,
+    canManageCharges: isTitulaire,
   };
 };
 
@@ -135,7 +143,8 @@ export const getAuthenticatedUser = async (): Promise<AuthenticatedUser | null> 
     return null;
   }
 
-  return await buildAuthenticatedUser(user);
+  const authenticatedUser = await buildAuthenticatedUser(user);
+  return authenticatedUser;
 };
 
 export const syncAuthenticatedUser = async (): Promise<AuthenticatedUser | null> => {

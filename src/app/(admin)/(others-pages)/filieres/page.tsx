@@ -24,7 +24,7 @@ type FilieresPageProps = {
 export default async function FilieresPage({ searchParams }: FilieresPageProps) {
   const [user, params] = await Promise.all([getAuthenticatedUser(), searchParams]);
 
-  if (!user || !user.canManageYears) {
+  if (!user || !user.canManageFiliere) {
     redirect("/signin?error=access_denied");
   }
 

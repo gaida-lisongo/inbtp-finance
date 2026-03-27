@@ -26,7 +26,7 @@ type ProgrammesPageProps = {
 export default async function ProgrammesPage({ searchParams }: ProgrammesPageProps) {
   const [user, params] = await Promise.all([getAuthenticatedUser(), searchParams]);
 
-  if (!user || !user.canManageAuthorizations) {
+  if (!user || !user.canManageProgramme) {
     redirect("/signin?error=access_denied");
   }
 

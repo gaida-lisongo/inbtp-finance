@@ -116,7 +116,7 @@ export default function UserDropdown({ user }: UserDropdownProps) {
             </li>
           ) : null}
 
-          {user.canManageYears ? (
+          {user.canManageAuthorizations ? (
             <li>
               <DropdownItem
                 onItemClick={closeDropdown}
@@ -144,7 +144,7 @@ export default function UserDropdown({ user }: UserDropdownProps) {
             </li>
           ) : null}
 
-          {user.canManageAuthorizations ? (
+          {user.canManageFiliere ? (
             <li>
               <DropdownItem
                 onItemClick={closeDropdown}
@@ -172,7 +172,7 @@ export default function UserDropdown({ user }: UserDropdownProps) {
             </li>
           ) : null}
 
-          {user.canManageAuthorizations ? (
+          {user.canManageProgramme ? (
             <li>
               <DropdownItem
                 onItemClick={closeDropdown}
