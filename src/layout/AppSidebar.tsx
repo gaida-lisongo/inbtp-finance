@@ -63,7 +63,7 @@ export default function AppSidebar({ menuItems }: AppSidebarProps) {
     depth = 0,
   ) => {
     return (
-      <ul className={`${depth === 0 ? "ml-9 mt-2" : "ml-4 mt-1"} space-y-1`}>
+      <ul className={`${depth === 0 ? "mt-2" : "mt-1"} space-y-1`}>
         {items.map((item, index) => {
           const itemKey = `${parentKey}:${item.name}:${index}`;
           const itemIsActive = hasActiveItem(item, isActive);
@@ -79,6 +79,23 @@ export default function AppSidebar({ menuItems }: AppSidebarProps) {
                     itemIsActive ? "menu-dropdown-item-active" : "menu-dropdown-item-inactive"
                   }`}
                 >
+                  <span className="mr-3 inline-flex h-6 w-6 items-center justify-center rounded-md bg-brand-50 text-brand-500 dark:bg-brand-500/10 dark:text-brand-300">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 14 14"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M4.08333 1.16663V3.49996M9.91667 1.16663V3.49996M1.75 5.24996H12.25M2.91667 2.33329H11.0833C11.7277 2.33329 12.25 2.85563 12.25 3.49996V11.0833C12.25 11.7276 11.7277 12.25 11.0833 12.25H2.91667C2.27233 12.25 1.75 11.7276 1.75 11.0833V3.49996C1.75 2.85563 2.27233 2.33329 2.91667 2.33329Z"
+                        stroke="currentColor"
+                        strokeWidth="1.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </span>
                   <span>{item.name}</span>
                   <ChevronDownIcon
                     className={`ml-auto h-4 w-4 transition-transform duration-200 ${
@@ -120,13 +137,15 @@ export default function AppSidebar({ menuItems }: AppSidebarProps) {
     const itemKey = `menu:${item.name}:${index}`;
 
     return (
-      <div key={itemKey} className="mb-4">
+      <div key={itemKey} className="mb-3">
         <h2
-          className={`mb-4 flex text-xs uppercase leading-[20px] text-gray-400 ${
-            !isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
+          className={`mb-2 flex items-center gap-2 px-3 text-xs font-medium uppercase leading-[20px] text-gray-400 ${
+            !isExpanded && !isHovered ? "lg:justify-center lg:px-0" : "justify-start"
           }`}
         >
-          {isExpanded || isHovered || isMobileOpen ? item.name : <HorizontaLDots />}
+          {isExpanded || isHovered || isMobileOpen ? (
+            <span className="truncate">{item.name}</span>
+          ) : null}
         </h2>
 
         <ul className="flex flex-col gap-4">
