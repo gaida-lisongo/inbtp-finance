@@ -29,7 +29,7 @@ const slugify = (value: string) =>
 const assertCanManageFilieres = async () => {
   const access = await getCurrentAgentAccess();
 
-  if (!access.canManageYears) {
+  if (!access.canManageFiliere) {
     throw new Error("access_denied");
   }
 };

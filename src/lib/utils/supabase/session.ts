@@ -111,7 +111,6 @@ const buildAuthenticatedUser = async (user: User): Promise<AuthenticatedUser | n
   const agentRecord = await findAgentRecordForUser(user);
   const accountType: AccountType = agentRecord ? "agent" : "student";
   const role = normalizeAgentRole(agentRecord?.role);
-  console.log("Agent record for user:", agentRecord);
   const isOrganizer = role === "organisateur";
   const isGestionnaire = role === "gestionnaire";
   const isTitulaire = role === "titulaire";

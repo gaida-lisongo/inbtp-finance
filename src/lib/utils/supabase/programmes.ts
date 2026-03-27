@@ -38,7 +38,7 @@ const slugify = (value: string) =>
 const assertCanManageProgrammes = async () => {
   const access = await getCurrentAgentAccess();
 
-  if (!access.canManageAuthorizations) {
+  if (!access.canManageProgramme) {
     throw new Error("access_denied");
   }
 };

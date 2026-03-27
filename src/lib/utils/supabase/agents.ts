@@ -42,6 +42,9 @@ export type AgentAccess = {
   canAccessAdmin: boolean;
   canManageYears: boolean;
   canManageAuthorizations: boolean;
+  canManageFiliere: boolean;
+  canManageProgramme: boolean;
+  canManageCharges: boolean;
 };
 
 const supabaseBucket = process.env.SUPABASE_BUCKET;
@@ -249,6 +252,8 @@ export const getCurrentAgentAccess = async (): Promise<AgentAccess> => {
   const role = normalizeAgentRole(agent?.role);
   const canAccessAdmin = Boolean(agent && role);
   const isOrganizer = role === "organisateur";
+  const isGestionnaire = role === "gestionnaire";
+  const isTitulaire = role === "titulaire";
 
   return {
     accountType: agent ? "agent" : "student",
@@ -257,6 +262,9 @@ export const getCurrentAgentAccess = async (): Promise<AgentAccess> => {
     canAccessAdmin,
     canManageYears: isOrganizer,
     canManageAuthorizations: isOrganizer,
+    canManageFiliere: isGestionnaire,
+    canManageProgramme: isGestionnaire,
+    canManageCharges: isTitulaire,
   };
 };
 
