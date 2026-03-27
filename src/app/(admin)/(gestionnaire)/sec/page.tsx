@@ -7,6 +7,7 @@ import { getActiveAutorisationCodesForAgent } from "@/lib/utils/supabase/autoris
 import { getAnnees } from "@/lib/utils/supabase/annees";
 import { getProgrammeById, getProgrammes } from "@/lib/utils/supabase/programmes";
 import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
+import SecretaireContent from "./SecretaireContent";
 
 export const metadata: Metadata = {
   title: "Secretaire | Dashboard Agents",
@@ -77,6 +78,8 @@ export default async function SecretairePage({ searchParams }: SecretairePagePro
             </div>
           </div>
         </ComponentCard>
+
+        <SecretaireContent programmeId={promotionId} />
       </div>
     </div>
   );

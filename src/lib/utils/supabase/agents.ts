@@ -361,3 +361,78 @@ export const updateCurrentAgentProfile = async (formData: FormData) => {
 
   return mapAgentProfile(data as AgentRecord, user.email!);
 };
+
+export const getAllAgents = async (): Promise<AgentRecord[]> => {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("agents")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw new Error(`Failed to fetch agents: ${error.message}`);
+  }
+
+  return data || [];
+};
+
+export const createAgent = async (agentData: {
+  nom: string;
+  post_nom: string;
+  prenom: string;
+  email: string;
+  grade: string;
+  role?: string | null;
+}): Promise<AgentRecord> => {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("agents")
+    .insert({
+      nom: agentData.nom,
+      post_nom: agentData.post_nom,
+      prenom: agentData.prenom,
+      email: agentData.email,
+      grade: agentData.grade,
+      role: agentData.role,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to create agent: ${error.message}`);
+  }
+
+  return data;
+};
+
+export const updateAgent = async (id: string, updates: Partial<AgentRecord>): Promise<AgentRecord> => {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("agents")
+    .update(updates)
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to update agent: ${error.message}`);
+  }
+
+  return data;
+};
+
+export const deleteAgent = async (id: string): Promise<void> => {
+  const supabase = createAdminClient();
+
+  const { error } = await supabase
+    .from("agents")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    throw new Error(`Failed to delete agent: ${error.message}`);
+  }
+};

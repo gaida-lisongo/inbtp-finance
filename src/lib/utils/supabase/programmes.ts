@@ -1,4 +1,5 @@
 import { getCurrentAgentAccess } from "@/lib/utils/supabase/agents";
+import { createMicrosoft365Team } from "@/lib/utils/microsoft-graph";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 
 export type ProgrammeRecord = {
@@ -34,6 +35,12 @@ const slugify = (value: string) =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+
+const getMailNickname = (slug: string, programmeId: string) => {
+  const normalizedSlug = slugify(slug).slice(0, 40);
+  const normalizedId = programmeId.replace(/[^a-z0-9]/gi, "").toLowerCase().slice(0, 12);
+  return `${normalizedSlug || "programme"}-${normalizedId}`;
+};
 
 const assertCanManageProgrammes = async () => {
   const access = await getCurrentAgentAccess();
@@ -98,13 +105,16 @@ export const saveProgramme = async (formData: FormData) => {
   const slugInput = emptyToNull(formData.get("slug"));
   const slug = slugInput ?? (designation ? slugify(designation) : null);
 
+  if (!slug) {
+    throw new Error("programme_slug_required");
+  }
+
   const payload = {
     filiere_id: emptyToNull(formData.get("filiere_id")),
     designation,
     description,
     annee_id: emptyToNull(formData.get("annee_id")),
     slug,
-    groupe_id: emptyToNull(formData.get("groupe_id")),
     systeme: emptyToNull(formData.get("systeme")),
   };
 
@@ -125,6 +135,61 @@ export const saveProgramme = async (formData: FormData) => {
   if (error) {
     throw new Error(error.message);
   }
+};
+
+export const bulkAttachProgrammesToTeams = async (programmeIds: string[]) => {
+  await assertCanManageProgrammes();
+
+  const sanitizedProgrammeIds = Array.from(new Set(programmeIds.map((id) => id.trim()).filter(Boolean)));
+
+  if (sanitizedProgrammeIds.length === 0) {
+    throw new Error("programme_selection_required");
+  }
+
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("programmes").select("*").in("id", sanitizedProgrammeIds);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const programmes = (data ?? []) as ProgrammeRecord[];
+
+  if (programmes.length === 0) {
+    throw new Error("programme_not_found");
+  }
+
+  let linkedCount = 0;
+
+  for (const programme of programmes) {
+    if (programme.groupe_id) {
+      continue;
+    }
+
+    if (!programme.slug) {
+      continue;
+    }
+
+    const team = await createMicrosoft365Team({
+      displayName: programme.designation || programme.slug,
+      description: programme.description,
+      mailNickname: getMailNickname(programme.slug, programme.id),
+    });
+
+    const { error: updateError } = await admin.from("programmes").update({ groupe_id: team.groupId }).eq("id", programme.id);
+
+    if (updateError) {
+      throw new Error(updateError.message);
+    }
+
+    linkedCount += 1;
+  }
+
+  if (linkedCount === 0) {
+    throw new Error("programme_bulk_team_noop");
+  }
+
+  return linkedCount;
 };
 
 export const deleteProgramme = async (id: string) => {

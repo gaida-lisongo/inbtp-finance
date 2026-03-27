@@ -43,7 +43,7 @@ export const getAdminSidebarMenu = async (user: AuthenticatedUser): Promise<Side
 
       const existingYear = years.get(programme.annee_id);
       const promotionItem = {
-        name: programme.designation || "Promotion sans designation",
+        name: programme.designation || programme.slug || "Promotion sans designation",
         path: `/${authorizationCode.toLowerCase()}?annee=${programme.annee_id}&promotion=${programme.id}`,
       };
 

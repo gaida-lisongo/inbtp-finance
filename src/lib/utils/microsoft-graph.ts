@@ -274,8 +274,53 @@ export const getMicrosoft365Overview = async (): Promise<Microsoft365Overview> =
   };
 };
 
+type CreateMicrosoft365TeamInput = {
+  displayName: string;
+  description?: string | null;
+  mailNickname: string;
+};
+
 export const sendMicrosoft365Mail = async (input: SendMicrosoft365MailInput) => {
   await microsoftGraphService.sendMail(input);
 };
 
 export const getMicrosoft365OverviewUrl = () => `${microsoftGraphBaseUrl}/me`;
+
+export const createMicrosoft365Team = async ({
+  displayName,
+  description,
+  mailNickname,
+}: CreateMicrosoft365TeamInput) => {
+  const graphClient = await microsoftGraphService.getAppClient();
+
+  const group = (await graphClient.api("/groups").post({
+    displayName,
+    description: description ?? "",
+    mailEnabled: true,
+    mailNickname,
+    securityEnabled: false,
+    groupTypes: ["Unified"],
+  })) as { id?: string };
+
+  if (!group.id) {
+    throw new Error("graph_group_creation_failed");
+  }
+
+  await graphClient.api(`/groups/${group.id}/team`).put({
+    memberSettings: {
+      allowCreateUpdateChannels: true,
+    },
+    messagingSettings: {
+      allowUserEditMessages: true,
+      allowUserDeleteMessages: true,
+    },
+    funSettings: {
+      allowGiphy: true,
+      giphyContentRating: "strict",
+    },
+  });
+
+  return {
+    groupId: group.id,
+  };
+};
