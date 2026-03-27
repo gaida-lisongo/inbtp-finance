@@ -30,40 +30,166 @@ export type Microsoft365Overview = {
   }>;
 };
 
-const microsoftGraphBaseUrl = "https://graph.microsoft.com/v1.0";
-
-export const getMicrosoft365AccessToken = async () => {
-  const cookieStore = await cookies();
-  const supabase = createServerSupabaseClient(cookieStore);
-  const { data, error } = await supabase.auth.getSession();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  const providerToken = data.session?.provider_token;
-
-  if (!providerToken) {
-    throw new Error(
-      "Le token Microsoft 365 est absent de la session. Reconnectez-vous pour accorder les nouveaux scopes Graph.",
-    );
-  }
-
-  return providerToken;
+type SendMicrosoft365MailInput = {
+  to: string | string[];
+  subject: string;
+  html: string;
+  from?: string;
 };
 
-const createMicrosoftGraphClient = async () => {
-  const accessToken = await getMicrosoft365AccessToken();
+type TokenCache = {
+  accessToken: string;
+  expiresAt: number;
+} | null;
 
-  return Client.init({
+const microsoftGraphBaseUrl = "https://graph.microsoft.com/v1.0";
+const entraTenantId = process.env.ENTRA_TENANT_ID;
+const entraClientId = process.env.ENTRA_CLIENT_ID;
+const entraClientSecret = process.env.ENTRA_CLIENT_SECRET;
+const entraDefaultDomain = process.env.ENTRA_DEFAULT_DOMAIN;
+const controlMailAddress = process.env.CONTROL_MAIL;
+
+const createGraphClient = (accessToken: string) =>
+  Client.init({
     authProvider: (done) => {
       done(null, accessToken);
     },
   });
-};
+
+class MicrosoftGraphService {
+  private static instance: MicrosoftGraphService | null = null;
+
+  private appTokenCache: TokenCache = null;
+
+  private constructor() {}
+
+  static getInstance() {
+    if (!MicrosoftGraphService.instance) {
+      MicrosoftGraphService.instance = new MicrosoftGraphService();
+    }
+
+    return MicrosoftGraphService.instance;
+  }
+
+  private assertAppCredentials() {
+    if (!entraTenantId || !entraClientId || !entraClientSecret) {
+      throw new Error("missing_entra_app_credentials");
+    }
+  }
+
+  async getDelegatedAccessToken() {
+    const cookieStore = await cookies();
+    const supabase = createServerSupabaseClient(cookieStore);
+    const { data, error } = await supabase.auth.getSession();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const providerToken = data.session?.provider_token;
+
+    if (!providerToken) {
+      throw new Error(
+        "Le token Microsoft 365 est absent de la session. Reconnectez-vous pour accorder les nouveaux scopes Graph.",
+      );
+    }
+
+    return providerToken;
+  }
+
+  async getDelegatedClient() {
+    const accessToken = await this.getDelegatedAccessToken();
+    return createGraphClient(accessToken);
+  }
+
+  private async fetchAppAccessToken() {
+    this.assertAppCredentials();
+
+    if (this.appTokenCache && Date.now() < this.appTokenCache.expiresAt - 60_000) {
+      return this.appTokenCache.accessToken;
+    }
+
+    const tokenUrl = `https://login.microsoftonline.com/${entraTenantId}/oauth2/v2.0/token`;
+    const response = await fetch(tokenUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        client_id: entraClientId!,
+        client_secret: entraClientSecret!,
+        scope: "https://graph.microsoft.com/.default",
+        grant_type: "client_credentials",
+      }),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`graph_app_token_failed:${response.status}:${errorText}`);
+    }
+
+    const payload = (await response.json()) as {
+      access_token?: string;
+      expires_in?: number;
+    };
+
+    if (!payload.access_token) {
+      throw new Error("graph_app_token_missing");
+    }
+
+    this.appTokenCache = {
+      accessToken: payload.access_token,
+      expiresAt: Date.now() + (payload.expires_in ?? 3600) * 1000,
+    };
+
+    return payload.access_token;
+  }
+
+  async getAppClient() {
+    const accessToken = await this.fetchAppAccessToken();
+    return createGraphClient(accessToken);
+  }
+
+  private getDefaultSenderAddress() {
+    if (controlMailAddress) {
+      return controlMailAddress;
+    }
+
+    if (entraDefaultDomain) {
+      return `no-reply@${entraDefaultDomain}`;
+    }
+
+    throw new Error("graph_mail_sender_not_configured");
+  }
+
+  async sendMail({ to, subject, html, from }: SendMicrosoft365MailInput) {
+    const graphClient = await this.getAppClient();
+    const recipients = Array.isArray(to) ? to : [to];
+    const senderAddress = from ?? this.getDefaultSenderAddress();
+
+    await graphClient.api(`/users/${encodeURIComponent(senderAddress)}/sendMail`).post({
+      message: {
+        subject,
+        body: {
+          contentType: "HTML",
+          content: html,
+        },
+        toRecipients: recipients.map((address) => ({
+          emailAddress: {
+            address,
+          },
+        })),
+      },
+      saveToSentItems: true,
+    });
+  }
+}
+
+export const microsoftGraphService = MicrosoftGraphService.getInstance();
 
 export const getMicrosoft365Overview = async (): Promise<Microsoft365Overview> => {
-  const graphClient = await createMicrosoftGraphClient();
+  const graphClient = await microsoftGraphService.getDelegatedClient();
 
   const [profile, messagesResponse, eventsResponse, filesResponse] = await Promise.all([
     graphClient.api("/me").select("displayName,mail,userPrincipalName,jobTitle").get(),
@@ -134,6 +260,10 @@ export const getMicrosoft365Overview = async (): Promise<Microsoft365Overview> =
       }),
     ),
   };
+};
+
+export const sendMicrosoft365Mail = async (input: SendMicrosoft365MailInput) => {
+  await microsoftGraphService.sendMail(input);
 };
 
 export const getMicrosoft365OverviewUrl = () => `${microsoftGraphBaseUrl}/me`;

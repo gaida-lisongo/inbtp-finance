@@ -50,7 +50,7 @@ export const createAzureSignInUrl = async (nextPath?: string | null) => {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "azure",
     options: {
-      scopes: "openid profile email offline_access User.Read Mail.Read Calendars.Read Files.Read",
+      scopes: "openid profile email offline_access User.Read Mail.Read Mail.Send Calendars.Read Files.Read",
       redirectTo: callbackUrl.toString(),
       skipBrowserRedirect: true,
     },
