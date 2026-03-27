@@ -6,7 +6,7 @@ import { Modal } from "@/components/ui/modal";
 import Form from "@/components/form/Form";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
-import { AgentRecord } from "@/lib/utils/supabase/agents";
+import type { AgentRecord } from "@/lib/utils/supabase/agents-shared";
 import { getAgentsAction, createAgentAction, updateAgentAction, deleteAgentAction } from "@/app/actions/agents";
 
 export default function AgentsContent() {

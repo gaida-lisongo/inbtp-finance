@@ -9,11 +9,14 @@ import type { CoursRecord, EnseignantOption, MatiereRecord } from "@/lib/utils/s
 type MatiereCoursPanelProps = {
   anneeId: string;
   promotionId: string;
+  programmeLabel: string;
+  programmeTeamId: string | null;
   uniteId: string;
   matiere: MatiereRecord;
   cours: CoursRecord | null;
   enseignants: EnseignantOption[];
   saveCoursAction: (formData: FormData) => Promise<void>;
+  createCoursChannelAction: (formData: FormData) => Promise<void>;
 };
 
 const buildEnseignantLabel = (enseignant: EnseignantOption) => {
@@ -24,20 +27,25 @@ const buildEnseignantLabel = (enseignant: EnseignantOption) => {
 export default function MatiereCoursPanel({
   anneeId,
   promotionId,
+  programmeLabel,
+  programmeTeamId,
   uniteId,
   matiere,
   cours,
   enseignants,
   saveCoursAction,
+  createCoursChannelAction,
 }: MatiereCoursPanelProps) {
   const selectedEnseignantId = cours?.titulaire_id ?? "";
   const backHref = `/ce/unite?annee=${anneeId}&promotion=${promotionId}&unite=${uniteId}`;
   const selectedEnseignant = enseignants.find((enseignant) => enseignant.id === selectedEnseignantId) ?? null;
+  const canCreateChannel = Boolean(cours?.id && cours.slug && cours.titulaire_id && programmeTeamId && !cours.entra_id);
+  const channelAlreadyAttached = Boolean(cours?.entra_id);
 
   return (
     <ComponentCard
       title={`Cours associe - ${matiere.designation || "Matiere"}`}
-      desc="Configurez ici l'animateur et le nom de l'equipe Teams associee a cette matiere."
+      desc="Configurez ici l'animateur et le nom du canal Teams associe a cette matiere, dans l'equipe de la promotion."
     >
       <div className="space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gray-50 p-4 dark:bg-white/[0.03]">
@@ -73,7 +81,13 @@ export default function MatiereCoursPanel({
             </p>
           </div>
           <div className="rounded-2xl bg-gray-50 p-4 dark:bg-white/[0.03]">
-            <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Reference Teams</p>
+            <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Equipe promotion</p>
+            <p className="mt-2 text-sm font-medium text-gray-800 dark:text-white/90">
+              {programmeTeamId ? programmeLabel : "Aucune equipe Teams associee a la promotion"}
+            </p>
+          </div>
+          <div className="rounded-2xl bg-gray-50 p-4 dark:bg-white/[0.03]">
+            <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Reference canal</p>
             <p className="mt-2 text-sm font-medium text-gray-800 dark:text-white/90">{cours?.entra_id || "Aucune reference creee"}</p>
           </div>
         </div>
@@ -107,7 +121,7 @@ export default function MatiereCoursPanel({
 
           <div>
             <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400" htmlFor="cours-slug">
-              Nom de l&apos;equipe Teams
+              Nom du canal Teams
             </label>
             <input
               id="cours-slug"
@@ -118,12 +132,12 @@ export default function MatiereCoursPanel({
               required
             />
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Ce champ sert ici de nom cible pour l&apos;equipe Teams a creer.
+              Ce champ sert ici de nom cible pour le canal a creer dans l&apos;equipe de la promotion.
             </p>
           </div>
 
           <div className="rounded-2xl border border-dashed border-gray-300 px-4 py-4 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400 lg:col-span-2">
-            L&apos;identifiant `entra_id` reste affiche en lecture seule pour l&apos;instant. Il pourra etre renseigne ensuite au moment de la creation effective de l&apos;equipe dans le tenant Microsoft 365.
+            L&apos;identifiant `entra_id` correspond ici au canal Teams cree pour ce cours. La promotion doit deja avoir une equipe Teams associee avant la creation du canal.
           </div>
 
           <div className="flex justify-end lg:col-span-2">
@@ -132,6 +146,19 @@ export default function MatiereCoursPanel({
               pendingLabel={cours ? "Mise a jour..." : "Enregistrement..."}
             />
           </div>
+        </form>
+
+        <form action={createCoursChannelAction} className="flex justify-end">
+          <input type="hidden" name="annee" value={anneeId} />
+          <input type="hidden" name="promotion" value={promotionId} />
+          <input type="hidden" name="unite" value={uniteId} />
+          <input type="hidden" name="matiere" value={matiere.id} />
+          <input type="hidden" name="matiere_id" value={matiere.id} />
+          <FormSubmitButton
+            idleLabel={channelAlreadyAttached ? "Canal deja cree" : "Creer le canal Teams"}
+            pendingLabel="Creation du canal..."
+            disabled={!canCreateChannel}
+          />
         </form>
       </div>
     </ComponentCard>

@@ -1,12 +1,15 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 
+import AppManagementPanel from "@/components/appariteur/AppManagementPanel";
 import ComponentCard from "@/components/common/ComponentCard";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
+import { getParcoursById, getParcoursByProgramme, getSessionById, getSessionsByProgramme } from "@/lib/utils/supabase/appariteur";
 import { getActiveAutorisationCodesForAgent } from "@/lib/utils/supabase/autorisations";
 import { getAnnees } from "@/lib/utils/supabase/annees";
 import { getProgrammeById, getProgrammes } from "@/lib/utils/supabase/programmes";
 import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
+import { getStudents } from "@/lib/utils/supabase/students";
 
 export const metadata: Metadata = {
   title: "Appariteur | Dashboard Agents",
@@ -17,6 +20,11 @@ type AppariteurPageProps = {
   searchParams: Promise<{
     annee?: string;
     promotion?: string;
+    status?: string;
+    message?: string;
+    sessionEdit?: string;
+    parcoursEdit?: string;
+    mode?: string;
   }>;
 };
 
@@ -52,6 +60,17 @@ export default async function AppariteurPage({ searchParams }: AppariteurPagePro
     redirect("/");
   }
 
+  const [sessions, parcours, students, sessionCandidate, parcoursCandidate] = await Promise.all([
+    getSessionsByProgramme(promotionId),
+    getParcoursByProgramme(promotionId),
+    getStudents(),
+    queryParams.sessionEdit ? getSessionById(queryParams.sessionEdit) : Promise.resolve(null),
+    queryParams.parcoursEdit ? getParcoursById(queryParams.parcoursEdit) : Promise.resolve(null),
+  ]);
+
+  const editingSession = sessionCandidate?.programme_id === promotionId ? sessionCandidate : null;
+  const editingParcours = parcoursCandidate?.programme_id === promotionId ? parcoursCandidate : null;
+
   return (
     <div>
       <PageBreadcrumb pageTitle={`Appariteur - ${programmeDetails.designation || "Promotion"}`} />
@@ -77,6 +96,19 @@ export default async function AppariteurPage({ searchParams }: AppariteurPagePro
             </div>
           </div>
         </ComponentCard>
+
+        <AppManagementPanel
+          anneeId={anneeId}
+          programmeId={promotionId}
+          sessions={sessions}
+          parcours={parcours}
+          students={students}
+          editingSession={editingSession}
+          editingParcours={editingParcours}
+          mode={queryParams.mode}
+          status={queryParams.status}
+          message={queryParams.message}
+        />
       </div>
     </div>
   );

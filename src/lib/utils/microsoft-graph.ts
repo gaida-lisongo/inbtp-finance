@@ -278,6 +278,13 @@ type CreateMicrosoft365TeamInput = {
   displayName: string;
   description?: string | null;
   mailNickname: string;
+  ownerEntraId?: string | null;
+};
+
+type CreateMicrosoft365ChannelInput = {
+  teamId: string;
+  displayName: string;
+  description?: string | null;
 };
 
 type Microsoft365GraphUser = {
@@ -299,17 +306,12 @@ export const createMicrosoft365Team = async ({
   displayName,
   description,
   mailNickname,
+  ownerEntraId,
 }: CreateMicrosoft365TeamInput) => {
-  const graphClient = await microsoftGraphService.getDelegatedClient();
-  const currentUser = (await graphClient.api("/me").select("id,displayName,mail,userPrincipalName").get()) as {
-    id?: string;
-    displayName?: string;
-    mail?: string;
-    userPrincipalName?: string;
-  };
+  const graphClient = await microsoftGraphService.getAppClient();
 
-  if (!currentUser.id) {
-    throw new Error("graph_current_user_missing");
+  if (!ownerEntraId) {
+    throw new Error("graph_team_owner_required");
   }
 
   const group = (await graphClient.api("/groups").post({
@@ -326,7 +328,7 @@ export const createMicrosoft365Team = async ({
   }
 
   const directoryObjectRef = {
-    "@odata.id": `${microsoftGraphBaseUrl}/directoryObjects/${currentUser.id}`,
+    "@odata.id": `${microsoftGraphBaseUrl}/directoryObjects/${ownerEntraId}`,
   };
 
   await graphClient.api(`/groups/${group.id}/owners/$ref`).post(directoryObjectRef);
@@ -371,10 +373,64 @@ export const createMicrosoft365Team = async ({
   return {
     groupId: group.id,
     owner: {
-      id: currentUser.id,
-      displayName: currentUser.displayName ?? null,
-      mail: currentUser.mail ?? null,
-      userPrincipalName: currentUser.userPrincipalName ?? null,
+      id: ownerEntraId,
+      displayName: null,
+      mail: null,
+      userPrincipalName: null,
     } satisfies Microsoft365GraphUser,
+  };
+};
+
+export const createMicrosoft365Channel = async ({
+  teamId,
+  displayName,
+  description,
+}: CreateMicrosoft365ChannelInput) => {
+  const graphClient = await microsoftGraphService.getAppClient();
+  const normalizedName = displayName.trim();
+
+  if (!normalizedName) {
+    throw new Error("graph_channel_name_required");
+  }
+
+  const existingChannels = (await graphClient
+    .api(`/teams/${teamId}/channels`)
+    .select("id,displayName,membershipType")
+    .top(200)
+    .get()) as {
+    value?: Array<{
+      id?: string;
+      displayName?: string;
+      membershipType?: string;
+    }>;
+  };
+
+  const existingChannel = (existingChannels.value ?? []).find(
+    (channel) =>
+      channel.id &&
+      channel.membershipType === "standard" &&
+      channel.displayName?.trim().toLowerCase() === normalizedName.toLowerCase(),
+  );
+
+  if (existingChannel?.id) {
+    return {
+      channelId: existingChannel.id,
+      reused: true,
+    };
+  }
+
+  const channel = (await graphClient.api(`/teams/${teamId}/channels`).post({
+    displayName: normalizedName,
+    description: description ?? "",
+    membershipType: "standard",
+  })) as { id?: string };
+
+  if (!channel.id) {
+    throw new Error("graph_channel_creation_failed");
+  }
+
+  return {
+    channelId: channel.id,
+    reused: false,
   };
 };

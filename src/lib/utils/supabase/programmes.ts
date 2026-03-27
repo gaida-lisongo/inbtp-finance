@@ -48,6 +48,8 @@ const assertCanManageProgrammes = async () => {
   if (!access.canManageProgramme) {
     throw new Error("access_denied");
   }
+
+  return access;
 };
 
 export const getProgrammes = async () => {
@@ -138,7 +140,7 @@ export const saveProgramme = async (formData: FormData) => {
 };
 
 export const bulkAttachProgrammesToTeams = async (programmeIds: string[]) => {
-  await assertCanManageProgrammes();
+  const access = await assertCanManageProgrammes();
 
   const sanitizedProgrammeIds = Array.from(new Set(programmeIds.map((id) => id.trim()).filter(Boolean)));
 
@@ -160,6 +162,11 @@ export const bulkAttachProgrammesToTeams = async (programmeIds: string[]) => {
   }
 
   let linkedCount = 0;
+  const ownerEntraId = access.agent?.entra_id;
+
+  if (!ownerEntraId) {
+    throw new Error("programme_team_owner_missing");
+  }
 
   for (const programme of programmes) {
     if (programme.groupe_id) {
@@ -174,6 +181,7 @@ export const bulkAttachProgrammesToTeams = async (programmeIds: string[]) => {
       displayName: programme.designation || programme.slug,
       description: programme.description,
       mailNickname: getMailNickname(programme.slug, programme.id),
+      ownerEntraId,
     });
 
     const { error: updateError } = await admin.from("programmes").update({ groupe_id: team.groupId }).eq("id", programme.id);

@@ -16,6 +16,7 @@ export type AuthenticatedUser = {
   canAccessAdmin: boolean;
   canManageYears: boolean;
   canManageAuthorizations: boolean;
+  canManageStudents: boolean;
   canManageFiliere: boolean;
   canManageProgramme: boolean;
   canManageCharges: boolean;
@@ -126,6 +127,7 @@ const buildAuthenticatedUser = async (user: User): Promise<AuthenticatedUser | n
     canAccessAdmin: Boolean(agentRecord && role),
     canManageYears: isOrganizer,
     canManageAuthorizations: isOrganizer,
+    canManageStudents: isGestionnaire,
     canManageFiliere: isGestionnaire,
     canManageProgramme: isGestionnaire,
     canManageCharges: isTitulaire,

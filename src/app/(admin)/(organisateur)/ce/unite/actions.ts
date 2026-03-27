@@ -2,7 +2,7 @@
 
 import { redirect, unstable_rethrow } from "next/navigation";
 
-import { createMatiere, deleteMatiere, saveCoursForMatiere } from "@/lib/utils/supabase/enseignement";
+import { attachCoursToProgrammeTeam, createMatiere, deleteMatiere, saveCoursForMatiere } from "@/lib/utils/supabase/enseignement";
 
 const buildRedirectUrl = (formData: FormData, status: "success" | "error", message?: string) => {
   const annee = formData.get("annee");
@@ -71,6 +71,17 @@ export async function saveCoursAction(formData: FormData) {
   } catch (error) {
     unstable_rethrow(error);
     const message = error instanceof Error ? error.message : "cours_save_failed";
+    redirect(buildRedirectUrl(formData, "error", message));
+  }
+}
+
+export async function createCoursChannelAction(formData: FormData) {
+  try {
+    await attachCoursToProgrammeTeam(formData);
+    redirect(buildRedirectUrl(formData, "success"));
+  } catch (error) {
+    unstable_rethrow(error);
+    const message = error instanceof Error ? error.message : "cours_channel_create_failed";
     redirect(buildRedirectUrl(formData, "error", message));
   }
 }

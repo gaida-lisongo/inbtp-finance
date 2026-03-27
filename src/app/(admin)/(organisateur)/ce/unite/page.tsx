@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 
-import { createMatiereAction, deleteMatiereAction, saveCoursAction } from "@/app/(admin)/(organisateur)/ce/unite/actions";
+import { createCoursChannelAction, createMatiereAction, deleteMatiereAction, saveCoursAction } from "@/app/(admin)/(organisateur)/ce/unite/actions";
 import ComponentCard from "@/components/common/ComponentCard";
 import MatiereCoursPanel from "@/components/enseignement/MatiereCoursPanel";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
@@ -57,7 +57,15 @@ const getFeedbackMessage = (status?: string, message?: string) => {
       case "cours_enseignant_invalid":
         return "L'enseignant selectionne est introuvable.";
       case "cours_slug_required":
-        return "Le nom de l'equipe Teams est obligatoire.";
+        return "Le nom du canal Teams est obligatoire.";
+      case "cours_channel_name_required":
+        return "Le nom du canal Teams est obligatoire.";
+      case "cours_required":
+        return "Le cours doit d'abord etre configure avant de creer le canal.";
+      case "programme_team_required":
+        return "La promotion doit d'abord etre associee a une equipe Teams.";
+      case "Authorization_RequestDenied":
+        return "Permissions Microsoft Graph insuffisantes pour creer le canal Teams. Verifiez les permissions application et le consentement admin.";
       case "access_denied":
         return "Acces refuse a cette page.";
       default:
@@ -174,11 +182,14 @@ export default async function UnitePage({ searchParams }: UnitePageProps) {
           <MatiereCoursPanel
             anneeId={anneeId}
             promotionId={promotionId}
+            programmeLabel={programme.designation || "Promotion"}
+            programmeTeamId={programme.groupe_id}
             uniteId={unite.id}
             matiere={selectedMatiere}
             cours={cours}
             enseignants={enseignants}
             saveCoursAction={saveCoursAction}
+            createCoursChannelAction={createCoursChannelAction}
           />
         ) : (
           <UniteDetailsPanel

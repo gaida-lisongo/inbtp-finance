@@ -1,39 +1,12 @@
 import { cookies } from "next/headers";
 import { type User } from "@supabase/supabase-js";
 
+import type { AgentProfile, AgentRecord, AgentRole } from "@/lib/utils/supabase/agents-shared";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 import { createClient as createServerSupabaseClient } from "@/lib/utils/supabase/server";
 
 export type AccountType = "agent" | "student";
-export type AgentRole = "organisateur" | "titulaire" | "gestionnaire";
-
-export type AgentRecord = {
-  id: string;
-  user_id: string | null;
-  grade: string | null;
-  photo: string | null;
-  role: string | null;
-  nom: string | null;
-  post_nom: string | null;
-  prenom: string | null;
-  telephone: string | null;
-  bio: string | null;
-  facebook: string | null;
-  x: string | null;
-  twitter: string | null;
-  pays: string | null;
-  ville: string | null;
-  adresse: string | null;
-  commune: string | null;
-  created_at: string;
-  entra_id: string | null;
-};
-
-export type AgentProfile = AgentRecord & {
-  email: string;
-  displayName: string;
-  photoUrl: string | null;
-};
+export type { AgentProfile, AgentRecord, AgentRole } from "@/lib/utils/supabase/agents-shared";
 
 export type AgentAccess = {
   accountType: AccountType;
@@ -42,6 +15,7 @@ export type AgentAccess = {
   canAccessAdmin: boolean;
   canManageYears: boolean;
   canManageAuthorizations: boolean;
+  canManageStudents: boolean;
   canManageFiliere: boolean;
   canManageProgramme: boolean;
   canManageCharges: boolean;
@@ -262,6 +236,7 @@ export const getCurrentAgentAccess = async (): Promise<AgentAccess> => {
     canAccessAdmin,
     canManageYears: isOrganizer,
     canManageAuthorizations: isOrganizer,
+    canManageStudents: isGestionnaire,
     canManageFiliere: isGestionnaire,
     canManageProgramme: isGestionnaire,
     canManageCharges: isTitulaire,

@@ -1,5 +1,6 @@
 import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 import { getActiveAutorisationCodesForAgent } from "@/lib/utils/supabase/autorisations";
+import { createMicrosoft365Channel } from "@/lib/utils/microsoft-graph";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 
 export type SemestreRecord = {
@@ -467,5 +468,71 @@ export const saveCoursForMatiere = async (formData: FormData) => {
 
   if (error) {
     throw new Error(error.message);
+  }
+};
+
+export const attachCoursToProgrammeTeam = async (formData: FormData) => {
+  await assertCanManageTeaching();
+
+  const programmeId = emptyToNull(formData.get("promotion"));
+  const matiereId = emptyToNull(formData.get("matiere_id"));
+
+  if (!programmeId) {
+    throw new Error("programme_required");
+  }
+
+  if (!matiereId) {
+    throw new Error("matiere_required");
+  }
+
+  const admin = createAdminClient();
+  const [{ data: programme, error: programmeError }, cours] = await Promise.all([
+    admin.from("programmes").select("id, designation, groupe_id").eq("id", programmeId).maybeSingle(),
+    getCoursByMatiereId(matiereId),
+  ]);
+
+  if (programmeError) {
+    throw new Error(programmeError.message);
+  }
+
+  if (!programme) {
+    throw new Error("programme_required");
+  }
+
+  if (!programme.groupe_id) {
+    throw new Error("programme_team_required");
+  }
+
+  if (!cours) {
+    throw new Error("cours_required");
+  }
+
+  if (!cours.slug) {
+    throw new Error("cours_channel_name_required");
+  }
+
+  if (!cours.titulaire_id) {
+    throw new Error("cours_enseignant_required");
+  }
+
+  const matiere = await getMatiereById(matiereId);
+
+  if (!matiere) {
+    throw new Error("matiere_required");
+  }
+
+  const channel = await createMicrosoft365Channel({
+    teamId: programme.groupe_id,
+    displayName: cours.slug,
+    description: `Canal du cours ${matiere.designation || "sans designation"} pour la promotion ${programme.designation || programme.id}.`,
+  });
+
+  const { error: updateError } = await admin
+    .from("cours")
+    .update({ entra_id: channel.channelId })
+    .eq("id", cours.id);
+
+  if (updateError) {
+    throw new Error(updateError.message);
   }
 };

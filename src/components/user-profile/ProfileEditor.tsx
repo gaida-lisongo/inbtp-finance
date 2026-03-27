@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { updateProfileAction } from "@/app/(admin)/(others-pages)/profile/actions";
-import type { AgentProfile } from "@/lib/utils/supabase/agents";
+import type { AgentProfile } from "@/lib/utils/supabase/agents-shared";
 
 type ProfileEditorProps = {
   agent: AgentProfile;

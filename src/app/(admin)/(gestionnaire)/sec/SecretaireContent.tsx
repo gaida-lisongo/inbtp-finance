@@ -1,94 +1,141 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { createDocumentAction, deleteDocumentAction, getDocumentsAction, notifyDocumentStudentsAction, updateDocumentAction } from "@/app/actions/documents";
+import AsyncProgressButton from "@/components/common/AsyncProgressButton";
 import ComponentCard from "@/components/common/ComponentCard";
 import Tab from "@/components/common/Tab";
-import DataTable from "@/components/common/DataTable";
+import AppLoader from "@/components/common/AppLoader";
 import { Modal } from "@/components/ui/modal";
-import Form from "@/components/form/Form";
-import Label from "@/components/form/Label";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import Button from "@/components/ui/button/Button";
-import { DocumentRecord } from "@/lib/utils/supabase/documents";
-import { getDocumentsAction, createDocumentAction, updateDocumentAction, deleteDocumentAction } from "@/app/actions/documents";
+import { getDocumentCategory, type DocumentRecord } from "@/lib/utils/supabase/documents-shared";
 
-interface SecretaireContentProps {
+type SecretaireContentProps = {
   programmeId: string;
-}
+};
+
+type DocumentSaveForm = {
+  designation: string;
+  description: string;
+  montant: string;
+  categorie: string;
+  is_active: string;
+};
+
+const initialFormState = (categorie: string): DocumentSaveForm => ({
+  designation: "",
+  description: "",
+  montant: "",
+  categorie,
+  is_active: "true",
+});
+
+const getDocumentTypeLabel = (categorie: string) => {
+  const normalized = categorie.trim().toLowerCase();
+
+  if (normalized === "relevés" || normalized === "releves") {
+    return "Relevé";
+  }
+
+  if (normalized === "fiche de validation") {
+    return "Fiche de validation";
+  }
+
+  return categorie;
+};
+
+const getNotificationErrorMessage = (message: string) => {
+  switch (message) {
+    case "access_denied":
+      return "Acces refuse a la notification des etudiants.";
+    case "document_not_found":
+      return "Le document a notifier est introuvable.";
+    case "document_notification_no_student_email":
+      return "Aucun email etudiant exploitable pour cette promotion.";
+    case "graph_mail_sender_not_configured":
+      return "L'adresse emettrice Microsoft 365 n'est pas configuree.";
+    default:
+      return message;
+  }
+};
 
 export default function SecretaireContent({ programmeId }: SecretaireContentProps) {
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
-  const releves = documents.filter(doc => (doc.caracteristique as any)?.categorie === "Relevés");
-  const fichesValidation = documents.filter(doc => (doc.caracteristique as any)?.categorie === "Fiche de validation");
   const [loading, setLoading] = useState(true);
-
-  // Modals
   const [documentModalOpen, setDocumentModalOpen] = useState(false);
   const [editingDocument, setEditingDocument] = useState<DocumentRecord | null>(null);
+  const [documentForm, setDocumentForm] = useState<DocumentSaveForm>(initialFormState("Fiche de validation"));
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
-  // Forms
-  const [documentForm, setDocumentForm] = useState({
-    designation: "",
-    description: "",
-    montant: "",
-    categorie: "Fiche de validation",
-    is_active: "true",
-  });
+  const releves = useMemo(
+    () => documents.filter((document) => getDocumentCategory(document).toLowerCase() === "relevés" || getDocumentCategory(document).toLowerCase() === "releves"),
+    [documents],
+  );
+  const fichesValidation = useMemo(
+    () => documents.filter((document) => getDocumentCategory(document).toLowerCase() === "fiche de validation"),
+    [documents],
+  );
 
-  useEffect(() => {
-    loadData();
-  }, [programmeId]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
+
     try {
       const documentsData = await getDocumentsAction(programmeId);
       setDocuments(documentsData);
     } catch (error) {
-      console.error("Error loading data:", error);
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Erreur lors du chargement des documents.",
+      });
     } finally {
       setLoading(false);
     }
-  };
+  }, [programmeId]);
 
-  const handleAddDocument = (categorie: string) => {
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  const openCreateModal = (categorie: string) => {
     setEditingDocument(null);
-    setDocumentForm({
-      designation: "",
-      description: "",
-      montant: "",
-      categorie,
-      is_active: "true",
-    });
+    setDocumentForm(initialFormState(categorie));
     setDocumentModalOpen(true);
   };
 
-  const handleEditDocument = (document: DocumentRecord) => {
+  const openEditModal = (document: DocumentRecord) => {
     setEditingDocument(document);
-    const categorie = (document.caracteristique as any)?.categorie || "Fiche de validation";
     setDocumentForm({
       designation: document.designation || "",
       description: document.description || "",
       montant: document.montant?.toString() || "",
-      categorie,
+      categorie: getDocumentCategory(document),
       is_active: document.is_active || "true",
     });
     setDocumentModalOpen(true);
   };
 
   const handleDeleteDocument = async (document: DocumentRecord) => {
-    if (confirm("Êtes-vous sûr de vouloir supprimer ce document ?")) {
-      try {
-        await deleteDocumentAction(document.id);
-        loadData(); // Reload data
-      } catch (error) {
-        console.error("Error deleting document:", error);
-        alert("Erreur lors de la suppression");
-      }
+    if (!window.confirm("Voulez-vous vraiment supprimer ce document ?")) {
+      return;
+    }
+
+    try {
+      await deleteDocumentAction(document.id);
+      setFeedback({ type: "success", message: "Document supprime avec succes." });
+      await loadData();
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Erreur lors de la suppression.",
+      });
     }
   };
 
-  const handleSubmitDocument = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmitDocument = async (event: React.FormEvent) => {
+    event.preventDefault();
+
     try {
       const formData = new FormData();
       formData.append("designation", documentForm.designation);
@@ -99,145 +146,246 @@ export default function SecretaireContent({ programmeId }: SecretaireContentProp
 
       if (editingDocument) {
         await updateDocumentAction(editingDocument.id, programmeId, formData);
+        setFeedback({ type: "success", message: "Document mis a jour avec succes." });
       } else {
         await createDocumentAction(programmeId, formData);
+        setFeedback({ type: "success", message: "Document cree avec succes." });
       }
+
       setDocumentModalOpen(false);
-      loadData(); // Reload data
+      await loadData();
     } catch (error) {
-      console.error("Error saving document:", error);
-      alert("Erreur lors de la sauvegarde");
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Erreur lors de l'enregistrement du document.",
+      });
     }
   };
 
-  const documentColumns = [
-    { key: "designation", label: "Désignation" },
-    // { key: "description", label: "Description" }, // Masqué selon la demande
-    {
-      key: "categorie",
-      label: "Catégorie",
-      render: (doc: DocumentRecord) => (doc.caracteristique as any)?.categorie || "",
-    },
-    {
-      key: "montant",
-      label: "Montant",
-      render: (doc: DocumentRecord) => doc.montant ? `$${doc.montant} USD` : "",
-    },
-    {
-      key: "is_active",
-      label: "Actif",
-      render: (doc: DocumentRecord) => doc.is_active === "true" ? "Oui" : "Non",
-    },
-  ];
+  const renderDocumentTable = (items: DocumentRecord[], searchPlaceholder: string, addLabel: string, categorie: string) => (
+    <ComponentCard title={`Gestion des ${categorie}`}>
+      <div className="space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="rounded-2xl bg-gray-50 px-4 py-3 dark:bg-white/[0.03]">
+            <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Documents</p>
+            <p className="mt-2 text-2xl font-semibold text-gray-800 dark:text-white/90">{items.length}</p>
+          </div>
+
+          <Button onClick={() => openCreateModal(categorie)}>{addLabel}</Button>
+        </div>
+
+        <div className="overflow-x-auto">
+          <Table className="min-w-full">
+            <TableHeader className="border-y border-gray-100 dark:border-gray-800">
+              <TableRow>
+                <TableCell isHeader className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Designation
+                </TableCell>
+                <TableCell isHeader className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Type
+                </TableCell>
+                <TableCell isHeader className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Montant
+                </TableCell>
+                <TableCell isHeader className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Statut
+                </TableCell>
+                <TableCell isHeader className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Actions
+                </TableCell>
+              </TableRow>
+            </TableHeader>
+            <TableBody className="divide-y divide-gray-100 dark:divide-gray-800">
+              {items.map((document) => {
+                const category = getDocumentCategory(document);
+
+                return (
+                  <TableRow key={document.id}>
+                    <TableCell className="px-5 py-4 text-sm font-medium text-gray-800 dark:text-white/90">
+                      {document.designation || "Sans designation"}
+                    </TableCell>
+                    <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
+                      {category}
+                    </TableCell>
+                    <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
+                      {document.montant != null ? `${document.montant} USD` : "Non renseigne"}
+                    </TableCell>
+                    <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
+                      {document.is_active === "true" ? "Actif" : "Inactif"}
+                    </TableCell>
+                    <TableCell className="px-5 py-4">
+                      <div className="flex justify-end gap-3">
+                        <AsyncProgressButton
+                          action={() => notifyDocumentStudentsAction(programmeId, document.id)}
+                          idleLabel="Notifier les etudiants"
+                          progressMessages={[
+                            "Preparation...",
+                            "Chargement des inscrits...",
+                            "Envoi des emails...",
+                            "Finalisation...",
+                          ]}
+                          onSuccess={(result) => {
+                            setFeedback({
+                              type: "success",
+                              message: `${result.notifiedCount} etudiant(s) notifie(s) pour ${result.category}. ${result.skippedCount > 0 ? `${result.skippedCount} sans email.` : ""}`.trim(),
+                            });
+                          }}
+                          onError={(error) => {
+                            setFeedback({
+                              type: "error",
+                              message: getNotificationErrorMessage(error.message),
+                            });
+                          }}
+                          className="px-3 py-2"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(document)}
+                          className="text-sm font-medium text-brand-500 hover:text-brand-600"
+                        >
+                          Modifier
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteDocument(document)}
+                          className="text-sm font-medium text-error-500 hover:text-error-600"
+                        >
+                          Supprimer
+                        </button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+
+              {items.length === 0 ? (
+                <TableRow>
+                  <td colSpan={5} className="px-5 py-8 text-sm text-gray-500 dark:text-gray-400">
+                    Aucun element dans {searchPlaceholder.toLowerCase()}.
+                  </td>
+                </TableRow>
+              ) : null}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    </ComponentCard>
+  );
 
   if (loading) {
-    return <div>Chargement...</div>;
+    return <AppLoader label="Chargement des documents..." />;
   }
 
   return (
     <>
+      {feedback ? (
+        <div
+          className={`rounded-2xl border px-4 py-3 text-sm ${
+            feedback.type === "success"
+              ? "border-success-200 bg-success-50 text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-300"
+              : "border-error-200 bg-error-50 text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
+          }`}
+        >
+          {feedback.message}
+        </div>
+      ) : null}
+
       <Tab
         tabs={[
           {
             key: "releves",
             label: "Relevés",
-            content: (
-              <ComponentCard title="Gestion des Relevés">
-                <DataTable
-                  data={releves}
-                  columns={documentColumns}
-                  searchPlaceholder="Rechercher un relevé..."
-                  onAdd={() => handleAddDocument("Relevés")}
-                  onEdit={handleEditDocument}
-                  onDelete={handleDeleteDocument}
-                  addButtonLabel="Ajouter Relevé"
-                />
-              </ComponentCard>
-            ),
+            content: renderDocumentTable(releves, "les relevés", "Ajouter releve", "Relevés"),
           },
           {
             key: "fiches-validation",
             label: "Fiches de validation",
-            content: (
-              <ComponentCard title="Gestion des Fiches de validation">
-                <DataTable
-                  data={fichesValidation}
-                  columns={documentColumns}
-                  searchPlaceholder="Rechercher une fiche de validation..."
-                  onAdd={() => handleAddDocument("Fiche de validation")}
-                  onEdit={handleEditDocument}
-                  onDelete={handleDeleteDocument}
-                  addButtonLabel="Ajouter Fiche de validation"
-                />
-              </ComponentCard>
+            content: renderDocumentTable(
+              fichesValidation,
+              "les fiches de validation",
+              "Ajouter fiche de validation",
+              "Fiche de validation",
             ),
           },
         ]}
       />
 
-      {/* Document Modal */}
-      <Modal isOpen={documentModalOpen} onClose={() => setDocumentModalOpen(false)} size="lg">
-        <div className="p-6">
-          <h2 className="text-xl font-semibold mb-4">
-            {editingDocument ? "Modifier Document" : "Ajouter Document"}
-          </h2>
-          <Form onSubmit={handleSubmitDocument}>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="designation">Désignation</Label>
-                <input
-                  id="designation"
-                  type="text"
-                  value={documentForm.designation}
-                  onChange={(e) => setDocumentForm({ ...documentForm, designation: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="description">Description</Label>
-                <textarea
-                  id="description"
-                  value={documentForm.description}
-                  onChange={(e) => setDocumentForm({ ...documentForm, description: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  rows={3}
-                />
-              </div>
-              <div>
-                <Label htmlFor="montant">Montant</Label>
-                <input
-                  id="montant"
-                  type="number"
-                  value={documentForm.montant}
-                  onChange={(e) => setDocumentForm({ ...documentForm, montant: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                />
-              </div>
-              {/* Catégorie masquée car déterminée par l'onglet */}
-              <input type="hidden" name="categorie" value={documentForm.categorie} />
-              <div>
-                <Label htmlFor="is_active">Actif</Label>
-                <select
-                  id="is_active"
-                  value={documentForm.is_active}
-                  onChange={(e) => setDocumentForm({ ...documentForm, is_active: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                >
-                  <option value="true">Oui</option>
-                  <option value="false">Non</option>
-                </select>
-              </div>
+      <Modal isOpen={documentModalOpen} onClose={() => setDocumentModalOpen(false)} className="m-4 max-w-[720px]">
+        <div className="p-6 sm:p-8">
+          <h3 className="text-xl font-semibold text-gray-800 dark:text-white/90">
+            {editingDocument ? `Modifier ${getDocumentTypeLabel(documentForm.categorie)}` : `Nouveau ${getDocumentTypeLabel(documentForm.categorie)}`}
+          </h3>
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+            Le bouton de notification permettra ensuite de prevenir tous les etudiants inscrits a cette promotion.
+          </p>
+
+          <form onSubmit={handleSubmitDocument} className="mt-6 grid gap-5">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400" htmlFor="document-designation">
+                Designation
+              </label>
+              <input
+                id="document-designation"
+                type="text"
+                value={documentForm.designation}
+                onChange={(event) => setDocumentForm((current) => ({ ...current, designation: event.target.value }))}
+                className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                required
+              />
             </div>
-            <div className="flex justify-end gap-2 mt-6">
-              <Button type="button" variant="outline" onClick={() => setDocumentModalOpen(false)}>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400" htmlFor="document-description">
+                Description
+              </label>
+              <textarea
+                id="document-description"
+                rows={4}
+                value={documentForm.description}
+                onChange={(event) => setDocumentForm((current) => ({ ...current, description: event.target.value }))}
+                className="w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400" htmlFor="document-montant">
+                Montant
+              </label>
+              <input
+                id="document-montant"
+                type="number"
+                value={documentForm.montant}
+                onChange={(event) => setDocumentForm((current) => ({ ...current, montant: event.target.value }))}
+                className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400" htmlFor="document-status">
+                Actif
+              </label>
+              <select
+                id="document-status"
+                value={documentForm.is_active}
+                onChange={(event) => setDocumentForm((current) => ({ ...current, is_active: event.target.value }))}
+                className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+              >
+                <option value="true">Oui</option>
+                <option value="false">Non</option>
+              </select>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDocumentModalOpen(false)}
+                className="rounded-lg border border-gray-300 px-5 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/[0.03]"
+              >
                 Annuler
-              </Button>
-              <Button type="submit">
-                {editingDocument ? "Modifier" : "Ajouter"}
-              </Button>
+              </button>
+              <Button>{editingDocument ? "Mettre a jour" : "Creer"}</Button>
             </div>
-          </Form>
+          </form>
         </div>
       </Modal>
     </>

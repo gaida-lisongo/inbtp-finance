@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getDocumentsForProgramme, createDocument, updateDocument, deleteDocument } from "@/lib/utils/supabase/documents";
+import { createDocument, deleteDocument, getDocumentsForProgramme, notifyStudentsForDocument, updateDocument } from "@/lib/utils/supabase/documents";
 
 export async function getDocumentsAction(programmeId: string) {
   try {
@@ -59,5 +59,14 @@ export async function deleteDocumentAction(id: string) {
   } catch (error) {
     console.error("Error deleting document:", error);
     throw new Error("Failed to delete document");
+  }
+}
+
+export async function notifyDocumentStudentsAction(programmeId: string, documentId: string) {
+  try {
+    return await notifyStudentsForDocument(programmeId, documentId);
+  } catch (error) {
+    console.error("Error notifying students:", error);
+    throw error instanceof Error ? error : new Error("Failed to notify students");
   }
 }

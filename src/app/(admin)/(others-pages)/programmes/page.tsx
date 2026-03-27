@@ -31,6 +31,14 @@ export default async function ProgrammesPage({ searchParams }: ProgrammesPagePro
 
   const [programmes, filieres, annees] = await Promise.all([getProgrammes(), getFilieres(), getAnnees()]);
   const editingProgramme = params.edit ? await getProgrammeById(params.edit) : null;
+  const feedbackMessage =
+    params.message === "programme_team_owner_missing"
+      ? "Le compte agent courant doit avoir un entra_id pour devenir proprietaire de l'equipe Teams."
+      : params.message === "graph_team_owner_required"
+        ? "Un proprietaire Entra est requis pour creer l'equipe Teams de la promotion."
+        : params.message === "Authorization_RequestDenied"
+          ? "Permissions Microsoft Graph insuffisantes pour creer l'equipe Teams. Verifiez les permissions application et le consentement admin."
+          : params.message;
 
   return (
     <div>
@@ -42,7 +50,7 @@ export default async function ProgrammesPage({ searchParams }: ProgrammesPagePro
         editingProgramme={editingProgramme}
         mode={params.mode}
         status={params.status}
-        message={params.message}
+        message={feedbackMessage}
       />
     </div>
   );

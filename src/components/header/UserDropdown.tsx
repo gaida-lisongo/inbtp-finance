@@ -228,6 +228,34 @@ export default function UserDropdown({ user }: UserDropdownProps) {
             </li>
           ) : null}
 
+          {user.role === "gestionnaire" ? (
+            <li>
+              <DropdownItem
+                onItemClick={closeDropdown}
+                tag="a"
+                href="/etudiants"
+                className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+              >
+                <svg
+                  className="fill-gray-500 group-hover:fill-gray-700 dark:fill-gray-400 dark:group-hover:fill-gray-300"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M7.5 7.25C7.5 4.90279 9.40279 3 11.75 3C14.0972 3 16 4.90279 16 7.25C16 9.59721 14.0972 11.5 11.75 11.5C9.40279 11.5 7.5 9.59721 7.5 7.25ZM11.75 4.5C10.2312 4.5 9 5.73122 9 7.25C9 8.76878 10.2312 10 11.75 10C13.2688 10 14.5 8.76878 14.5 7.25C14.5 5.73122 13.2688 4.5 11.75 4.5ZM5.25 18C5.25 15.3766 7.37665 13.25 10 13.25H13.5C16.1234 13.25 18.25 15.3766 18.25 18V18.5C18.25 18.9142 17.9142 19.25 17.5 19.25C17.0858 19.25 16.75 18.9142 16.75 18.5V18C16.75 16.2051 15.2949 14.75 13.5 14.75H10C8.20507 14.75 6.75 16.2051 6.75 18V18.5C6.75 18.9142 6.41421 19.25 6 19.25C5.58579 19.25 5.25 18.9142 5.25 18.5V18ZM18.25 8.25C18.25 7.83579 18.5858 7.5 19 7.5C20.2426 7.5 21.25 8.50736 21.25 9.75C21.25 10.9926 20.2426 12 19 12C18.5858 12 18.25 11.6642 18.25 11.25C18.25 10.8358 18.5858 10.5 19 10.5C19.4142 10.5 19.75 10.1642 19.75 9.75C19.75 9.33579 19.4142 9 19 9C18.5858 9 18.25 8.66421 18.25 8.25Z"
+                    fill=""
+                  />
+                </svg>
+                Etudiants
+              </DropdownItem>
+            </li>
+          ) : null}
+
           <li>
             <DropdownItem
               onItemClick={closeDropdown}
