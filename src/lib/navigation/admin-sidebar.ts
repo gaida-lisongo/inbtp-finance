@@ -4,7 +4,8 @@ import type { AuthenticatedUser } from "@/lib/utils/supabase/session";
 
 export type SidebarMenuSubItem = {
   name: string;
-  path: string;
+  path?: string;
+  subItems?: SidebarMenuSubItem[];
 };
 
 export type SidebarMenuItem = {
@@ -12,15 +13,6 @@ export type SidebarMenuItem = {
   path?: string;
   iconKey: "grid" | "folder" | "group" | "user";
   subItems?: SidebarMenuSubItem[];
-};
-
-const buildProgrammeSubItems = async () => {
-  const programmes = await getProgrammes();
-
-  return programmes.map((programme) => ({
-    name: programme.designation || "Programme sans designation",
-    path: `/classes/${programme.id}`,
-  }));
 };
 
 export const getAdminSidebarMenu = async (user: AuthenticatedUser): Promise<SidebarMenuItem[]> => {
@@ -36,24 +28,46 @@ export const getAdminSidebarMenu = async (user: AuthenticatedUser): Promise<Side
     return items;
   }
 
-  const [autorisationCodes, programmeSubItems] = await Promise.all([
-    getActiveAutorisationCodesForAgent(user.agentId),
-    buildProgrammeSubItems(),
-  ]);
+  const autorisationCodes = await getActiveAutorisationCodesForAgent(user.agentId);
+  const programmes = await getProgrammes();
+  const renderMenu = (
+    authorizationLabel: string,
+    authorizationCode: AutorisationCode,
+  ): SidebarMenuItem => {
+    const years = new Map<string, SidebarMenuSubItem>();
+
+    for (const programme of programmes) {
+      if (!programme.annee_id) {
+        continue;
+      }
+
+      const existingYear = years.get(programme.annee_id);
+      const promotionItem = {
+        name: programme.designation || "Promotion sans designation",
+        path: `/${authorizationCode.toLowerCase()}/${programme.id}`,
+      };
+
+      if (existingYear) {
+        existingYear.subItems = [...(existingYear.subItems ?? []), promotionItem];
+        continue;
+      }
+
+      years.set(programme.annee_id, {
+        name: programme.anneeDesignation || "Annee sans designation",
+        subItems: [promotionItem],
+      });
+    }
+
+    return {
+      name: authorizationLabel,
+      iconKey: "folder",
+      subItems: Array.from(years.values()),
+    };
+  };
 
   for (const code of autorisationCodes) {
-    items.push({
-      name: autorisationLabels[code as AutorisationCode],
-      iconKey: "folder",
-      subItems: programmeSubItems,
-    });
+    items.push(renderMenu(autorisationLabels[code], code));
   }
-
-  items.push({
-    name: "Profil",
-    path: "/profile",
-    iconKey: "user",
-  });
 
   return items;
 };

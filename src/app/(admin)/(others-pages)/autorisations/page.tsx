@@ -6,7 +6,13 @@ import AutorisationsRealtimeSync from "@/components/autorisation/AutorisationsRe
 import ComponentCard from "@/components/common/ComponentCard";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
-import { getAutorisationById, getAutorisations, getAgentsForRoleAssignment } from "@/lib/utils/supabase/autorisations";
+import {
+  autorisationLabels,
+  getAutorisationById,
+  getAutorisations,
+  getAgentsForRoleAssignment,
+  normalizeAutorisationCode,
+} from "@/lib/utils/supabase/autorisations";
 import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 
 export const metadata: Metadata = {
@@ -24,6 +30,11 @@ type AutorisationsPageProps = {
 
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+
+const formatAutorisationDesignation = (value: string | null | undefined) => {
+  const code = normalizeAutorisationCode(value);
+  return code ? autorisationLabels[code] : value;
+};
 
 const getMessage = (status?: string, message?: string) => {
   if (status !== "error") {
@@ -120,13 +131,19 @@ export default async function AutorisationsPage({ searchParams }: AutorisationsP
               <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400" htmlFor="designation">
                 Designation
               </label>
-              <input
+              <select
                 id="designation"
                 name="designation"
                 defaultValue={editingAutorisation?.designation ?? ""}
                 className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-                placeholder="Ex: Gestion des inscriptions"
-              />
+              >
+                <option value="">Selectionner une autorisation</option>
+                {Object.entries(autorisationLabels).map(([code, label]) => (
+                  <option key={code} value={code}>
+                    {label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
@@ -198,7 +215,7 @@ export default async function AutorisationsPage({ searchParams }: AutorisationsP
                       {autorisation.agentRole ?? "Aucun role"}
                     </TableCell>
                     <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
-                      {autorisation.designation || "Sans designation"}
+                      {formatAutorisationDesignation(autorisation.designation) || "Sans designation"}
                     </TableCell>
                     <TableCell className="px-5 py-4 text-sm">
                       <span
