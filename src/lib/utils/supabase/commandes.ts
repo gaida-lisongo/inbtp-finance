@@ -133,7 +133,27 @@ const resolveCurrentStudent = async () => {
     throw new Error("auth_required");
   }
 
+  const normalizedEmail = normalizeText(user.email)?.toLowerCase();
+
+  if (!normalizedEmail) {
+    throw new Error("student_not_found");
+  }
+
   const admin = createAdminClient();
+  const { data: studentByEmail, error: studentByEmailError } = await admin
+    .from("students")
+    .select("id, email, telephone, nom, post_nom, prenom, user_id")
+    .ilike("email", normalizedEmail)
+    .maybeSingle();
+
+  if (studentByEmailError) {
+    throw new Error(studentByEmailError.message);
+  }
+
+  if (studentByEmail) {
+    return studentByEmail as Pick<StudentRecord, "id" | "email" | "telephone" | "nom" | "post_nom" | "prenom">;
+  }
+
   const { data: studentByUserId, error: studentByUserIdError } = await admin
     .from("students")
     .select("id, email, telephone, nom, post_nom, prenom, user_id")
@@ -148,27 +168,7 @@ const resolveCurrentStudent = async () => {
     return studentByUserId as Pick<StudentRecord, "id" | "email" | "telephone" | "nom" | "post_nom" | "prenom">;
   }
 
-  const normalizedEmail = normalizeText(user.email)?.toLowerCase();
-
-  if (!normalizedEmail) {
-    throw new Error("student_not_found");
-  }
-
-  const { data: studentByEmail, error: studentByEmailError } = await admin
-    .from("students")
-    .select("id, email, telephone, nom, post_nom, prenom")
-    .ilike("email", normalizedEmail)
-    .maybeSingle();
-
-  if (studentByEmailError) {
-    throw new Error(studentByEmailError.message);
-  }
-
-  if (!studentByEmail) {
-    throw new Error("student_not_found");
-  }
-
-  return studentByEmail as Pick<StudentRecord, "id" | "email" | "telephone" | "nom" | "post_nom" | "prenom">;
+  throw new Error("student_not_found");
 };
 
 const mapResearchCategoryToTable = (category: ResearchCategory) => {
@@ -285,7 +285,6 @@ const getExistingSuccessCommande = async (studentId: string, category: CommandeC
     .eq("student_id", studentId)
     .eq("categorie", category)
     .eq("product", resourceId)
-    .eq("status", "success")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();

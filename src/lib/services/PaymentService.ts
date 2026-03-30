@@ -43,6 +43,19 @@ const getBaseUrl = (): string => {
   return url.replace(/\/+$/, "");
 };
 
+const buildAuthHeaders = () => {
+  const token = process.env.PAYMENT_SERVICE_AUTH_TOKEN ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!token) {
+    return {};
+  }
+
+  return {
+    Authorization: `Bearer ${token}`,
+    apikey: token,
+  };
+};
+
 const normalizePhone = (phone: string): string => {
   const digits = phone.replace(/\D/g, "");
   const last9 = digits.length > 9 ? digits.slice(-9) : digits;
@@ -69,6 +82,7 @@ export class PaymentService {
       ...options,
       headers: {
         "Content-Type": "application/json",
+        ...buildAuthHeaders(),
         ...(options.headers ?? {}),
       },
     });
@@ -77,6 +91,7 @@ export class PaymentService {
 
     if (!resp.ok) {
       const message = (payload as any)?.message || `Payment service error ${resp.status}`;
+      console.error("Payment request failed", endpoint, resp.status, message, payload);
       throw new Error(message);
     }
 

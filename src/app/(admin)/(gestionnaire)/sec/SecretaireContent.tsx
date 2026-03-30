@@ -383,7 +383,7 @@ export default function SecretaireContent({ programmeId }: SecretaireContentProp
               >
                 Annuler
               </button>
-              <Button>{editingDocument ? "Mettre a jour" : "Creer"}</Button>
+              <Button type="submit">{editingDocument ? "Mettre a jour" : "Creer"}</Button>
             </div>
           </form>
         </div>

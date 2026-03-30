@@ -1,70 +1,71 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect, unstable_rethrow } from "next/navigation";
 
-import { deleteResearchRecord, saveResearchRecord, type ResearchTableName } from "@/lib/utils/supabase/recherche";
+import {
+  deleteResearchRecord,
+  notifyStudentsForResearchRecord,
+  saveResearchRecord,
+} from "@/lib/utils/supabase/recherche";
+import type { ResearchTableName } from "@/lib/utils/supabase/recherche-shared";
 
 const getEntityTab = (value: FormDataEntryValue | null): ResearchTableName => {
   if (value === "stages" || value === "sujets" || value === "laboratoires") {
     return value;
   }
-
-  throw new Error("research_entity_required");
-};
-
-const buildRedirectUrl = (formData: FormData, status: "success" | "error", message?: string) => {
-  const annee = formData.get("annee");
-  const promotion = formData.get("promotion");
-  const tab = formData.get("tab");
-  const query = new URLSearchParams();
-
-  if (typeof annee === "string" && annee.length > 0) {
-    query.set("annee", annee);
-  }
-
-  if (typeof promotion === "string" && promotion.length > 0) {
-    query.set("promotion", promotion);
-  }
-
-  if (typeof tab === "string" && tab.length > 0) {
-    query.set("tab", tab);
-  }
-
-  query.set("status", status);
-
-  if (message) {
-    query.set("message", message);
-  }
-
-  return `/cr?${query.toString()}`;
+  throw new Error("Invalid entity tab");
 };
 
 export async function saveResearchRecordAction(formData: FormData) {
   try {
-    const entity = getEntityTab(formData.get("entity"));
-    await saveResearchRecord(entity, formData);
-    redirect(buildRedirectUrl(formData, "success"));
+    const tab = getEntityTab(formData.get("tab"));
+    const record = await saveResearchRecord(tab, formData);
+
+    revalidatePath("/cr");
+    return { success: true, data: record };
   } catch (error) {
     unstable_rethrow(error);
-    const message = error instanceof Error ? error.message : "research_save_failed";
-    redirect(buildRedirectUrl(formData, "error", message));
   }
 }
 
 export async function deleteResearchRecordAction(formData: FormData) {
   try {
-    const entity = getEntityTab(formData.get("entity"));
+    const tab = getEntityTab(formData.get("tab"));
     const id = formData.get("id");
 
-    if (typeof id !== "string" || id.length === 0) {
-      throw new Error("research_id_required");
+    if (!id || typeof id !== "string") {
+      throw new Error("Invalid id");
     }
 
-    await deleteResearchRecord(entity, id);
-    redirect(buildRedirectUrl(formData, "success"));
+    await deleteResearchRecord(tab, id);
+
+    revalidatePath("/cr");
+    return { success: true };
   } catch (error) {
     unstable_rethrow(error);
-    const message = error instanceof Error ? error.message : "research_delete_failed";
-    redirect(buildRedirectUrl(formData, "error", message));
+  }
+}
+
+export async function notifyResearchRecordAction(formData: FormData) {
+  try {
+    const tab = getEntityTab(formData.get("tab"));
+    const recordId = formData.get("record_id");
+    const programmeId = formData.get("programme_id");
+
+    if (!recordId || typeof recordId !== "string") {
+      throw new Error("Invalid recordId");
+    }
+
+    if (!programmeId || typeof programmeId !== "string") {
+      throw new Error("Invalid programmeId");
+    }
+
+    await notifyStudentsForResearchRecord(tab, recordId, programmeId);
+
+    revalidatePath("/cr");
+    return { success: true };
+  } catch (error) {
+    unstable_rethrow(error);
   }
 }

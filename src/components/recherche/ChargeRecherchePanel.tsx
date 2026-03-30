@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 
-import { deleteResearchRecordAction, saveResearchRecordAction } from "@/app/(admin)/(organisateur)/cr/actions";
+import { deleteResearchRecordAction, notifyResearchRecordAction, saveResearchRecordAction } from "@/app/(admin)/(organisateur)/cr/actions";
+import AsyncProgressButton from "@/components/common/AsyncProgressButton";
 import ComponentCard from "@/components/common/ComponentCard";
 import FormSubmitButton from "@/components/common/FormSubmitButton";
 import Tab from "@/components/common/Tab";
@@ -20,6 +21,7 @@ type ChargeRecherchePanelProps = {
   stages: ResearchRecord[];
   sujets: ResearchRecord[];
   laboratoires: ResearchRecord[];
+  programmeLabel: string | null;
 };
 
 type ResearchEntityPanelProps = {
@@ -30,6 +32,8 @@ type ResearchEntityPanelProps = {
   singularLabel: string;
   addLabel: string;
   items: ResearchRecord[];
+  programmeLabel: string | null;
+  onNotify: (feedback: { type: "success" | "error"; message: string }) => void;
 };
 
 const PAGE_SIZE = 5;
@@ -72,8 +76,7 @@ const matchesSearch = (item: ResearchRecord, query: string) => {
     return true;
   }
 
-  const description = formatResearchDescription(item.description);
-  const values = [item.slug, item.entra_id, item.is_active, description, item.created_at, item.montant?.toString() ?? ""];
+  const values = [item.slug, item.is_active, item.created_at, item.montant?.toString() ?? ""];
 
   return values.some((value) => value?.toLowerCase().includes(normalizedQuery));
 };
@@ -86,6 +89,8 @@ function ResearchEntityPanel({
   singularLabel,
   addLabel,
   items,
+  programmeLabel,
+  onNotify,
 }: ResearchEntityPanelProps) {
   const modal = useModal();
   const [page, setPage] = useState(1);
@@ -171,12 +176,6 @@ function ResearchEntityPanel({
                       Montant
                     </TableCell>
                     <TableCell isHeader className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                      Description
-                    </TableCell>
-                    <TableCell isHeader className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                      Entra ID
-                    </TableCell>
-                    <TableCell isHeader className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
                       Statut
                     </TableCell>
                     <TableCell isHeader className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
@@ -194,10 +193,6 @@ function ResearchEntityPanel({
                         {item.slug || "Sans slug"}
                       </TableCell>
                       <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">{formatAmount(item.montant)}</TableCell>
-                      <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
-                        <div className="max-w-md whitespace-pre-wrap break-words">{formatResearchDescription(item.description) || "Aucune description"}</div>
-                      </TableCell>
-                      <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">{item.entra_id || "Non renseigne"}</TableCell>
                       <TableCell className="px-5 py-4 text-sm">
                         <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${getStatusBadgeClassName(item.is_active)}`}>
                           {item.is_active || "Indefini"}
@@ -206,9 +201,41 @@ function ResearchEntityPanel({
                       <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">{formatDate(item.created_at)}</TableCell>
                       <TableCell className="px-5 py-4">
                         <div className="flex justify-end gap-3">
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(item)}
+                          <AsyncProgressButton
+                          action={async () => {
+                            const payload = new FormData();
+                            payload.append("entity", tabKey);
+                            payload.append("programme_id", promotionId);
+                            payload.append("promotion", promotionId);
+                            payload.append("annee", anneeId);
+                            payload.append("record_id", item.id);
+                            payload.append("programme_label", programmeLabel ?? "");
+                            return notifyResearchRecordAction(payload);
+                          }}
+                          idleLabel="Notifier"
+                          progressMessages={[
+                            "Preparation...",
+                            "Chargement des inscrits...",
+                            "Envoi des emails...",
+                            "Finalisation...",
+                          ]}
+                          onSuccess={(result) => {
+                            onNotify({
+                              type: "success",
+                              message: `${result.notifiedCount} etudiant(s) notifie(s).`,
+                            });
+                          }}
+                          onError={(error) => {
+                            onNotify({
+                              type: "error",
+                              message: getMessage(error.message) ?? error.message,
+                            });
+                          }}
+                          className="px-3 py-2"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(item)}
                             className="text-sm font-medium text-brand-500 hover:text-brand-600"
                           >
                             Modifier
@@ -227,11 +254,11 @@ function ResearchEntityPanel({
                   ))}
 
                   {paginatedItems.length === 0 ? (
-                    <TableRow>
-                      <td colSpan={7} className="px-5 py-8 text-sm text-gray-500 dark:text-gray-400">
-                        Aucun element ne correspond a la recherche.
-                      </td>
-                    </TableRow>
+                      <TableRow>
+                        <td colSpan={5} className="px-5 py-8 text-sm text-gray-500 dark:text-gray-400">
+                          Aucun element ne correspond a la recherche.
+                        </td>
+                      </TableRow>
                   ) : null}
                 </TableBody>
               </Table>
@@ -292,18 +319,6 @@ function ResearchEntityPanel({
             </div>
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400" htmlFor={`${tabKey}-entra-id`}>
-                Entra ID
-              </label>
-              <input
-                id={`${tabKey}-entra-id`}
-                name="entra_id"
-                defaultValue={editingItem?.entra_id ?? ""}
-                className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-              />
-            </div>
-
-            <div>
               <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400" htmlFor={`${tabKey}-is-active`}>
                 Statut
               </label>
@@ -355,11 +370,25 @@ export default function ChargeRecherchePanel({
   stages,
   sujets,
   laboratoires,
+  programmeLabel,
 }: ChargeRecherchePanelProps) {
   const totalRecords = stages.length + sujets.length + laboratoires.length;
+  const [notificationFeedback, setNotificationFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   return (
     <div className="space-y-6">
+      {notificationFeedback ? (
+        <div
+          className={`rounded-2xl border px-4 py-3 text-sm ${
+            notificationFeedback.type === "success"
+              ? "border-success-200 bg-success-50 text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-300"
+              : "border-error-200 bg-error-50 text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
+          }`}
+        >
+          {notificationFeedback.message}
+        </div>
+      ) : null}
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl border border-gray-200 bg-white px-5 py-4 dark:border-white/[0.05] dark:bg-white/[0.03]">
           <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Total global</p>
@@ -394,6 +423,8 @@ export default function ChargeRecherchePanel({
                 singularLabel="Un stage"
                 addLabel="Ajouter un stage"
                 items={stages}
+                programmeLabel={programmeLabel}
+                onNotify={setNotificationFeedback}
               />
             ),
           },
@@ -409,6 +440,8 @@ export default function ChargeRecherchePanel({
                 singularLabel="Un sujet"
                 addLabel="Ajouter un sujet"
                 items={sujets}
+                programmeLabel={programmeLabel}
+                onNotify={setNotificationFeedback}
               />
             ),
           },
@@ -424,6 +457,8 @@ export default function ChargeRecherchePanel({
                 singularLabel="Un laboratoire"
                 addLabel="Ajouter un laboratoire"
                 items={laboratoires}
+                programmeLabel={programmeLabel}
+                onNotify={setNotificationFeedback}
               />
             ),
           },

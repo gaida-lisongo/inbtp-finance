@@ -150,6 +150,7 @@ export default async function ChargeRecherchePage({ searchParams }: ChargeRecher
           stages={stages}
           sujets={sujets}
           laboratoires={laboratoires}
+          programmeLabel={programmeDetails.designation}
         />
       </div>
     </div>

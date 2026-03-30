@@ -162,6 +162,12 @@ export async function saveSessionModalAction(input: SessionInput) {
   return { session, notification, notificationError };
 }
 
+export async function notifySessionStudentsAction(programmeId: string, sessionId: string) {
+  const notification = await notifyStudentsForSession(programmeId, sessionId);
+  revalidatePath("/app");
+  return notification;
+}
+
 export async function deleteSessionByIdAction(id: string) {
   await deleteSession(id);
   revalidatePath("/app");

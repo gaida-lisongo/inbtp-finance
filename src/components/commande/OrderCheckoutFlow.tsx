@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { type FormEvent, useState, useTransition } from "react";
 
 import { confirmCommandePaymentAction, createCommandeDraftAction } from "@/app/commande/actions";
 import Button from "@/components/ui/button/Button";
@@ -67,7 +67,19 @@ export default function OrderCheckoutFlow({ category, resource, student }: Order
   const [serverMessage, setServerMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [confirmationOrderNumber, setConfirmationOrderNumber] = useState<string | null>(null);
+  const [invoiceData, setInvoiceData] = useState<{
+    reference: string;
+    amount: number;
+    currency: string;
+    channel: PaymentChannel;
+    studentName: string;
+    resourceLabel: string;
+    orderNumber: string;
+    message: string | null;
+  } | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [emailFeedback, setEmailFeedback] = useState<string | null>(null);
 
   const handlePaymentTypeSelection = (selectedChannel: PaymentChannel) => {
     if (isPending) {
@@ -80,7 +92,7 @@ export default function OrderCheckoutFlow({ category, resource, student }: Order
     setStep(2);
   };
 
-  const handleStepTwoSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleStepTwoSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setErrorMessage(null);
     setServerMessage(null);
@@ -125,6 +137,16 @@ export default function OrderCheckoutFlow({ category, resource, student }: Order
         setCommande(result.commande);
         setConfirmationOrderNumber(result.orderNumber);
         setServerMessage(result.message);
+        setInvoiceData({
+          reference: result.commande.id,
+          amount: result.commande.total ?? 0,
+          currency: "USD",
+          channel,
+          studentName: getStudentDisplayName(student),
+          resourceLabel: resource.title,
+          orderNumber: result.orderNumber,
+          message: result.message ?? null,
+        });
       } catch (error) {
         setErrorMessage(getErrorMessage(error));
       }
@@ -197,7 +219,7 @@ export default function OrderCheckoutFlow({ category, resource, student }: Order
                 <div>
                   <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Informations de paiement</h2>
                   <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                    Une commande sera enregistree avant l'envoi de la demande de paiement.
+                    Une commande sera enregistree avant l&apos;envoi de la demande de paiement.
                   </p>
                 </div>
                 <Button variant="outline" onClick={() => setStep(1)} type="button">
@@ -238,7 +260,7 @@ export default function OrderCheckoutFlow({ category, resource, student }: Order
                       value={phone}
                       onChange={(event) => setPhone(event.target.value)}
                       placeholder="+243..."
-                      className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs outline-hidden placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                      className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
                     />
                   </div>
                 ) : (
@@ -253,7 +275,7 @@ export default function OrderCheckoutFlow({ category, resource, student }: Order
                       onChange={(event) => setDescription(event.target.value)}
                       rows={4}
                       placeholder="Description optionnelle visible dans la commande."
-                      className="w-full rounded-lg border border-gray-300 bg-transparent px-4 py-3 text-sm text-gray-800 shadow-theme-xs outline-hidden placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                      className="w-full rounded-lg border border-gray-300 bg-transparent px-4 py-3 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
                     />
                   </div>
                 )}
@@ -304,12 +326,68 @@ export default function OrderCheckoutFlow({ category, resource, student }: Order
                 ) : null}
               </div>
 
-              {serverMessage ? (
-                <div className="mt-5 rounded-xl border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400">
-                  {serverMessage}
-                  {confirmationOrderNumber ? ` Numero de commande: ${confirmationOrderNumber}.` : ""}
-                </div>
-              ) : null}
+          {serverMessage ? (
+            <div className="mt-5 rounded-xl border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400">
+              {serverMessage}
+              {confirmationOrderNumber ? ` Numero de commande: ${confirmationOrderNumber}.` : ""}
+            </div>
+          ) : null}
+
+          {emailFeedback ? (
+            <div className="text-xs text-gray-500 dark:text-gray-400">{emailFeedback}</div>
+          ) : null}
+
+          {invoiceData ? (
+            <div className="mt-5 space-y-3 rounded-xl border border-gray-200 bg-white/70 p-4 text-sm dark:border-gray-800 dark:bg-white/[0.03]">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-gray-800 dark:text-white/90">Résumé</span>
+                <button
+                  type="button"
+                  className="text-xs font-medium text-brand-500 hover:text-brand-600"
+                  disabled={!student.email || isSendingEmail}
+                  onClick={async () => {
+                    if (!invoiceData || !student.email) {
+                      return;
+                    }
+
+                    setIsSendingEmail(true);
+                    setEmailFeedback(null);
+                    const response = await fetch("/commande/api/send-validation", {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                      },
+                      body: JSON.stringify({
+                        studentEmail: student.email,
+                        studentName: getStudentDisplayName(student),
+                        resourceLabel: invoiceData.resourceLabel,
+                        channel: invoiceData.channel,
+                        amount: invoiceData.amount,
+                        currency: invoiceData.currency,
+                        orderNumber: invoiceData.orderNumber,
+                      }),
+                    });
+
+                    if (!response.ok) {
+                      const payload = await response.json();
+                      setEmailFeedback(payload?.message ?? "Impossible d'envoyer l'email.");
+                    } else {
+                      setEmailFeedback("Email de validation envoyé.");
+                    }
+
+                    setIsSendingEmail(false);
+                  }}
+                >
+                  {isSendingEmail ? "Envoi..." : "Envoyer l'email de validation"}
+                </button>
+              </div>
+              <div className="grid gap-2 text-gray-700 dark:text-gray-200">
+                <div>Montant : {formatCurrency(invoiceData.amount)}</div>
+                <div>Canal : {paymentLabels[invoiceData.channel]}</div>
+                <div>OrderNumber : {invoiceData.orderNumber}</div>
+              </div>
+            </div>
+          ) : null}
 
               {errorMessage ? (
                 <div className="mt-5 rounded-xl border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400">
@@ -318,38 +396,42 @@ export default function OrderCheckoutFlow({ category, resource, student }: Order
               ) : null}
 
               <div className="mt-6 flex justify-end">
-                <Button onClick={handleConfirm} disabled={isPending || !commande}>
-                  {isPending ? "Confirmation..." : "Confirmer la commande"}
-                </Button>
+                {!invoiceData ? (
+                  <Button onClick={handleConfirm} disabled={isPending || !commande}>
+                    {isPending ? "Confirmation..." : "Confirmer la commande"}
+                  </Button>
+                ) : null}
               </div>
             </div>
           ) : null}
         </div>
 
         <aside className="space-y-6">
-          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.03]">
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.03] min-h-[220px]">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">Resume de la ressource</h2>
-            <div className="mt-5 space-y-4 text-sm">
-              <div>
-                <div className="text-gray-500 dark:text-gray-400">Ressource</div>
-                <div className="mt-1 font-medium text-gray-800 dark:text-white/90">{resource.title}</div>
-              </div>
-              <div>
-                <div className="text-gray-500 dark:text-gray-400">Categorie</div>
-                <div className="mt-1 font-medium text-gray-800 dark:text-white/90">{category}</div>
-              </div>
-              <div>
-                <div className="text-gray-500 dark:text-gray-400">Montant</div>
-                <div className="mt-1 text-lg font-semibold text-brand-600">{formatCurrency(resource.amount)}</div>
-              </div>
-              {resource.description ? (
+              <div className="mt-5 space-y-4 text-sm">
                 <div>
-                  <div className="text-gray-500 dark:text-gray-400">Description</div>
-                  <div className="mt-1 whitespace-pre-wrap text-gray-700 dark:text-gray-300">{resource.description}</div>
+                  <div className="text-gray-500 dark:text-gray-400">Ressource</div>
+                  <div className="mt-1 font-medium text-gray-800 dark:text-white/90">{resource.title}</div>
                 </div>
-              ) : null}
+                <div>
+                  <div className="text-gray-500 dark:text-gray-400">Categorie</div>
+                  <div className="mt-1 font-medium text-gray-800 dark:text-white/90">{category}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500 dark:text-gray-400">Montant</div>
+                  <div className="mt-1 text-lg font-semibold text-brand-600">{formatCurrency(resource.amount)}</div>
+                </div>
+                {resource.description ? (
+                  <div>
+                    <div className="text-gray-500 dark:text-gray-400">Description</div>
+                    <div className="mt-1 max-h-32 overflow-hidden whitespace-pre-line break-words text-gray-700 dark:text-gray-300">
+                      {resource.description}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
             </div>
-          </div>
 
           <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.03]">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">Etudiant</h2>

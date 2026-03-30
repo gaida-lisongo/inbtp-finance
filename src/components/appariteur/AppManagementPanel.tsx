@@ -7,10 +7,12 @@ import {
   bulkCreateParcoursAction,
   deleteParcoursByIdAction,
   deleteSessionByIdAction,
+  notifySessionStudentsAction,
   saveParcoursModalAction,
   saveSessionModalAction,
 } from "@/app/(admin)/(gestionnaire)/app/actions";
 import ComponentCard from "@/components/common/ComponentCard";
+import AsyncProgressButton from "@/components/common/AsyncProgressButton";
 import Button from "@/components/ui/button/Button";
 import { Modal } from "@/components/ui/modal";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
@@ -45,9 +47,24 @@ type SessionFormState = {
 };
 
 type SessionMatiereFormState = {
+  id: string;
   matiere: string;
   date_epreuve: string;
 };
+
+const generateSessionMatiereId = () => {
+  if (typeof globalThis.crypto !== "undefined" && typeof globalThis.crypto.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `matiere-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
+const createSessionMatiereState = (values?: Partial<Pick<SessionMatiereFormState, "matiere" | "date_epreuve">>): SessionMatiereFormState => ({
+  id: generateSessionMatiereId(),
+  matiere: values?.matiere ?? "",
+  date_epreuve: values?.date_epreuve ?? "",
+});
 
 type ParcoursFormState = {
   id: string | null;
@@ -56,17 +73,17 @@ type ParcoursFormState = {
   status: "ok" | "pending" | "no";
 };
 
-const emptySessionForm: SessionFormState = {
+const createEmptySessionForm = (): SessionFormState => ({
   id: null,
   designation: "",
   description: "",
   date_debut: "",
   date_fin: "",
-  matieres: [{ matiere: "", date_epreuve: "" }],
+  matieres: [createSessionMatiereState()],
   montant: "",
   is_active: "false",
   entra_id: "",
-};
+});
 
 const emptyParcoursForm: ParcoursFormState = {
   id: null,
@@ -130,7 +147,7 @@ const parseSessionDescription = (value: unknown) => {
 
 const parseSessionMatieres = (value: unknown): SessionMatiereFormState[] => {
   if (!Array.isArray(value)) {
-    return emptySessionForm.matieres;
+    return createEmptySessionForm().matieres;
   }
 
   const items = value
@@ -140,7 +157,7 @@ const parseSessionMatieres = (value: unknown): SessionMatiereFormState[] => {
       }
 
       const record = item as Record<string, unknown>;
-      return {
+      return createSessionMatiereState({
         matiere: typeof record.matiere === "string" ? record.matiere : "",
         date_epreuve:
           typeof record.date_epreuve === "string"
@@ -148,11 +165,11 @@ const parseSessionMatieres = (value: unknown): SessionMatiereFormState[] => {
             : typeof record.date === "string"
               ? record.date
               : "",
-      };
+      });
     })
     .filter(Boolean) as SessionMatiereFormState[];
 
-  return items.length > 0 ? items : emptySessionForm.matieres;
+  return items.length > 0 ? items : createEmptySessionForm().matieres;
 };
 
 const getMessage = (message?: string) => {
@@ -215,7 +232,7 @@ const getMessage = (message?: string) => {
 
 const buildSessionForm = (session: SessionRecord | null): SessionFormState => {
   if (!session) {
-    return emptySessionForm;
+    return createEmptySessionForm();
   }
 
   return {
@@ -327,7 +344,7 @@ export default function AppManagementPanel({
     }
 
     setSessionModalOpen(false);
-    setSessionForm(emptySessionForm);
+    setSessionForm(createEmptySessionForm());
     setSessionStep(1);
   };
 
@@ -352,7 +369,7 @@ export default function AppManagementPanel({
 
   const handleOpenSessionCreate = () => {
     setFeedback(null);
-    setSessionForm(emptySessionForm);
+    setSessionForm(createEmptySessionForm());
     setSessionModalOpen(true);
     setSessionStep(1);
     setActiveTab("sessions");
@@ -366,25 +383,35 @@ export default function AppManagementPanel({
     setActiveTab("sessions");
   };
 
-  const updateSessionMatiere = (index: number, field: keyof SessionMatiereFormState, value: string) => {
+  const updateSessionMatiere = (
+    id: string,
+    field: keyof Omit<SessionMatiereFormState, "id">,
+    value: string,
+  ) => {
     setSessionForm((current) => ({
       ...current,
-      matieres: current.matieres.map((item, itemIndex) => (itemIndex === index ? { ...item, [field]: value } : item)),
+      matieres: current.matieres.map((item) => (item.id === id ? { ...item, [field]: value } : item)),
     }));
   };
 
   const addSessionMatiere = () => {
     setSessionForm((current) => ({
       ...current,
-      matieres: [...current.matieres, { matiere: "", date_epreuve: "" }],
+      matieres: [...current.matieres, createSessionMatiereState()],
     }));
   };
 
-  const removeSessionMatiere = (index: number) => {
-    setSessionForm((current) => ({
-      ...current,
-      matieres: current.matieres.length === 1 ? current.matieres : current.matieres.filter((_, itemIndex) => itemIndex !== index),
-    }));
+  const removeSessionMatiere = (id: string) => {
+    setSessionForm((current) => {
+      if (current.matieres.length === 1) {
+        return current;
+      }
+
+      return {
+        ...current,
+        matieres: current.matieres.filter((item) => item.id !== id),
+      };
+    });
   };
 
   const goToSessionStepTwo = () => {
@@ -459,7 +486,7 @@ export default function AppManagementPanel({
       });
 
       setSessionModalOpen(false);
-      setSessionForm(emptySessionForm);
+      setSessionForm(createEmptySessionForm());
       setSessionStep(1);
 
       if (sessionForm.id) {
@@ -722,6 +749,29 @@ export default function AppManagementPanel({
                       </TableCell>
                       <TableCell className="px-5 py-4">
                         <div className="flex justify-end gap-3">
+                          <AsyncProgressButton
+                            action={() => notifySessionStudentsAction(programmeId, session.id)}
+                            idleLabel="Notifier"
+                            progressMessages={[
+                              "Preparation...",
+                              "Chargement des inscrits...",
+                              "Envoi des emails...",
+                              "Finalisation...",
+                            ]}
+                            onSuccess={(result) => {
+                              setFeedback({
+                                type: "success",
+                                message: `${result.notifiedCount} etudiant(s) notifie(s). ${result.skippedCount > 0 ? `${result.skippedCount} sans email.` : ""}`.trim(),
+                              });
+                            }}
+                            onError={(error) => {
+                              setFeedback({
+                                type: "error",
+                                message: getMessage(error.message) ?? error.message,
+                              });
+                            }}
+                            className="px-3 py-2"
+                          />
                           <button type="button" onClick={() => handleOpenSessionEdit(session)} className="text-sm font-medium text-brand-500 hover:text-brand-600">
                             Modifier
                           </button>
@@ -850,7 +900,7 @@ export default function AppManagementPanel({
                 }`}
               >
                 <p className="text-xs uppercase tracking-wide">Etape 2</p>
-                <p className="mt-1 text-sm font-semibold">Matieres et dates d'epreuve</p>
+                <p className="mt-1 text-sm font-semibold">Matieres et dates d&apos;epreuve</p>
               </button>
             </div>
           </div>
@@ -936,7 +986,7 @@ export default function AppManagementPanel({
                   <div>
                     <p className="text-sm font-medium text-gray-800 dark:text-white/90">Matieres de la session</p>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                      Precisez chaque matiere et la date de l'epreuve qui sera envoyee aux etudiants.
+                      Precisez chaque matiere et la date de l&apos;epreuve qui sera envoyee aux etudiants.
                     </p>
                   </div>
                   <Button type="button" variant="outline" onClick={addSessionMatiere}>
@@ -946,14 +996,14 @@ export default function AppManagementPanel({
 
                 <div className="space-y-4">
                   {sessionForm.matieres.map((matiere, index) => (
-                    <div key={`${index}-${matiere.matiere}`} className="grid gap-4 rounded-2xl border border-gray-200 p-4 dark:border-gray-800 lg:grid-cols-[minmax(0,1fr)_220px_auto]">
+                    <div key={matiere.id} className="grid gap-4 rounded-2xl border border-gray-200 p-4 dark:border-gray-800 lg:grid-cols-[minmax(0,1fr)_220px_auto]">
                       <div>
                         <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
                           Matiere {index + 1}
                         </label>
                         <input
                           value={matiere.matiere}
-                          onChange={(event) => updateSessionMatiere(index, "matiere", event.target.value)}
+                          onChange={(event) => updateSessionMatiere(matiere.id, "matiere", event.target.value)}
                           className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
                         />
                       </div>
@@ -963,13 +1013,13 @@ export default function AppManagementPanel({
                         <input
                           type="date"
                           value={matiere.date_epreuve}
-                          onChange={(event) => updateSessionMatiere(index, "date_epreuve", event.target.value)}
+                          onChange={(event) => updateSessionMatiere(matiere.id, "date_epreuve", event.target.value)}
                           className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
                         />
                       </div>
 
                       <div className="flex items-end">
-                        <Button type="button" variant="outline" onClick={() => removeSessionMatiere(index)} disabled={sessionForm.matieres.length === 1}>
+                        <Button type="button" variant="outline" onClick={() => removeSessionMatiere(matiere.id)} disabled={sessionForm.matieres.length === 1}>
                           Retirer
                         </Button>
                       </div>

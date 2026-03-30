@@ -4,6 +4,8 @@ import { sendMicrosoft365Mail } from "@/lib/utils/microsoft-graph";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 import type { StudentRecord } from "@/lib/utils/supabase/students-shared";
 
+const appUrl = process.env.NEXT_PUBLIC_HOST_URL;
+
 export type SessionRecord = {
   id: string;
   created_at: string;
@@ -458,6 +460,8 @@ export const saveSessionRecord = async (input: SessionInput) => {
 
 const getSessionNotificationContent = (session: SessionRecord, programmeDesignation: string | null) => {
   const title = session.designation || "Nouvelle session";
+  const relativeUrl = `/commande/session/${session.id}`;
+  const absoluteUrl = appUrl ? `${appUrl.replace(/\/$/, "")}${relativeUrl}` : relativeUrl;
   const description =
     session.description && typeof session.description === "object" && "text" in (session.description as Record<string, unknown>)
       ? stringToNull(String((session.description as Record<string, unknown>).text ?? ""))
@@ -493,6 +497,11 @@ const getSessionNotificationContent = (session: SessionRecord, programmeDesignat
               <ul style="padding-left:18px;margin:0;font-size:15px;line-height:1.8;">
                 ${matieresHtml}
               </ul>
+            </div>
+            <div style="margin-top:24px;">
+              <a href="${absoluteUrl}" style="display:inline-block;padding:14px 22px;border-radius:999px;background:#2563eb;color:#ffffff;text-decoration:none;font-weight:700;">
+                Ouvrir la commande
+              </a>
             </div>
           </div>
         </div>

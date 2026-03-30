@@ -2,6 +2,8 @@ import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 import { getActiveAutorisationCodesForAgent } from "@/lib/utils/supabase/autorisations";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 import type { ResearchRecord, ResearchTableName } from "@/lib/utils/supabase/recherche-shared";
+import { formatResearchDescription } from "@/lib/utils/supabase/recherche-shared";
+import { sendMicrosoft365Mail } from "@/lib/utils/microsoft-graph";
 
 const emptyToNull = (value: FormDataEntryValue | null) => {
   if (typeof value !== "string") {
@@ -122,4 +124,144 @@ export const deleteResearchRecord = async (tableName: ResearchTableName, id: str
   if (error) {
     throw new Error(error.message);
   }
+};
+
+const appUrl = process.env.NEXT_PUBLIC_HOST_URL;
+
+const getResourceRelativeUrl = (tableName: ResearchTableName, recordId: string) => {
+  const mapping: Record<ResearchTableName, string> = {
+    stages: "stages",
+    sujets: "sujets",
+    laboratoires: "laboratoires",
+  };
+
+  return `/commande/${mapping[tableName]}/${recordId}`;
+};
+
+const getResearchLabel = (tableName: ResearchTableName) => {
+  const labels: Record<ResearchTableName, string> = {
+    stages: "Stage",
+    sujets: "Sujet",
+    laboratoires: "Laboratoire",
+  };
+
+  return labels[tableName];
+};
+
+const gatherProgrammeStudentEmails = async (programmeId: string) => {
+  const admin = createAdminClient();
+  const [{ data: parcoursData, error: parcoursError }, { data: studentsData, error: studentsError }] = await Promise.all([
+    admin.from("parcours").select("student_id").eq("programme_id", programmeId),
+    admin.from("students").select("id, email"),
+  ]);
+
+  if (parcoursError) {
+    throw new Error(parcoursError.message);
+  }
+
+  if (studentsError) {
+    throw new Error(studentsError.message);
+  }
+
+  const studentIds = new Set(
+    ((parcoursData ?? []) as Array<{ student_id: string | null }>)
+      .map((item) => item.student_id)
+      .filter(Boolean) as string[],
+  );
+
+  const emails = Array.from(
+    new Set(
+      ((studentsData ?? []) as Array<{ id: string; email: string | null }>)
+        .filter((student) => studentIds.has(student.id))
+        .map((student) => student.email?.trim().toLowerCase() ?? "")
+        .filter(Boolean),
+    ),
+  );
+
+  if (emails.length === 0) {
+    throw new Error("research_notification_no_student_email");
+  }
+
+  return emails;
+};
+
+const buildResearchNotificationContent = (
+  tableName: ResearchTableName,
+  record: ResearchRecord,
+  programmeLabel: string | null,
+) => {
+  const title = record.slug || getResearchLabel(tableName);
+  const description = formatResearchDescription(record.description) || "";
+  const relativeUrl = getResourceRelativeUrl(tableName, record.id);
+  const absoluteUrl = appUrl ? `${appUrl.replace(/\/$/, "")}${relativeUrl}` : relativeUrl;
+  const label = getResearchLabel(tableName);
+
+  return {
+    subject: `Nouvelle ${label.toLowerCase()} disponible - ${title}`,
+    html: `
+      <div style="font-family:Arial,sans-serif;background:#f5f7fb;padding:24px;color:#1f2937;">
+        <div style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:20px;border:1px solid #e5e7eb;overflow:hidden;">
+          <div style="padding:24px 28px;background:#111827;color:#ffffff;">
+            <div style="font-size:12px;letter-spacing:0.14em;text-transform:uppercase;opacity:0.8;">Notification academique</div>
+            <h1 style="margin:12px 0 0;font-size:24px;line-height:1.3;">Nouvelle ${label} disponible</h1>
+          </div>
+          <div style="padding:28px;">
+            <p style="margin:0 0 16px;font-size:15px;line-height:1.8;">
+              <strong>${title}</strong> a ete publie pour ${programmeLabel || "votre promotion"}.
+            </p>
+            ${description ? `<p style="margin:0 0 16px;font-size:15px;line-height:1.8;">${description}</p>` : ""}
+            <div style="margin-top:20px;">
+              <a href="${absoluteUrl}" style="display:inline-block;padding:14px 22px;border-radius:999px;background:#2563eb;color:#ffffff;text-decoration:none;font-weight:700;">
+                Consulter la remise
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    `,
+  };
+};
+
+export type ResearchNotificationResult = {
+  notifiedCount: number;
+  skippedCount: number;
+};
+
+export const notifyStudentsForResearchRecord = async (
+  tableName: ResearchTableName,
+  programmeId: string,
+  programmeLabel: string | null,
+  recordId: string,
+): Promise<ResearchNotificationResult> => {
+  await assertCanManageResearch();
+
+  const admin = createAdminClient();
+  const { data: record, error } = await admin
+    .from(tableName)
+    .select("*")
+    .eq("id", recordId)
+    .eq("programme_id", programmeId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!record) {
+    throw new Error("research_record_not_found");
+  }
+
+  const emails = await gatherProgrammeStudentEmails(programmeId);
+  const content = buildResearchNotificationContent(tableName, record as ResearchRecord, programmeLabel);
+
+  await sendMicrosoft365Mail({
+    to: emails,
+    subject: content.subject,
+    html: content.html,
+  });
+
+  return {
+    notifiedCount: emails.length,
+    skippedCount: 0,
+  };
 };
