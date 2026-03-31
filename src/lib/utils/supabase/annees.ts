@@ -7,6 +7,7 @@ export type AnneeRecord = {
   date_debut: string | null;
   date_fin: string | null;
   description: string | null;
+  active: string;
   created_at: string;
 };
 
@@ -24,6 +25,7 @@ export const getAnnees = async () => {
   const { data, error } = await admin
     .from("annees")
     .select("*")
+    .order("active", { ascending: false })
     .order("date_debut", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
 
@@ -32,6 +34,17 @@ export const getAnnees = async () => {
   }
 
   return (data ?? []) as AnneeRecord[];
+};
+
+export const getActiveAnnee = async () => {
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("annees").select("*").eq("active", true).limit(1).maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as AnneeRecord | null;
 };
 
 export const getAnneeById = async (id: string) => {
@@ -76,7 +89,30 @@ export const saveAnnee = async (formData: FormData) => {
     return;
   }
 
-  const { error } = await admin.from("annees").insert(payload);
+  const { error } = await admin.from("annees").insert({
+    ...payload,
+    active: false,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+};
+
+export const updateAnneeActiveState = async (id: string, active: boolean) => {
+  await assertCanManageYears();
+
+  const admin = createAdminClient();
+
+  if (active) {
+    const { error: resetError } = await admin.from("annees").update({ active: false }).neq("id", id);
+
+    if (resetError) {
+      throw new Error(resetError.message);
+    }
+  }
+
+  const { error } = await admin.from("annees").update({ active }).eq("id", id);
 
   if (error) {
     throw new Error(error.message);

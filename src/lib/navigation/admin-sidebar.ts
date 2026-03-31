@@ -39,6 +39,7 @@ export const getAdminSidebarMenu = async (user: AuthenticatedUser): Promise<Side
 
   const autorisationCodes = await getActiveAutorisationCodesForAgent(user.agentId);
   const programmes = await getProgrammes();
+  const activeYearId = programmes.find((programme) => programme.annee_id && programme.anneeActive)?.annee_id ?? null;
   const renderMenu = (
     authorizationLabel: string,
     authorizationCode: AutorisationCode,
@@ -46,7 +47,7 @@ export const getAdminSidebarMenu = async (user: AuthenticatedUser): Promise<Side
     const years = new Map<string, SidebarMenuSubItem>();
 
     for (const programme of programmes) {
-      if (!programme.annee_id) {
+      if (!programme.annee_id || (activeYearId && programme.annee_id !== activeYearId)) {
         continue;
       }
 

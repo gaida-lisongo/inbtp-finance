@@ -17,6 +17,7 @@ export type ProgrammeRecord = {
 export type ProgrammeWithRelations = ProgrammeRecord & {
   filiereDesignation: string | null;
   anneeDesignation: string | null;
+  anneeActive: boolean;
 };
 
 const emptyToNull = (value: FormDataEntryValue | null) => {
@@ -58,7 +59,7 @@ export const getProgrammes = async () => {
     await Promise.all([
       admin.from("programmes").select("*").order("designation", { ascending: true }),
       admin.from("filieres").select("id, designation"),
-      admin.from("annees").select("id, designation"),
+      admin.from("annees").select("id, designation, active"),
     ]);
 
   if (programmesError) {
@@ -77,13 +78,17 @@ export const getProgrammes = async () => {
     ((filieresData ?? []) as Array<{ id: string; designation: string | null }>).map((item) => [item.id, item.designation] as const),
   );
   const anneesById = new Map(
-    ((anneesData ?? []) as Array<{ id: string; designation: string | null }>).map((item) => [item.id, item.designation] as const),
+    ((anneesData ?? []) as Array<{ id: string; designation: string | null; active: boolean | null }>).map((item) => [
+      item.id,
+      { designation: item.designation, active: item.active === true },
+    ] as const),
   );
 
   return ((programmesData ?? []) as ProgrammeRecord[]).map((programme) => ({
     ...programme,
     filiereDesignation: programme.filiere_id ? filieresById.get(programme.filiere_id) ?? null : null,
-    anneeDesignation: programme.annee_id ? anneesById.get(programme.annee_id) ?? null : null,
+    anneeDesignation: programme.annee_id ? anneesById.get(programme.annee_id)?.designation ?? null : null,
+    anneeActive: programme.annee_id ? anneesById.get(programme.annee_id)?.active ?? false : false,
   })) as ProgrammeWithRelations[];
 };
 

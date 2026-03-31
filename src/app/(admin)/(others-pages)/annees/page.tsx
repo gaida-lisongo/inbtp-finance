@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 
-import { deleteAnneeAction, saveAnneeAction } from "@/app/(admin)/(others-pages)/annees/actions";
+import AnneeActiveSwitch from "@/app/(admin)/(others-pages)/annees/AnneeActiveSwitch";
+import { deleteAnneeAction, saveAnneeAction, updateAnneeActiveAction } from "@/app/(admin)/(others-pages)/annees/actions";
 import ComponentCard from "@/components/common/ComponentCard";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
@@ -38,6 +39,10 @@ const getMessage = (status?: string, message?: string) => {
     return "Acces refuse a cette page.";
   }
 
+  if (message === "annee_id_required") {
+    return "L'annee a mettre a jour est introuvable.";
+  }
+
   return message;
 };
 
@@ -49,6 +54,7 @@ export default async function AnneesPage({ searchParams }: AnneesPageProps) {
   }
 
   const annees = await getAnnees();
+  
   const editingAnnee = params.edit ? await getAnneeById(params.edit) : null;
   const feedbackMessage = getMessage(params.status, params.message);
 
@@ -71,7 +77,7 @@ export default async function AnneesPage({ searchParams }: AnneesPageProps) {
 
         <ComponentCard
           title={editingAnnee ? "Modifier une annee" : "Nouvelle annee"}
-          desc="Les organisateurs definissent ici les annees disponibles dans le systeme."
+          desc="Les organisateurs definissent ici les annees disponibles dans le systeme. Une nouvelle annee est creee inactive par defaut."
         >
           <form action={saveAnneeAction} className="grid gap-5 lg:grid-cols-2">
             <input type="hidden" name="id" value={editingAnnee?.id ?? ""} />
@@ -165,6 +171,9 @@ export default async function AnneesPage({ searchParams }: AnneesPageProps) {
                   <TableCell isHeader className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
                     Description
                   </TableCell>
+                  <TableCell isHeader className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                    Etat
+                  </TableCell>
                   <TableCell isHeader className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-gray-500">
                     Actions
                   </TableCell>
@@ -184,6 +193,19 @@ export default async function AnneesPage({ searchParams }: AnneesPageProps) {
                     </TableCell>
                     <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
                       {annee.description || "Aucune description"}
+                    </TableCell>
+                    <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
+                      <div className="flex items-center gap-3">
+                        <AnneeActiveSwitch anneeId={annee.id} isActive={annee?.active == "true"} action={updateAnneeActiveAction} />
+                        {annee?.active == "true"  ? (
+                          <span className="inline-flex rounded-full bg-success-50 px-2.5 py-1 text-xs font-medium text-success-700 dark:bg-success-500/10 dark:text-success-300">
+                            Annee active
+                          </span>
+                        ) : 
+                          <span className="inline-flex rounded-full bg-error-50 px-2.5 py-1 text-xs font-medium text-error-700 dark:bg-error-500/10 dark:text-error-300">
+                            Annee inactive
+                          </span>}
+                      </div>
                     </TableCell>
                     <TableCell className="px-5 py-4">
                       <div className="flex justify-end gap-3">
@@ -205,7 +227,7 @@ export default async function AnneesPage({ searchParams }: AnneesPageProps) {
                 ))}
                 {annees.length === 0 ? (
                   <TableRow>
-                    <td colSpan={5} className="px-5 py-8 text-sm text-gray-500 dark:text-gray-400">
+                    <td colSpan={6} className="px-5 py-8 text-sm text-gray-500 dark:text-gray-400">
                       Aucune annee enregistree.
                     </td>
                   </TableRow>

@@ -47,13 +47,14 @@ export interface CommandeDetail {
 
 export interface AcademicYear {
   id: string;
-  annee: string;
+  designation: string | null;
+  active: boolean;
   created_at: string;
 }
 
 export interface Promotion {
   id: string;
-  nom: string;
+  designation: string | null;
   description: string | null;
   annee_id: string;
 }

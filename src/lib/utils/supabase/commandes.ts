@@ -1,6 +1,6 @@
 import { PaymentService } from "@/lib/services/PaymentService";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
-import type { DocumentRecord } from "@/lib/utils/supabase/documents-shared";
+import { getDocumentCategory, type DocumentRecord } from "@/lib/utils/supabase/documents-shared";
 import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 import type { StudentRecord } from "@/lib/utils/supabase/students-shared";
 import type { SessionRecord } from "@/lib/utils/supabase/appariteur";
@@ -30,12 +30,22 @@ export type CommandeResourceSummary = {
   description: string | null;
   amount: number | null;
   programmeId: string | null;
+  documentCategory: string | null;
 };
 
 export type CommandePageData = {
   student: Pick<StudentRecord, "id" | "email" | "telephone" | "nom" | "post_nom" | "prenom">;
   resource: CommandeResourceSummary;
   existingSuccessCommande: CommandeRecord | null;
+};
+
+export type ProductRenderMode = "form" | "document" | "message";
+
+export type ProductPageData = CommandePageData & {
+  renderMode: ProductRenderMode;
+  commandePath: string;
+  productPath: string;
+  hasPaidAccess: boolean;
 };
 
 type ResearchCategory = Extract<CommandeCategory, "stages" | "sujets" | "laboratoire">;
@@ -140,29 +150,33 @@ const resolveCurrentStudent = async () => {
   }
 
   const admin = createAdminClient();
-  const { data: studentByEmail, error: studentByEmailError } = await admin
+  const { data: studentByEmailRows, error: studentByEmailError } = await admin
     .from("students")
     .select("id, email, telephone, nom, post_nom, prenom, user_id")
     .ilike("email", normalizedEmail)
-    .maybeSingle();
+    .limit(1);
 
   if (studentByEmailError) {
     throw new Error(studentByEmailError.message);
   }
 
+  const studentByEmail = (studentByEmailRows ?? [])[0];
+
   if (studentByEmail) {
     return studentByEmail as Pick<StudentRecord, "id" | "email" | "telephone" | "nom" | "post_nom" | "prenom">;
   }
 
-  const { data: studentByUserId, error: studentByUserIdError } = await admin
+  const { data: studentByUserIdRows, error: studentByUserIdError } = await admin
     .from("students")
     .select("id, email, telephone, nom, post_nom, prenom, user_id")
     .eq("user_id", user.id)
-    .maybeSingle();
+    .limit(1);
 
   if (studentByUserIdError) {
     throw new Error(studentByUserIdError.message);
   }
+
+  const studentByUserId = (studentByUserIdRows ?? [])[0];
 
   if (studentByUserId) {
     return studentByUserId as Pick<StudentRecord, "id" | "email" | "telephone" | "nom" | "post_nom" | "prenom">;
@@ -204,6 +218,7 @@ const getResourceSummary = async (category: CommandeCategory, resourceId: string
       description: normalizeText(document.description),
       amount: typeof document.montant === "number" ? document.montant : null,
       programmeId: document.programme_id,
+      documentCategory: getDocumentCategory(document),
     };
   }
 
@@ -228,6 +243,7 @@ const getResourceSummary = async (category: CommandeCategory, resourceId: string
       description: formatUnknownText(session.description),
       amount: typeof session.montant === "number" ? session.montant : null,
       programmeId: session.programme_id,
+      documentCategory: null,
     };
   }
 
@@ -252,6 +268,7 @@ const getResourceSummary = async (category: CommandeCategory, resourceId: string
     description: formatUnknownText(record.description),
     amount: typeof record.montant === "number" ? record.montant : null,
     programmeId: record.programme_id,
+    documentCategory: null,
   };
 };
 
@@ -285,15 +302,15 @@ const getExistingSuccessCommande = async (studentId: string, category: CommandeC
     .eq("student_id", studentId)
     .eq("categorie", category)
     .eq("product", resourceId)
+    .eq("status", "success")
     .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(1);
 
   if (error) {
     throw new Error(error.message);
   }
 
-  return (data ?? null) as CommandeRecord | null;
+  return (((data ?? []) as CommandeRecord[])[0] ?? null) as CommandeRecord | null;
 };
 
 const getLatestPendingCommande = async (studentId: string, category: CommandeCategory, resourceId: string) => {
@@ -306,14 +323,13 @@ const getLatestPendingCommande = async (studentId: string, category: CommandeCat
     .eq("product", resourceId)
     .neq("status", "success")
     .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(1);
 
   if (error) {
     throw new Error(error.message);
   }
 
-  return (data ?? null) as CommandeRecord | null;
+  return (((data ?? []) as CommandeRecord[])[0] ?? null) as CommandeRecord | null;
 };
 
 const buildCommandeDescription = (resource: CommandeResourceSummary, channel: PaymentChannel, customDescription?: string | null) => {
@@ -379,6 +395,40 @@ export const getCommandeCheckoutPageData = async (
     student,
     resource,
     existingSuccessCommande,
+  };
+};
+
+export const getProductPath = (category: CommandeCategory, resourceId: string) => `/product/${category}/${resourceId}`;
+
+export const getCommandePath = (category: CommandeCategory, resourceId: string) => `/commande/${category}/${resourceId}`;
+
+export const getProductRenderMode = (category: CommandeCategory): ProductRenderMode => {
+  switch (category) {
+    case "session":
+      return "form";
+    case "documents":
+      return "document";
+    case "stages":
+    case "sujets":
+    case "laboratoire":
+      return "message";
+    default:
+      return "message";
+  }
+};
+
+export const getProductPageData = async (
+  category: CommandeCategory,
+  resourceId: string,
+): Promise<ProductPageData> => {
+  const checkoutData = await getCommandeCheckoutPageData(category, resourceId);
+
+  return {
+    ...checkoutData,
+    renderMode: getProductRenderMode(category),
+    commandePath: getCommandePath(category, resourceId),
+    productPath: getProductPath(category, resourceId),
+    hasPaidAccess: checkoutData.existingSuccessCommande !== null,
   };
 };
 

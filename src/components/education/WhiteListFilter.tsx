@@ -23,7 +23,9 @@ export function WhiteListFilter({
   );
   const [isLoading, setIsLoading] = useState(true);
 
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
+  const selectedAnneeDetails = annees.find((annee) => annee.id === selectedAnnee) ?? null;
+  const selectedPromotionDetails = promotions.find((promotion) => promotion.id === selectedProgramme) ?? null;
 
   // Load academic years
   useEffect(() => {
@@ -31,15 +33,22 @@ export function WhiteListFilter({
       try {
         const { data } = await supabase
           .from("annees")
-          .select("id, annee, created_at")
-          .order("annee", { ascending: false });
+          .select("id, designation, active, created_at")
+          .order("active", { ascending: false })
+          .order("date_debut", { ascending: false, nullsFirst: false })
+          .order("created_at", { ascending: false });
 
         if (data) {
           setAnnees(data);
-          // Set first as default if not already selected
-          if (!selectedAnnee && data.length > 0) {
-            setSelectedAnnee(data[0].id);
-          }
+
+          setSelectedAnnee((current) => {
+            if (current || data.length === 0) {
+              return current;
+            }
+
+            const activeAnnee = data.find((annee) => annee.active);
+            return activeAnnee?.id ?? data[0].id;
+          });
         }
       } catch (error) {
         console.error("Error loading academic years:", error);
@@ -47,13 +56,15 @@ export function WhiteListFilter({
     }
 
     loadAnnees();
-  }, [supabase, selectedAnnee]);
+  }, [supabase]);
 
   // Load promotions when academic year changes
   useEffect(() => {
     async function loadPromotions() {
       if (!selectedAnnee) {
         setPromotions([]);
+        setSelectedProgramme(null);
+        setIsLoading(false);
         return;
       }
 
@@ -61,19 +72,19 @@ export function WhiteListFilter({
         setIsLoading(true);
         const { data } = await supabase
           .from("programmes")
-          .select("id, nom, description, annee_id")
+          .select("id, designation, description, annee_id")
           .eq("annee_id", selectedAnnee)
-          .order("nom", { ascending: true });
+          .order("designation", { ascending: true });
 
         if (data) {
           setPromotions(data);
-          // Set first as default if not already selected
-          if (!selectedProgramme && data.length > 0) {
-            setSelectedProgramme(data[0].id);
-          } else if (selectedProgramme && !data.find((p) => p.id === selectedProgramme)) {
-            // Clear if selected promotion is not in new list
-            setSelectedProgramme(null);
-          }
+          setSelectedProgramme((current) => {
+            if (!current) {
+              return data[0]?.id ?? null;
+            }
+
+            return data.some((promotion) => promotion.id === current) ? current : null;
+          });
         }
       } catch (error) {
         console.error("Error loading promotions:", error);
@@ -83,7 +94,7 @@ export function WhiteListFilter({
     }
 
     loadPromotions();
-  }, [selectedAnnee, supabase, selectedProgramme]);
+  }, [selectedAnnee, supabase]);
 
   // Notify parent of filter changes
   useEffect(() => {
@@ -115,7 +126,7 @@ export function WhiteListFilter({
             <option value="">-- Sélectionner --</option>
             {annees.map((annee) => (
               <option key={annee.id} value={annee.id}>
-                {annee.annee}
+                {annee.designation || "Annee sans designation"}
               </option>
             ))}
           </select>
@@ -137,7 +148,7 @@ export function WhiteListFilter({
             </option>
             {promotions.map((promo) => (
               <option key={promo.id} value={promo.id}>
-                {promo.nom}
+                {promo.designation || "Promotion sans designation"}
                 {promo.description && ` (${promo.description})`}
               </option>
             ))}
@@ -149,15 +160,16 @@ export function WhiteListFilter({
       {(selectedAnnee || selectedProgramme) && (
         <div className="mt-4 border-t border-gray-200 pt-4 dark:border-gray-700">
           <p className="text-xs text-gray-600 dark:text-gray-400">
-            {selectedAnnee && annees.find((a) => a.id === selectedAnnee) && (
+            {selectedAnnee && selectedAnneeDetails && (
               <span>
-                Année: <strong>{annees.find((a) => a.id === selectedAnnee)?.annee}</strong>
-                {selectedProgramme && promotions.find((p) => p.id === selectedProgramme) && (
+                Année: <strong>{selectedAnneeDetails.designation || "Annee sans designation"}</strong>
+                {selectedAnneeDetails.active ? " (active)" : ""}
+                {selectedProgramme && selectedPromotionDetails && (
                   <>
                     {" | "}
                     Promotion:{" "}
                     <strong>
-                      {promotions.find((p) => p.id === selectedProgramme)?.nom}
+                      {selectedPromotionDetails.designation || "Promotion sans designation"}
                     </strong>
                   </>
                 )}
