@@ -4,6 +4,7 @@ import { type User } from "@supabase/supabase-js";
 import { findAgentRecordForUser, normalizeAgentRole, type AccountType, type AgentRole } from "@/lib/utils/supabase/agents";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 import { createClient as createServerSupabaseClient } from "@/lib/utils/supabase/server";
+import { attachStudentUserByEmail } from "@/lib/utils/supabase/students";
 
 export type AuthenticatedUser = {
   id: string;
@@ -156,6 +157,12 @@ export const syncAuthenticatedUser = async (): Promise<AuthenticatedUser | null>
 
   if (!user) {
     return null;
+  }
+
+  const agentRecord = await findAgentRecordForUser(user);
+
+  if (!agentRecord && user.email) {
+    await attachStudentUserByEmail(user.email, user.id);
   }
 
   const authenticatedUser = await buildAuthenticatedUser(user);

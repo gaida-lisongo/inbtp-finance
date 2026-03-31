@@ -1,1 +1,1 @@
-export { signInWithAzureAction } from "@/app/actions/auth";
+export { signInStudentAction, signInWithAzureAction } from "@/app/actions/auth";

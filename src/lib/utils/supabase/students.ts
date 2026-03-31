@@ -34,6 +34,28 @@ const normalizeStudentEmail = (email: string) => {
   return normalizedEmail;
 };
 
+const getStudentByNormalizedEmail = async (email: string) => {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("students")
+    .select("*")
+    .eq("email", email)
+    .order("created_at", { ascending: true })
+    .limit(2);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const students = (data ?? []) as StudentRecord[];
+
+  if (students.length > 1) {
+    throw new Error("student_email_conflict");
+  }
+
+  return students[0] ?? null;
+};
+
 const parseCsvLine = (line: string) => {
   const values: string[] = [];
   let currentValue = "";
@@ -81,6 +103,52 @@ export const getStudents = async () => {
   }
 
   return (data ?? []) as StudentRecord[];
+};
+
+export const getStudentByEmail = async (email: string) => {
+  const normalizedEmail = normalizeStudentEmail(email);
+  return getStudentByNormalizedEmail(normalizedEmail);
+};
+
+export const assertStudentCanAuthenticate = async (email: string) => {
+  const student = await getStudentByEmail(email);
+
+  if (!student) {
+    throw new Error("student_not_found");
+  }
+
+  return student;
+};
+
+export const attachStudentUserByEmail = async (email: string, userId: string) => {
+  const normalizedEmail = normalizeStudentEmail(email);
+  const student = await getStudentByNormalizedEmail(normalizedEmail);
+
+  if (!student) {
+    throw new Error("student_not_found");
+  }
+
+  if (student.user_id && student.user_id !== userId) {
+    throw new Error("student_already_linked");
+  }
+
+  if (student.user_id === userId) {
+    return student;
+  }
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("students")
+    .update({ user_id: userId })
+    .eq("id", student.id)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as StudentRecord;
 };
 
 export const getStudentById = async (id: string) => {

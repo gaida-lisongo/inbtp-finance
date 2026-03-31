@@ -15,10 +15,6 @@ export default async function AdminLayout({
     redirect("/signin");
   }
 
-  if (!user.canAccessAdmin) {
-    redirect("/signin?error=access_denied");
-  }
-
   const sidebarMenu = await getAdminSidebarMenu(user);
 
   return (

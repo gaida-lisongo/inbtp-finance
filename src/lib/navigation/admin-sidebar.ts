@@ -24,6 +24,16 @@ export const getAdminSidebarMenu = async (user: AuthenticatedUser): Promise<Side
     },
   ];
 
+  if (user.accountType === "student") {
+    items.push({
+      name: "Parcours",
+      path: "/parcours",
+      iconKey: "folder",
+    });
+
+    return items;
+  }
+
   // Ajouter l'élément Agents pour les gestionnaires
   if (user.role === "gestionnaire") {
     items.push({

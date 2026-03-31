@@ -2,17 +2,32 @@ import type { Metadata } from "next";
 
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import FacultyDashboardSnapshot from "@/components/education/FacultyDashboardSnapshot";
+import StudentDashboardSnapshot from "@/components/education/StudentDashboardSnapshot";
 import { getFacultyDashboardSnapshot } from "@/lib/utils/supabase/faculte-dashboard";
+import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
+import { getStudentDashboardSnapshot } from "@/lib/utils/supabase/student-dashboard";
 
 export const metadata: Metadata = {
-  title: "Dashboard Faculte | Dashboard Agents",
-  description: "Lecture serveur des donnees faculte a partir de l'annee active, des programmes et des commandes.",
+  title: "Dashboard | Plateforme academique",
+  description: "Lecture serveur du dashboard agent ou etudiant selon le compte connecte.",
 };
 
 export default async function EducationDashboardPage() {
+  const user = await getAuthenticatedUser();
+
+  if (user?.accountType === "student") {
+    const snapshot = await getStudentDashboardSnapshot();
+
+    return (
+      <div className="space-y-6">
+        <PageBreadcrumb pageTitle="Dashboard Etudiant" />
+        <StudentDashboardSnapshot snapshot={snapshot} />
+      </div>
+    );
+  }
+
   const snapshot = await getFacultyDashboardSnapshot();
 
-  console.log("Snapshot data: ", snapshot);
   return (
     <div className="space-y-6">
       <PageBreadcrumb pageTitle="Dashboard Faculte" />

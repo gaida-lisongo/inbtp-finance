@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 
 import { exchangeCodeForSession, getSafeNextPath } from "@/lib/utils/supabase/auth";
 import { syncAuthenticatedUser } from "@/lib/utils/supabase/session";
+import { createClient as createServerSupabaseClient } from "@/lib/utils/supabase/server";
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
@@ -16,6 +18,13 @@ export async function GET(request: NextRequest) {
   try {
     await exchangeCodeForSession(code);
     await syncAuthenticatedUser();
+
+    if (nextPath.startsWith("/signin") && nextPath.includes("student_email_confirmed")) {
+      const cookieStore = await cookies();
+      const supabase = createServerSupabaseClient(cookieStore);
+      await supabase.auth.signOut();
+    }
+
     return NextResponse.redirect(redirectUrl);
   } catch (error) {
     const signInUrl = new URL("/signin", request.nextUrl.origin);

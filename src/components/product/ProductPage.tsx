@@ -249,7 +249,7 @@ export default async function ProductPage({ type, productId }: ProductPageProps)
     data = await getProductPageData(category, productId);
   } catch (error) {
     if (error instanceof Error && error.message === "auth_required") {
-      redirect(`/api/login?next=${encodeURIComponent(`/product/${category}/${productId}`)}`);
+      redirect(`/signin?next=${encodeURIComponent(`/product/${category}/${productId}`)}`);
     }
 
     loadError = error;

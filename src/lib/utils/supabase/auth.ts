@@ -39,21 +39,30 @@ const getRequestOrigin = async () => {
   return `${protocol}://${host}`;
 };
 
-export const createAzureSignInUrl = async (nextPath?: string | null) => {
+export const getAuthCallbackUrl = async (nextPath?: string | null) => {
   const origin = await getRequestOrigin();
-  const cookieStore = await cookies();
-  const supabase = createServerSupabaseClient(cookieStore);
   const safeNextPath = normalizeNextPath(nextPath);
   const callbackUrl = new URL("/auth/callback", origin);
-  const delegatedScopes = configuredDelegatedScopes?.trim() || defaultDelegatedScopes;
 
   callbackUrl.searchParams.set("next", safeNextPath);
+
+  return {
+    callbackUrl: callbackUrl.toString(),
+    nextPath: safeNextPath,
+  };
+};
+
+export const createAzureSignInUrl = async (nextPath?: string | null) => {
+  const cookieStore = await cookies();
+  const supabase = createServerSupabaseClient(cookieStore);
+  const { callbackUrl, nextPath: safeNextPath } = await getAuthCallbackUrl(nextPath);
+  const delegatedScopes = configuredDelegatedScopes?.trim() || defaultDelegatedScopes;
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "azure",
     options: {
       scopes: delegatedScopes,
-      redirectTo: callbackUrl.toString(),
+      redirectTo: callbackUrl,
       skipBrowserRedirect: true,
     },
   });
@@ -68,7 +77,7 @@ export const createAzureSignInUrl = async (nextPath?: string | null) => {
 
   return {
     authorizationUrl: data.url,
-    callbackUrl: callbackUrl.toString(),
+    callbackUrl,
     nextPath: safeNextPath,
   };
 };

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import OrderCheckoutFlow from "@/components/commande/OrderCheckoutFlow";
@@ -35,16 +34,13 @@ const getErrorMessage = (error: unknown) => {
 
 export default async function CommandePage({ category, resourceId }: CommandePageProps) {
   let data: Awaited<ReturnType<typeof getCommandeCheckoutPageData>> | null = null;
-  console.log("Loading commande page data for category", category, "and resourceId", resourceId);
   let loadError: unknown = null;
-  
+
   try {
     data = await getCommandeCheckoutPageData(category, resourceId);
-    console.time("getCommandeCheckoutPageData");
-    console.log(data);
   } catch (error) {
     if (error instanceof Error && error.message === "auth_required") {
-      redirect(`/api/login?next=${encodeURIComponent(`/commande/${category}/${resourceId}`)}`);
+      redirect(`/signin?next=${encodeURIComponent(`/commande/${category}/${resourceId}`)}`);
     }
 
     loadError = error;

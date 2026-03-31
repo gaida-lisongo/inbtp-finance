@@ -42,7 +42,7 @@ const createPdfBuffer = async (docDefinition: PdfDocumentDefinition): Promise<Bu
 };
 
 export abstract class Document<TPayload = unknown> {
-  protected constructor(protected readonly payload: TPayload) {}
+  constructor(protected readonly payload: TPayload) {}
 
   abstract info(): PdfDocumentInfo;
 

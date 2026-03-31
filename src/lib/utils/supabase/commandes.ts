@@ -34,7 +34,7 @@ export type CommandeResourceSummary = {
 };
 
 export type CommandePageData = {
-  student: Pick<StudentRecord, "id" | "email" | "telephone" | "nom" | "post_nom" | "prenom">;
+  student: Pick<StudentRecord, "id" | "email" | "telephone" | "nom" | "post_nom" | "prenom" | "grade">;
   resource: CommandeResourceSummary;
   existingSuccessCommande: CommandeRecord | null;
 };
@@ -65,7 +65,7 @@ type ConfirmCommandePaymentInput = CreateCommandeDraftInput & {
 type DraftCommandeResult = {
   commande: CommandeRecord;
   resource: CommandeResourceSummary;
-  student: Pick<StudentRecord, "id" | "email" | "telephone" | "nom" | "post_nom" | "prenom">;
+  student: Pick<StudentRecord, "id" | "email" | "telephone" | "nom" | "post_nom" | "prenom" | "grade">;
 };
 
 type ConfirmCommandeResult = {
@@ -152,7 +152,7 @@ const resolveCurrentStudent = async () => {
   const admin = createAdminClient();
   const { data: studentByEmailRows, error: studentByEmailError } = await admin
     .from("students")
-    .select("id, email, telephone, nom, post_nom, prenom, user_id")
+    .select("id, email, telephone, nom, post_nom, prenom, grade, user_id")
     .ilike("email", normalizedEmail)
     .limit(1);
 
@@ -163,12 +163,12 @@ const resolveCurrentStudent = async () => {
   const studentByEmail = (studentByEmailRows ?? [])[0];
 
   if (studentByEmail) {
-    return studentByEmail as Pick<StudentRecord, "id" | "email" | "telephone" | "nom" | "post_nom" | "prenom">;
+    return studentByEmail as Pick<StudentRecord, "id" | "email" | "telephone" | "nom" | "post_nom" | "prenom" | "grade">;
   }
 
   const { data: studentByUserIdRows, error: studentByUserIdError } = await admin
     .from("students")
-    .select("id, email, telephone, nom, post_nom, prenom, user_id")
+    .select("id, email, telephone, nom, post_nom, prenom, grade, user_id")
     .eq("user_id", user.id)
     .limit(1);
 
@@ -179,11 +179,13 @@ const resolveCurrentStudent = async () => {
   const studentByUserId = (studentByUserIdRows ?? [])[0];
 
   if (studentByUserId) {
-    return studentByUserId as Pick<StudentRecord, "id" | "email" | "telephone" | "nom" | "post_nom" | "prenom">;
+    return studentByUserId as Pick<StudentRecord, "id" | "email" | "telephone" | "nom" | "post_nom" | "prenom" | "grade">;
   }
 
   throw new Error("student_not_found");
 };
+
+export const getCurrentAuthenticatedStudent = async () => resolveCurrentStudent();
 
 const mapResearchCategoryToTable = (category: ResearchCategory) => {
   if (category === "laboratoire") {

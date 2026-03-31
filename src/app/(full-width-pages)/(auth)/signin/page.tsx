@@ -1,4 +1,5 @@
 import SignInForm from "@/components/auth/SignInForm";
+import { getSafeNextPath } from "@/lib/utils/supabase/auth";
 import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 import { Metadata } from "next";
 import { redirect } from "next/navigation";
@@ -11,20 +12,18 @@ export const metadata: Metadata = {
 type SignInPageProps = {
   searchParams: Promise<{
     error?: string;
+    message?: string;
+    next?: string;
   }>;
 };
 
 export default async function SignIn({ searchParams }: SignInPageProps) {
   const [user, params] = await Promise.all([getAuthenticatedUser(), searchParams]);
+  const nextPath = getSafeNextPath(params.next);
 
-  if (user?.canAccessAdmin) {
+  if (user) {
     redirect("/");
   }
 
-  const error =
-    params.error === "access_denied"
-      ? "Votre compte est connecte, mais il ne dispose pas d'un acces aux vues administratives."
-      : params.error;
-
-  return <SignInForm error={error} />;
+  return <SignInForm error={params.error} message={params.message} nextPath={nextPath} />;
 }
