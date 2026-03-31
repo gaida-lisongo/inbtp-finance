@@ -70,6 +70,8 @@ export const formatAmount = (value: number | null) => {
   }
 
   return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "USD",
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   }).format(value);
@@ -102,4 +104,70 @@ export function exportRows(filename: string, rows: FacultyDashboardCommande[]) {
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+export function printCategoryReport(title: string, rows: FacultyDashboardCommande[]) {
+  const printableWindow = window.open("", "_blank", "width=1200,height=900");
+
+  if (!printableWindow) {
+    return;
+  }
+
+  const body = rows
+    .map(
+      (row) => `
+        <tr>
+          <td>${row.orderNumber ?? row.id}</td>
+          <td>${row.product ?? "Produit académique"}</td>
+          <td>${row.studentName}</td>
+          <td>${row.studentEmail ?? "Email indisponible"}</td>
+          <td>${row.status ?? "Sans statut"}</td>
+          <td>${formatAmount(row.total)}</td>
+          <td>${formatDate(row.created_at)}</td>
+        </tr>
+      `,
+    )
+    .join("");
+
+  printableWindow.document.write(`
+    <!doctype html>
+    <html lang="fr">
+      <head>
+        <meta charset="utf-8" />
+        <title>Reporting ${title}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 32px; color: #111827; }
+          h1 { margin: 0 0 8px; font-size: 24px; }
+          p { margin: 0 0 24px; color: #4b5563; }
+          table { width: 100%; border-collapse: collapse; font-size: 12px; }
+          th, td { border-bottom: 1px solid #e5e7eb; padding: 10px 8px; text-align: left; vertical-align: top; }
+          th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; }
+          @media print {
+            body { margin: 16px; }
+          }
+        </style>
+      </head>
+      <body>
+        <h1>${title}</h1>
+        <p>${rows.length} commande(s) pour cette ressource académique.</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Commande</th>
+              <th>Produit</th>
+              <th>Etudiant</th>
+              <th>Email</th>
+              <th>Statut</th>
+              <th>Montant</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>${body}</tbody>
+        </table>
+      </body>
+    </html>
+  `);
+  printableWindow.document.close();
+  printableWindow.focus();
+  printableWindow.print();
 }

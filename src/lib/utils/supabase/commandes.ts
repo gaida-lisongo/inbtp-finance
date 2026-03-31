@@ -283,13 +283,13 @@ const assertStudentCanAccessResource = async (studentId: string, programmeId: st
     .select("id")
     .eq("student_id", studentId)
     .eq("programme_id", programmeId)
-    .maybeSingle();
+    .limit(1);
 
   if (error) {
     throw new Error(error.message);
   }
 
-  if (!data) {
+  if (!data || data.length === 0) {
     throw new Error("resource_access_denied");
   }
 };

@@ -12,6 +12,7 @@ export const metadata: Metadata = {
 export default async function EducationDashboardPage() {
   const snapshot = await getFacultyDashboardSnapshot();
 
+  console.log("Snapshot data: ", snapshot);
   return (
     <div className="space-y-6">
       <PageBreadcrumb pageTitle="Dashboard Faculte" />

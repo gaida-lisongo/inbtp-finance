@@ -15,3 +15,17 @@ export const getDocumentCategory = (document: Pick<DocumentRecord, "caracteristi
   const categorie = document.caracteristique?.categorie;
   return typeof categorie === "string" && categorie.trim().length > 0 ? categorie.trim() : "Document";
 };
+
+export const getDocumentTypeLabel = (categorie: string) => {
+  const normalized = categorie.trim().toLowerCase();
+
+  if (normalized === "relevés" || normalized === "releves") {
+    return "Releve";
+  }
+
+  if (normalized === "fiche de validation") {
+    return "Fiche de validation";
+  }
+
+  return categorie;
+};

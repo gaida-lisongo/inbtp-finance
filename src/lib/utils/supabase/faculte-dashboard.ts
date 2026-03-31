@@ -100,6 +100,10 @@ const CATEGORY_LABELS: Record<string, string> = {
   laboratoires: "Laboratoires",
   document: "Documents",
   documents: "Documents",
+  releve: "Relevé",
+  releves: "Relevé",
+  validation: "Validation",
+  validations: "Validation",
 };
 
 const normalizeCategory = (value: string | null) => {
@@ -288,8 +292,8 @@ export const getFacultyDashboardSnapshot = async (): Promise<FacultyDashboardSna
     ? await admin
         .from("commande")
         .select('id, created_at, product, categorie, student_id, "orderNumber", total, status, description')
-        .gte("created_at", toDateTimeStart(activeAnnee!.date_debut!))
-        .lt("created_at", toDateTimeExclusiveEnd(activeAnnee!.date_fin!))
+        //.gte("created_at", toDateTimeStart(activeAnnee!.date_debut!))
+        //.lt("created_at", toDateTimeExclusiveEnd(activeAnnee!.date_fin!))
         .order("created_at", { ascending: false })
     : { data: [], error: null };
 
