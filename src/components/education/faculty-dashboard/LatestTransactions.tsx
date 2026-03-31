@@ -11,12 +11,16 @@ import TransactionDetailModal from "./TransactionDetailModal";
 import { formatAmount, formatDate } from "./utils";
 
 type LatestTransactionsProps = {
+  title?: string;
+  description?: string;
   rows: FacultyDashboardCommande[];
   categoryFilter: string;
   onCategoryFilterChange: (value: string) => void;
 };
 
 export default function LatestTransactions({
+  title = "Latest transactions",
+  description = "20 dernières transactions de l'année active. Clique sur une ligne pour voir tout le détail et vérifier le paiement.",
   rows,
   categoryFilter,
   onCategoryFilterChange,
@@ -61,7 +65,7 @@ export default function LatestTransactions({
 
   return (
     <>
-      <ComponentCard title="Latest transactions" desc="20 dernières transactions de l'année active. Clique sur une ligne pour voir tout le détail et vérifier le paiement.">
+      <ComponentCard title={title} desc={description}>
         <div className="flex flex-col gap-3 xl:flex-row">
           <input
             value={search}

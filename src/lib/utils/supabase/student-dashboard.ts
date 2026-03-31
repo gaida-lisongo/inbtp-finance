@@ -1,11 +1,20 @@
 import { createAdminClient } from "@/lib/utils/supabase/admin";
-import { getCurrentAuthenticatedStudent, type CommandeCategory, type CommandeRecord } from "@/lib/utils/supabase/commandes";
+import { getDocumentCategory, type DocumentRecord } from "@/lib/utils/supabase/documents-shared";
+import {
+  getCommandePath,
+  getCurrentAuthenticatedStudent,
+  getProductPath,
+  type CommandeCategory,
+  type CommandeRecord,
+} from "@/lib/utils/supabase/commandes";
 import type {
   FacultyDashboardCategory,
   FacultyDashboardCommande,
   FacultyDashboardMonth,
   FacultyDashboardProgramme,
 } from "@/lib/utils/supabase/faculte-dashboard";
+import type { SessionRecord } from "@/lib/utils/supabase/appariteur";
+import type { ResearchRecord } from "@/lib/utils/supabase/recherche-shared";
 import { getStudentDisplayName, type StudentRecord } from "@/lib/utils/supabase/students-shared";
 
 type ActiveAnneeRecord = {
@@ -40,6 +49,27 @@ type ParcoursRecord = {
 };
 
 type ResourceProgrammeMap = Map<string, string | null>;
+type StudentResourceOrderSummary = {
+  status: string | null;
+  orderNumber: string | null;
+  createdAt: string;
+};
+
+export type StudentDashboardResource = {
+  id: string;
+  category: CommandeCategory;
+  categoryKey: string;
+  categoryLabel: string;
+  title: string;
+  description: string | null;
+  amount: number | null;
+  programmeId: string | null;
+  programmeDesignation: string | null;
+  documentCategory: string | null;
+  commandePath: string;
+  productPath: string;
+  latestOrder: StudentResourceOrderSummary | null;
+};
 
 export type StudentDashboardSnapshot = {
   activeAnnee: ActiveAnneeRecord | null;
@@ -75,6 +105,7 @@ export type StudentDashboardSnapshot = {
       isInActiveYear: boolean;
     }
   >;
+  availableResources: StudentDashboardResource[];
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -268,6 +299,221 @@ const getTableNameForCategory = (category: CommandeCategory) => {
   }
 };
 
+const normalizeText = (value: string | null | undefined) => {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmedValue = value.trim();
+  return trimmedValue.length > 0 ? trimmedValue : null;
+};
+
+const formatUnknownText = (value: unknown) => {
+  if (typeof value === "string") {
+    return normalizeText(value);
+  }
+
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+
+  if (typeof record.text === "string") {
+    return normalizeText(record.text);
+  }
+
+  return normalizeText(JSON.stringify(value));
+};
+
+const isDocumentPublished = (value: string | null) => (value ?? "").trim().toLowerCase() === "true";
+const isSessionPublished = (value: string | null) => {
+  const normalized = (value ?? "").trim().toLowerCase();
+  return normalized === "true" || normalized === "actif";
+};
+const isResearchPublished = (value: string | null) => (value ?? "").trim().toLowerCase() === "oui";
+
+const mapDocumentCategoryToDashboardKey = (value: string | null) => {
+  const normalized = normalizeCategory(value);
+
+  if (normalized === "releve" || normalized === "releves") {
+    return "releve";
+  }
+
+  if (normalized === "fiche de validation") {
+    return "validation";
+  }
+
+  return "documents";
+};
+
+const mapDocumentCategoryToLabel = (value: string | null) => {
+  const dashboardKey = mapDocumentCategoryToDashboardKey(value);
+
+  if (dashboardKey === "releve") {
+    return "Relevé";
+  }
+
+  if (dashboardKey === "validation") {
+    return "Validation";
+  }
+
+  return "Documents";
+};
+
+const buildResourceOrderMap = (commandes: FacultyDashboardCommande[]) => {
+  const latestByResource = new Map<string, StudentResourceOrderSummary>();
+
+  for (const commande of commandes) {
+    if (!commande.product) {
+      continue;
+    }
+
+    const category = mapCommandeCategory(commande.categorie);
+
+    if (!category) {
+      continue;
+    }
+
+    const key = `${category}:${commande.product}`;
+    const existing = latestByResource.get(key);
+
+    if (!existing || new Date(commande.created_at).getTime() > new Date(existing.createdAt).getTime()) {
+      latestByResource.set(key, {
+        status: commande.status,
+        orderNumber: commande.orderNumber,
+        createdAt: commande.created_at,
+      });
+    }
+  }
+
+  return latestByResource;
+};
+
+const getStudentAvailableResources = async (
+  programmeIds: string[],
+  programmeDesignationById: Map<string, string | null>,
+  orderByResource: Map<string, StudentResourceOrderSummary>,
+): Promise<StudentDashboardResource[]> => {
+  if (programmeIds.length === 0) {
+    return [];
+  }
+
+  const admin = createAdminClient();
+  const uniqueProgrammeIds = Array.from(new Set(programmeIds));
+
+  const [
+    { data: documentsData, error: documentsError },
+    { data: sessionsData, error: sessionsError },
+    { data: stagesData, error: stagesError },
+    { data: sujetsData, error: sujetsError },
+    { data: laboratoiresData, error: laboratoiresError },
+  ] = await Promise.all([
+    admin.from("documents").select("id, designation, description, montant, programme_id, caracteristique, is_active").in("programme_id", uniqueProgrammeIds),
+    admin.from("session").select("id, designation, description, montant, programme_id, is_active").in("programme_id", uniqueProgrammeIds),
+    admin.from("stages").select("id, slug, description, montant, programme_id, is_active").in("programme_id", uniqueProgrammeIds),
+    admin.from("sujets").select("id, slug, description, montant, programme_id, is_active").in("programme_id", uniqueProgrammeIds),
+    admin.from("laboratoires").select("id, slug, description, montant, programme_id, is_active").in("programme_id", uniqueProgrammeIds),
+  ]);
+
+  if (documentsError) {
+    throw new Error(documentsError.message);
+  }
+
+  if (sessionsError) {
+    throw new Error(sessionsError.message);
+  }
+
+  if (stagesError) {
+    throw new Error(stagesError.message);
+  }
+
+  if (sujetsError) {
+    throw new Error(sujetsError.message);
+  }
+
+  if (laboratoiresError) {
+    throw new Error(laboratoiresError.message);
+  }
+
+  const documents = ((documentsData ?? []) as DocumentRecord[])
+    .filter((document) => isDocumentPublished(document.is_active))
+    .map((document) => {
+      const documentCategory = getDocumentCategory(document);
+      const categoryKey = mapDocumentCategoryToDashboardKey(documentCategory);
+
+      return {
+        id: document.id,
+        category: "documents" as const,
+        categoryKey,
+        categoryLabel: mapDocumentCategoryToLabel(documentCategory),
+        title: normalizeText(document.designation) ?? "Document académique",
+        description: normalizeText(document.description),
+        amount: typeof document.montant === "number" ? document.montant : null,
+        programmeId: document.programme_id ?? null,
+        programmeDesignation: document.programme_id ? programmeDesignationById.get(document.programme_id) ?? null : null,
+        documentCategory,
+        commandePath: getCommandePath("documents", document.id),
+        productPath: getProductPath("documents", document.id),
+        latestOrder: orderByResource.get(`documents:${document.id}`) ?? null,
+      };
+    });
+
+  const sessions = ((sessionsData ?? []) as SessionRecord[])
+    .filter((session) => isSessionPublished(session.is_active))
+    .map((session) => ({
+      id: session.id,
+      category: "session" as const,
+      categoryKey: "session",
+      categoryLabel: "Sessions",
+      title: normalizeText(session.designation) ?? "Session académique",
+      description: formatUnknownText(session.description),
+      amount: typeof session.montant === "number" ? session.montant : null,
+      programmeId: session.programme_id ?? null,
+      programmeDesignation: session.programme_id ? programmeDesignationById.get(session.programme_id) ?? null : null,
+      documentCategory: null,
+      commandePath: getCommandePath("session", session.id),
+      productPath: getProductPath("session", session.id),
+      latestOrder: orderByResource.get(`session:${session.id}`) ?? null,
+    }));
+
+  const buildResearchResources = (rows: ResearchRecord[], category: Extract<CommandeCategory, "stages" | "sujets" | "laboratoire">, categoryLabel: string) =>
+    rows
+      .filter((row) => isResearchPublished(row.is_active))
+      .map((row) => ({
+        id: row.id,
+        category,
+        categoryKey: category,
+        categoryLabel,
+        title: normalizeText(row.slug) ?? `${categoryLabel.slice(0, -1)} académique`,
+        description: formatUnknownText(row.description),
+        amount: typeof row.montant === "number" ? row.montant : null,
+        programmeId: row.programme_id ?? null,
+        programmeDesignation: row.programme_id ? programmeDesignationById.get(row.programme_id) ?? null : null,
+        documentCategory: null,
+        commandePath: getCommandePath(category, row.id),
+        productPath: getProductPath(category, row.id),
+        latestOrder: orderByResource.get(`${category}:${row.id}`) ?? null,
+      }));
+
+  return [
+    ...documents,
+    ...sessions,
+    ...buildResearchResources((stagesData ?? []) as ResearchRecord[], "stages", "Stages"),
+    ...buildResearchResources((sujetsData ?? []) as ResearchRecord[], "sujets", "Sujets"),
+    ...buildResearchResources((laboratoiresData ?? []) as ResearchRecord[], "laboratoire", "Laboratoires"),
+  ].sort((left, right) => {
+    const leftProgramme = left.programmeDesignation ?? "";
+    const rightProgramme = right.programmeDesignation ?? "";
+
+    if (leftProgramme !== rightProgramme) {
+      return leftProgramme.localeCompare(rightProgramme);
+    }
+
+    return left.title.localeCompare(right.title);
+  });
+};
+
 const getProgrammeIdsByResource = async (commandes: CommandeRecord[]) => {
   const admin = createAdminClient();
   const idsByCategory = new Map<CommandeCategory, string[]>();
@@ -437,6 +683,9 @@ export const getStudentDashboardSnapshot = async (): Promise<StudentDashboardSna
     };
   });
 
+  const orderByResource = buildResourceOrderMap(commandes);
+  const availableResources = await getStudentAvailableResources(programmeIds, programmeDesignationById, orderByResource);
+
   return {
     activeAnnee,
     programmes,
@@ -456,5 +705,6 @@ export const getStudentDashboardSnapshot = async (): Promise<StudentDashboardSna
       displayName: getStudentDisplayName(student),
     },
     parcours,
+    availableResources,
   };
 };

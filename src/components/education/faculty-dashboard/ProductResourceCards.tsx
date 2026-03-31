@@ -22,6 +22,14 @@ export default function ProductResourceCards({
 }: ProductResourceCardsProps) {
   const sliderRef = useRef<HTMLDivElement>(null);
   const categoryOrder = ["stages", "sujets", "laboratoire", "session", "releve", "validation"];
+  const categoryLabels: Record<string, string> = {
+    stages: "Stages",
+    sujets: "Sujets",
+    laboratoire: "Laboratoires",
+    session: "Sessions",
+    releve: "Relevé",
+    validation: "Validation",
+  };
 
   const orderedCategories = categoryOrder.map((key) => {
     const category = categories.find((item) => item.key === key);
@@ -29,7 +37,7 @@ export default function ProductResourceCards({
     return (
       category ?? {
         key,
-        label: key.toUpperCase(),
+        label: categoryLabels[key] ?? key.toUpperCase(),
         total: 0,
         success: 0,
         pending: 0,

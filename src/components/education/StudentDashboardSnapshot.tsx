@@ -5,12 +5,12 @@ import { useEffect, useMemo, useState } from "react";
 import type { FacultyDashboardCategory } from "@/lib/utils/supabase/faculte-dashboard";
 import type { StudentDashboardSnapshot as StudentDashboardSnapshotData } from "@/lib/utils/supabase/student-dashboard";
 
-import CategoryModal from "@/components/education/faculty-dashboard/CategoryModal";
 import LatestTransactions from "@/components/education/faculty-dashboard/LatestTransactions";
 import MetricTile from "@/components/education/faculty-dashboard/MetricTile";
 import PerformanceChart from "@/components/education/faculty-dashboard/PerformanceChart";
 import ProductResourceCards from "@/components/education/faculty-dashboard/ProductResourceCards";
 import PromotionsList from "@/components/education/faculty-dashboard/PromotionsList";
+import StudentResourceCatalog from "@/components/education/student-dashboard/StudentResourceCatalog";
 import { printCategoryReport } from "@/components/education/faculty-dashboard/utils";
 
 type StudentDashboardSnapshotProps = {
@@ -18,7 +18,7 @@ type StudentDashboardSnapshotProps = {
 };
 
 export default function StudentDashboardSnapshot({ snapshot }: StudentDashboardSnapshotProps) {
-  const { activeAnnee, commandes, dateWindow, latestTransactions, monthlySeries, programmes, summary } = snapshot;
+  const { activeAnnee, availableResources, commandes, dateWindow, monthlySeries, programmes, summary } = snapshot;
   const [selectedCategory, setSelectedCategory] = useState<FacultyDashboardCategory | null>(null);
   const [transactionsCategoryFilter, setTransactionsCategoryFilter] = useState("all");
   const [selectedProgrammeId, setSelectedProgrammeId] = useState<string | null>(programmes[0]?.id ?? null);
@@ -71,13 +71,37 @@ export default function StudentDashboardSnapshot({ snapshot }: StudentDashboardS
     return Array.from(counts.values());
   }, [selectedProgrammeCommandes]);
 
-  const categoryRows = useMemo(
-    () => selectedProgrammeCommandes.filter((commande) => commande.categoryKey === selectedCategory?.key),
-    [selectedProgrammeCommandes, selectedCategory],
-  );
+  const selectedProgrammeResources = useMemo(() => {
+    if (!selectedCategory?.key) {
+      return [];
+    }
+
+    return availableResources.filter((resource) => {
+      if (resource.categoryKey !== selectedCategory.key) {
+        return false;
+      }
+
+      if (!selectedProgramme?.id) {
+        return true;
+      }
+
+      return resource.programmeId === selectedProgramme.id;
+    });
+  }, [availableResources, selectedCategory, selectedProgramme]);
 
   const activeAnneeLabel = activeAnnee?.designation || "Aucune année active";
   const activeRangeLabel = dateWindow.label || "Période non renseignée";
+
+  if (selectedCategory) {
+    return (
+      <StudentResourceCatalog
+        title={selectedProgramme?.designation || "vos promotions"}
+        resources={selectedProgrammeResources}
+        selectedCategoryLabel={selectedCategory.label}
+        onClear={() => setSelectedCategory(null)}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -125,27 +149,18 @@ export default function StudentDashboardSnapshot({ snapshot }: StudentDashboardS
           categories={selectedProgrammeCategories}
           onOpenDetails={setSelectedCategory}
           onPrintReport={(category) => {
-            const rows = selectedProgrammeCommandes.filter((commande) => commande.categoryKey === category.key);
-            printCategoryReport(`${category.label} - ${selectedProgramme?.designation || "Promotion étudiante"}`, rows);
+            const rows = commandes.filter((commande) => commande.categoryKey === category.key);
+            printCategoryReport(`${category.label} - Historique étudiant`, rows);
           }}
         />
       </div>
 
       <LatestTransactions
-        rows={
-          selectedProgramme?.id
-            ? latestTransactions.filter((commande) => commande.programmeId === selectedProgramme.id)
-            : latestTransactions
-        }
+        title="Historique des commandes"
+        description="Retrouvez ici l’historique complet de vos commandes et filtrez-le par catégorie ou statut."
+        rows={commandes}
         categoryFilter={transactionsCategoryFilter}
         onCategoryFilterChange={setTransactionsCategoryFilter}
-      />
-
-      <CategoryModal
-        category={selectedCategory}
-        commandes={categoryRows}
-        isOpen={selectedCategory !== null}
-        onClose={() => setSelectedCategory(null)}
       />
     </div>
   );

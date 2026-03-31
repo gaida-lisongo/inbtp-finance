@@ -1,5 +1,7 @@
 import { autorisationLabels, getActiveAutorisationCodesForAgent, type AutorisationCode } from "@/lib/utils/supabase/autorisations";
 import { getProgrammes } from "@/lib/utils/supabase/programmes";
+import { createAdminClient } from "@/lib/utils/supabase/admin";
+import { getCurrentAuthenticatedStudent } from "@/lib/utils/supabase/commandes";
 import type { AuthenticatedUser } from "@/lib/utils/supabase/session";
 
 export type SidebarMenuSubItem = {
@@ -25,10 +27,81 @@ export const getAdminSidebarMenu = async (user: AuthenticatedUser): Promise<Side
   ];
 
   if (user.accountType === "student") {
+    const admin = createAdminClient();
+    const student = await getCurrentAuthenticatedStudent();
+    const [{ data: parcoursData, error: parcoursError }, { data: programmesData, error: programmesError }, { data: anneesData, error: anneesError }] =
+      await Promise.all([
+        admin.from("parcours").select("programme_id").eq("student_id", student.id),
+        admin
+          .from("programmes")
+          .select("id, designation, annee_id")
+          .order("designation", { ascending: true }),
+        admin
+          .from("annees")
+          .select("id, designation, active, date_debut, created_at")
+          .order("date_debut", { ascending: false, nullsFirst: false })
+          .order("created_at", { ascending: false }),
+      ]);
+
+    if (parcoursError) {
+      throw new Error(parcoursError.message);
+    }
+
+    if (programmesError) {
+      throw new Error(programmesError.message);
+    }
+
+    if (anneesError) {
+      throw new Error(anneesError.message);
+    }
+
+    const programmeIds = new Set(
+      ((parcoursData ?? []) as Array<{ programme_id: string | null }>).map((item) => item.programme_id).filter(Boolean),
+    );
+    const programmes = ((programmesData ?? []) as Array<{ id: string; designation: string | null; annee_id: string | null }>).filter((programme) =>
+      programmeIds.has(programme.id),
+    );
+    const annees = (anneesData ?? []) as Array<{ id: string; designation: string | null; active: string | null }>;
+    const programmesByYear = new Map<string, SidebarMenuSubItem[]>();
+
+    for (const programme of programmes) {
+      if (!programme.annee_id) {
+        continue;
+      }
+
+      const itemsForYear = programmesByYear.get(programme.annee_id) ?? [];
+      itemsForYear.push({
+        name: programme.designation || "Promotion sans designation",
+        path: `/promotion/${programme.id}`,
+      });
+      programmesByYear.set(programme.annee_id, itemsForYear);
+    }
+
     items.push({
       name: "Parcours",
       path: "/parcours",
       iconKey: "folder",
+    });
+
+    items.push({
+      name: "Enseignement",
+      iconKey: "folder",
+      subItems: annees
+        .filter((annee) => programmesByYear.has(annee.id))
+        .sort((left, right) => {
+          const leftActive = left.active === "true" ? 1 : 0;
+          const rightActive = right.active === "true" ? 1 : 0;
+
+          if (leftActive !== rightActive) {
+            return rightActive - leftActive;
+          }
+
+          return (left.designation ?? "").localeCompare(right.designation ?? "");
+        })
+        .map((annee) => ({
+          name: annee.designation || "Annee sans designation",
+          subItems: programmesByYear.get(annee.id) ?? [],
+        })),
     });
 
     return items;
