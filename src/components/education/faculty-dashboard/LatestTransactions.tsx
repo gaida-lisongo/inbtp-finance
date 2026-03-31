@@ -115,7 +115,7 @@ export default function LatestTransactions({
                 <AvatarText name={row.studentName} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{row.studentName}</p>
-                  <p className="truncate text-xs text-gray-500 dark:text-gray-400">{row.product || "Produit académique"}</p>
+                  <p className="truncate text-xs text-gray-500 dark:text-gray-400">{row.categoryLabel}</p>
                 </div>
                 <div className="hidden min-w-[150px] text-sm text-gray-500 dark:text-gray-400 md:block">{formatDate(row.created_at)}</div>
                 <div className="min-w-[110px] text-sm font-medium text-gray-900 dark:text-white">{formatAmount(row.total)}</div>
