@@ -78,6 +78,31 @@ export const getStudentsForProgramme = async (programmeId: string) => {
     .filter((student): student is NonNullable<typeof student> => Boolean(student));
 };
 
+export const getJuryById = async (juryId: string) => {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("jury")
+    .select(
+      [
+        "id",
+        "designation",
+        "annee_id",
+        "isActivate",
+        "president:agents!jury_president_id_fkey(id, nom, post_nom, prenom)",
+        "secretaire:agents!jury_secretaire_id_fkey(id, nom, post_nom, prenom)",
+        "annee:annees(id, designation)",
+      ].join(","),
+    )
+    .eq("id", juryId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as JuryWithMembers | null;
+};
+
 const formatAgent = (
   agent: JuryWithMembers["president"] | JuryWithMembers["secretaire"],
 ) => {

@@ -37,7 +37,7 @@ export default async function JuryAssignmentsPage() {
     <div className="space-y-6">
       <PageBreadcrumb pageTitle="Jury" />
 
-      <div className="grid gap-6">
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {juriesWithProgrammes.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-gray-200 bg-white/80 px-6 py-8 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900/60">
             <p className="text-sm text-gray-500 dark:text-gray-400">

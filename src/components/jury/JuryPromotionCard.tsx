@@ -1,6 +1,4 @@
-"use client";
-import React, { useState } from "react";
-import ProgrammeDeliberationCard from "./ProgrammeDeliberationCard";
+import Link from "next/link";
 
 type JuryPromotionCardProps = {
   jury: {
@@ -22,7 +20,6 @@ type JuryPromotionCardProps = {
 };
 
 export default function JuryPromotionCard({ jury, programmes }: JuryPromotionCardProps) {
-  const [isExpanded, setExpanded] = useState(false);
 
   const presidentLabel = jury.president
     ? [jury.president.prenom, jury.president.post_nom, jury.president.nom]
@@ -45,66 +42,58 @@ export default function JuryPromotionCard({ jury, programmes }: JuryPromotionCar
             backgroundImage: "url(/images/cards/card-01.jpg)",
           }}
         />
-        <div className="absolute inset-0 bg-black/40" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/40 to-transparent" />
         <div className="relative flex h-full flex-col justify-between p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.4em] text-white/70">
                 Jury
-            </p>
-            <h2 className="mt-1 text-2xl font-bold">
-              {jury.designation ?? "Jury sans désignation"}
-            </h2>
+              </p>
+              <h2 className="mt-1 text-2xl font-bold">
+                {jury.designation ?? "Jury sans désignation"}
+              </h2>
+            </div>
+            <div className="text-right text-sm">
+              <p className="font-semibold">
+                {jury.isActivate ? "Actif" : "Inactif"}
+              </p>
+              <p className="text-white/80">
+                {jury.annee?.designation ?? "Année inconnue"}
+              </p>
+            </div>
           </div>
-          <div className="text-right text-sm">
-            <p className="font-semibold">
-              {jury.isActivate ? "Actif" : "Inactif"}
-            </p>
-            <p className="text-white/80">
-              {jury.annee?.designation ?? "Année inconnue"}
-            </p>
-          </div>
-        </div>
-          <div className="mt-4 flex flex-col gap-2 text-sm">
-            <p className="rounded-full bg-white/20 px-3 py-1 text-xs font-semibold tracking-wide text-white">
-              Président :{" "}
-              <span className="font-normal text-white">{presidentLabel}</span>
-            </p>
-            <p className="rounded-full bg-white/20 px-3 py-1 text-xs font-semibold tracking-wide text-white">
-              Secrétaire :{" "}
-              <span className="font-normal text-white">{secretaireLabel}</span>
-            </p>
-          </div>
-          <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
-            <button
-              onClick={() => setExpanded((prev) => !prev)}
-              className="rounded-full border border-white/60 px-4 py-1 text-white transition hover:border-white hover:bg-white/10"
-            >
-              {isExpanded ? "Réduire" : "Explorer ce jury"}
-            </button>
-          <span className="text-white/80">
-            {programmes.length} promotion{programmes.length > 1 ? "s" : ""}
-          </span>
         </div>
       </div>
-      {isExpanded && (
-        <div className="p-6">
-          {programmes.length === 0 ? (
-            <p className="text-sm text-gray-500 dark:text-gray-300">
-              Aucune promotion disponible pour cette année.
+      <div className="flex flex-col gap-3 px-6 py-5">
+        <div className="text-sm font-semibold text-gray-900 dark:text-white">
+          {presidentLabel !== "Non renseigné" && (
+            <p className="leading-normal">
+              <span className="text-xs uppercase tracking-[0.3em] text-gray-400">
+                Président
+              </span>
+              <br />
+              <span className="text-base font-bold">{presidentLabel}</span>
             </p>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              {programmes.map((programme) => (
-                <ProgrammeDeliberationCard
-                  key={programme.id}
-                  programme={programme}
-                />
-              ))}
-            </div>
           )}
+          <div className="mt-2 text-xs uppercase tracking-[0.3em] text-gray-500">
+            Secrétaire
+          </div>
+          <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+            {secretaireLabel}
+          </p>
         </div>
-      )}
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <span className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">
+            {programmes.length} promotion{programmes.length > 1 ? "s" : ""}
+          </span>
+          <Link
+            href={`/jury/${jury.id}`}
+            className="rounded-full bg-red-600 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-white transition hover:bg-red-500"
+          >
+            Voir les promotions
+          </Link>
+        </div>
+      </div>
     </article>
   );
 }

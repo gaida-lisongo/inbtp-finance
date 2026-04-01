@@ -1,8 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
 
-import { saveTeacherCourseDescriptorAction, saveTeacherCoursePlanAction } from "@/app/(admin)/(teacher)/enseignant/cours/[matiere_id]/actions";
+import {
+  createTeacherActivityAction,
+  exportActivityNotesAction,
+  saveTeacherActivityQuestionsAction,
+  saveTeacherCourseDescriptorAction,
+  saveTeacherCoursePlanAction,
+} from "@/app/(admin)/(teacher)/enseignant/cours/[matiere_id]/actions";
 import FormSubmitButton from "@/components/common/FormSubmitButton";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
@@ -62,9 +69,6 @@ const buildPlanDraft = (value: unknown): PlanDraftChapter[] => {
 
 const createPlanId = () => `plan-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-const formatQuestionLabel = (activity: TeacherCourseActivity, index: number) =>
-  `${activity.designation || (activity.category === "qcm" ? "QCM" : "TP")} - Question ${index + 1}`;
-
 export default function TeacherCourseWorkspace({
   data,
   initialTab,
@@ -80,6 +84,10 @@ export default function TeacherCourseWorkspace({
   const [modalChapterTitle, setModalChapterTitle] = useState("");
   const [modalChapterItems, setModalChapterItems] = useState<string[]>([""]);
   const [editingChapterId, setEditingChapterId] = useState<string | null>(null);
+  const [questionEditorActivity, setQuestionEditorActivity] = useState<TeacherCourseActivity | null>(null);
+  const [notesModalActivity, setNotesModalActivity] = useState<TeacherCourseActivity | null>(null);
+  const [isAddActivityModalOpen, setIsAddActivityModalOpen] = useState(false);
+  const [activityToAddCategory, setActivityToAddCategory] = useState<TeacherCourseActivity["category"]>("qcm");
 
   const planPreview = useMemo(
     () =>
@@ -163,6 +171,16 @@ export default function TeacherCourseWorkspace({
     closeChapterModal();
   };
 
+  const openQuestionsEditor = (activity: TeacherCourseActivity) => setQuestionEditorActivity(activity);
+  const closeQuestionsEditor = () => setQuestionEditorActivity(null);
+  const openNotesModal = (activity: TeacherCourseActivity) => setNotesModalActivity(activity);
+  const closeNotesModal = () => setNotesModalActivity(null);
+  const openAddActivityModal = (category: TeacherCourseActivity["category"]) => {
+    setActivityToAddCategory(category);
+    setIsAddActivityModalOpen(true);
+  };
+  const closeAddActivityModal = () => setIsAddActivityModalOpen(false);
+
   return (
     <div className="space-y-6">
       <TeacherCourseBanner data={data} />
@@ -198,8 +216,39 @@ export default function TeacherCourseWorkspace({
           removeModalItem={removeModalItem}
         />
       ) : null}
-      {activeTab === "qcm" ? <TeacherActivitiesTab title="Banque QCM" activities={qcmActivities} /> : null}
-      {activeTab === "tp" ? <TeacherActivitiesTab title="Banque TP" activities={tpActivities} /> : null}
+      {questionEditorActivity ? (
+        <QuestionnaireEditor activity={questionEditorActivity} onClose={closeQuestionsEditor} />
+      ) : (
+        <>
+          {activeTab === "qcm" ? (
+            <TeacherActivitiesTab
+              title="Banque QCM"
+              activities={qcmActivities}
+              category="qcm"
+              onAddActivity={() => openAddActivityModal("qcm")}
+              onManageQuestions={openQuestionsEditor}
+              onViewNotes={openNotesModal}
+            />
+          ) : null}
+          {activeTab === "tp" ? (
+            <TeacherActivitiesTab
+              title="Banque TP"
+              activities={tpActivities}
+              category="tp"
+              onAddActivity={() => openAddActivityModal("tp")}
+              onManageQuestions={openQuestionsEditor}
+              onViewNotes={openNotesModal}
+            />
+          ) : null}
+        </>
+      )}
+      <ActivityNotesModal activity={notesModalActivity} onClose={closeNotesModal} />
+      <AddActivityModal
+        isOpen={isAddActivityModalOpen}
+        category={activityToAddCategory}
+        courseId={data.cours.id}
+        onClose={closeAddActivityModal}
+      />
       <DescriptorFieldModals data={data} openField={modalField} onClose={() => setModalField(null)} />
     </div>
   );
@@ -1130,77 +1179,51 @@ function DescriptorFieldModals({
   );
 }
 
-function TeacherActivitiesTab({ title, activities }: { title: string; activities: TeacherCourseActivity[] }) {
+function TeacherActivitiesTab({
+  title,
+  activities,
+  category,
+  onAddActivity,
+  onManageQuestions,
+  onViewNotes,
+}: {
+  title: string;
+  activities: TeacherCourseActivity[];
+  category: TeacherCourseActivity["category"];
+  onAddActivity: (category: TeacherCourseActivity["category"]) => void;
+  onManageQuestions: (activity: TeacherCourseActivity) => void;
+  onViewNotes: (activity: TeacherCourseActivity) => void;
+}) {
   return (
     <section className="space-y-4">
-      <div className="flex items-end justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-sm font-medium uppercase tracking-[0.2em] text-brand-500">Configuration enseignante</div>
           <h2 className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white/90">{title}</h2>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {activities.length} activité{activities.length > 1 ? "s" : ""} enregistrée{activities.length > 1 ? "s" : ""}
+          </p>
         </div>
-        <div className="text-xs text-gray-500 dark:text-gray-400">{activities.length} activité(s)</div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => onAddActivity(category)}
+            className="inline-flex items-center justify-center rounded-full border border-brand-300 px-4 py-2 text-sm font-medium text-brand-600 transition hover:bg-brand-50 dark:border-brand-500/40 dark:text-brand-300 dark:hover:bg-brand-500/10"
+          >
+            + Ajouter une épreuve
+          </button>
+        </div>
       </div>
 
       {activities.length > 0 ? (
-        <div className="grid gap-4">
+        <div className="grid gap-6 md:grid-cols-2">
           {activities.map((activity) => (
-            <article
+            <TeacherActivityCard
               key={activity.id}
-              className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-theme-sm dark:border-gray-800 dark:bg-white/[0.03]"
-            >
-              <div className="bg-linear-to-r from-slate-950 via-slate-800 to-brand-600 px-5 py-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="text-xs uppercase tracking-[0.2em] text-white/70">{activity.category.toUpperCase()}</div>
-                    <h3 className="mt-2 text-xl font-semibold text-white">{activity.designation || "Activite"}</h3>
-                  </div>
-                  <div className="text-right text-sm text-white/80">
-                    <div>{typeof activity.note === "number" ? `Note max: ${activity.note}` : "Note libre"}</div>
-                    <div>{activity.date_limite ? `Limite: ${activity.date_limite}` : "Sans date limite"}</div>
-                  </div>
-                </div>
-                <p className="mt-3 text-sm leading-6 text-white/80">
-                  {activity.description || "Aucune description renseignée pour cette activité."}
-                </p>
-              </div>
-
-              <div className="space-y-4 p-5">
-                {activity.questions.length > 0 ? (
-                  activity.questions.map((question, index) => (
-                    <div key={`${activity.id}-${index}`} className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-900">
-                      <div className="text-xs uppercase tracking-wide text-brand-500">{formatQuestionLabel(activity, index)}</div>
-                      <div className="mt-2 text-sm font-medium text-gray-900 dark:text-white/90">{question.enonce}</div>
-
-                      {question.items && question.items.length > 0 ? (
-                        <ul className="mt-3 space-y-2">
-                          {question.items.map((item, itemIndex) => (
-                            <li
-                              key={`${activity.id}-${index}-${itemIndex}`}
-                              className={`rounded-xl px-3 py-2 text-sm ${
-                                question.reponseIndex === itemIndex
-                                  ? "bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-300"
-                                  : "bg-white text-gray-600 dark:bg-white/[0.03] dark:text-gray-300"
-                              }`}
-                            >
-                              {itemIndex + 1}. {item}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : null}
-
-                      <div className="mt-3 flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400">
-                        <span>{typeof question.pts === "number" ? `${question.pts} pt(s)` : "Barème non renseigné"}</span>
-                        {question.url ? <span>Ressource: {question.url}</span> : null}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-gray-300 px-4 py-6 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-                    Aucune question n&apos;est encore définie dans la propriété <code>questions</code>.
-                  </div>
-                )}
-              </div>
-            </article>
+              activity={activity}
+              onManageQuestions={onManageQuestions}
+              onViewNotes={onViewNotes}
+            />
           ))}
         </div>
       ) : (
@@ -1208,6 +1231,615 @@ function TeacherActivitiesTab({ title, activities }: { title: string; activities
           Aucune activité de ce type n&apos;est encore rattachée au cours.
         </div>
       )}
+    </section>
+  );
+}
+
+const formatAmount = (value: number | null) =>
+  typeof value === "number"
+    ? new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(value)
+    : "Montant non défini";
+
+const formatDate = (value: string | null) => {
+  if (!value) {
+    return "Sans date limite";
+  }
+
+  try {
+    return new Date(value).toLocaleDateString("fr-FR");
+  } catch {
+    return value;
+  }
+};
+
+function TeacherActivityCard({
+  activity,
+  onManageQuestions,
+  onViewNotes,
+}: {
+  activity: TeacherCourseActivity;
+  onManageQuestions: (activity: TeacherCourseActivity) => void;
+  onViewNotes: (activity: TeacherCourseActivity) => void;
+}) {
+  const questionCount = activity.questions.length;
+  const notesCount = activity.notes.length;
+
+  return (
+    <article className="rounded-3xl border border-gray-200 bg-white shadow-theme-sm dark:border-gray-800 dark:bg-white/[0.03]">
+      <div className="overflow-hidden rounded-t-3xl">
+        <img
+          src="/images/carousel/carousel-04.png"
+          alt="Illustration de l'épreuve"
+          className="h-52 w-full object-cover"
+          width={384}
+          height={208}
+        />
+      </div>
+      <div className="space-y-5 p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-xs uppercase tracking-[0.4em] text-gray-400 dark:text-gray-500">{activity.category.toUpperCase()}</div>
+            <h3 className="mt-1 text-xl font-semibold text-gray-900 dark:text-white/90">
+              {activity.designation || "Épreuve sans titre"}
+            </h3>
+          </div>
+          <span className="rounded-full border border-brand-200 px-3 py-1 text-xs font-semibold text-brand-500 dark:border-brand-500/40 dark:text-brand-200">
+            {notesCount} note{notesCount > 1 ? "s" : ""}
+          </span>
+        </div>
+        <p className="text-sm leading-6 text-gray-600 dark:text-gray-300">
+          {activity.description || "Aucune description fournie pour cette épreuve."}
+        </p>
+
+        <div className="grid gap-3 text-sm text-gray-500 dark:text-gray-400 sm:grid-cols-2">
+          <div>
+            <div className="text-xs uppercase tracking-[0.3em] text-gray-400 dark:text-gray-500">Montant</div>
+            <p className="font-semibold text-gray-900 dark:text-white/90">{formatAmount(activity.montant)}</p>
+          </div>
+          <div>
+            <div className="text-xs uppercase tracking-[0.3em] text-gray-400 dark:text-gray-500">Note max</div>
+            <p className="font-semibold text-gray-900 dark:text-white/90">
+              {typeof activity.note === "number" ? `${activity.note.toFixed(1)} pt(s)` : "Libre"}
+            </p>
+          </div>
+          <div>
+            <div className="text-xs uppercase tracking-[0.3em] text-gray-400 dark:text-gray-500">Date limite</div>
+            <p className="font-semibold text-gray-900 dark:text-white/90">{formatDate(activity.date_limite)}</p>
+          </div>
+          <div>
+            <div className="text-xs uppercase tracking-[0.3em] text-gray-400 dark:text-gray-500">Questions</div>
+            <p className="font-semibold text-gray-900 dark:text-white/90">{questionCount} question{questionCount !== 1 ? "s" : ""}</p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => onManageQuestions(activity)}
+            className="inline-flex items-center justify-center rounded-full border border-gray-300 px-4 py-2 text-xs font-semibold text-gray-700 transition hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300 dark:hover:border-brand-500/40 dark:hover:text-brand-300"
+          >
+            Gérer le questionnaire
+          </button>
+          <button
+            type="button"
+            onClick={() => onViewNotes(activity)}
+            className="inline-flex items-center justify-center rounded-full border border-brand-300 px-4 py-2 text-xs font-semibold text-brand-600 transition hover:bg-brand-50 dark:border-brand-500/40 dark:text-brand-300 dark:hover:bg-brand-500/10"
+          >
+            Voir les notes
+          </button>
+          <form action={exportActivityNotesAction}>
+            <input type="hidden" name="activity_id" value={activity.id} />
+            <button
+              type="submit"
+              className="inline-flex items-center justify-center rounded-full border border-gray-300 px-4 py-2 text-xs font-semibold text-gray-700 transition hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300 dark:hover:border-brand-500/40 dark:hover:text-brand-300"
+            >
+              Exporter les notes
+            </button>
+          </form>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function AddActivityModal({
+  isOpen,
+  category,
+  courseId,
+  onClose,
+}: {
+  isOpen: boolean;
+  category: TeacherCourseActivity["category"];
+  courseId: string;
+  onClose: () => void;
+}) {
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} className="m-4 max-w-3xl">
+      <form action={createTeacherActivityAction} className="space-y-5 rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900">
+        <input type="hidden" name="course_id" value={courseId} />
+        <input type="hidden" name="categorie" value={category} />
+        <div>
+          <div className="text-xs uppercase tracking-[0.4em] text-gray-400 dark:text-gray-500">Catégorie</div>
+          <p className="font-semibold text-gray-900 dark:text-white/90">{category.toUpperCase()}</p>
+        </div>
+        <div>
+          <Label htmlFor="new-activity-designation">Désignation</Label>
+          <Input id="new-activity-designation" name="designation" type="text" placeholder="Titre de l'épreuve" required />
+        </div>
+        <div>
+          <Label htmlFor="new-activity-description">Description</Label>
+          <textarea
+            id="new-activity-description"
+            name="description"
+            rows={4}
+            className={textareaClassName}
+            placeholder="Décrivez brièvement l'épreuve (facultatif)"
+          />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="new-activity-montant">Montant (USD)</Label>
+            <Input id="new-activity-montant" name="montant" type="number" step="0.01" placeholder="Ex: 5" />
+          </div>
+          <div>
+            <Label htmlFor="new-activity-note">Note maximale</Label>
+            <Input id="new-activity-note" name="note" type="number" step="0.5" placeholder="Ex: 20" />
+          </div>
+        </div>
+        <div>
+          <Label htmlFor="new-activity-date">Date limite</Label>
+          <Input id="new-activity-date" name="date_limite" type="date" />
+        </div>
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="rounded-full border border-gray-300 px-4 py-2 text-sm font-medium text-gray-500 transition hover:border-gray-400">
+            Annuler
+          </button>
+          <button type="submit" className="rounded-full bg-brand-500 px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-600">
+            Créer l'épreuve
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function QuestionnaireModal({ activity, onClose }: { activity: TeacherCourseActivity | null; onClose: () => void }) {
+  const [questionRows, setQuestionRows] = useState<TeacherCourseQuestion[]>([]);
+
+  useEffect(() => {
+    setQuestionRows(activity?.questions ?? []);
+  }, [activity]);
+
+  const updateRow = (index: number, field: keyof TeacherCourseQuestion, value: string | number | undefined | string[]) => {
+    setQuestionRows((current) =>
+      current.map((row, rowIndex) => {
+        if (rowIndex !== index) {
+          return row;
+        }
+
+        return {
+          ...row,
+          [field]: value,
+        };
+      }),
+    );
+  };
+
+  const addQuestion = () => {
+    setQuestionRows((current) => [...current, { enonce: "", items: [], reponseIndex: undefined, pts: undefined }]);
+  };
+
+  const removeQuestion = (index: number) => {
+    setQuestionRows((current) => current.filter((_, rowIndex) => rowIndex !== index));
+  };
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const payload = questionRows.map((row) => ({
+      enonce: row.enonce,
+      items: Array.isArray(row.items) ? row.items.filter(Boolean) : [],
+      reponseIndex: typeof row.reponseIndex === "number" ? row.reponseIndex : undefined,
+      pts: typeof row.pts === "number" ? row.pts : undefined,
+      url: typeof row.url === "string" && row.url.trim() ? row.url.trim() : undefined,
+    }));
+
+    const form = event.currentTarget;
+    const hiddenInput = document.createElement("input");
+    hiddenInput.type = "hidden";
+    hiddenInput.name = "questions";
+    hiddenInput.value = JSON.stringify(payload);
+    form.appendChild(hiddenInput);
+    form.submit();
+    hiddenInput.remove();
+  };
+
+  if (!activity) {
+    return null;
+  }
+
+  return (
+    <Modal isOpen onClose={onClose} className="m-4 max-w-5xl">
+      <form
+        action={saveTeacherActivityQuestionsAction}
+        className="space-y-5 rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900"
+        onSubmit={handleSubmit}
+      >
+        <input type="hidden" name="activity_id" value={activity.id} />
+        <input type="hidden" name="tab" value={activity.category} />
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <div className="text-xs uppercase tracking-[0.4em] text-gray-400 dark:text-gray-500">Épreuve</div>
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white/90">{activity.designation || "Épreuve"}</h3>
+          </div>
+          <button type="button" onClick={onClose} className="text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-gray-300">
+            Fermer
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full table-auto text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-[0.3em] text-gray-400">
+                <th className="px-3 py-2">Question</th>
+                <th className="px-3 py-2">Items (une par ligne)</th>
+                <th className="px-3 py-2">Index correct</th>
+                <th className="px-3 py-2">Points</th>
+                <th className="px-3 py-2">URL</th>
+                <th className="px-3 py-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+              {questionRows.map((question, index) => (
+                <tr key={`question-${index}`} className="align-top">
+                  <td className="px-3 py-3">
+                    <textarea
+                      rows={2}
+                      value={question.enonce}
+                      onChange={(event) => updateRow(index, "enonce", event.target.value)}
+                      className={`${textareaClassName} min-h-[64px]`}
+                      placeholder="Enoncé de la question"
+                    />
+                  </td>
+                  <td className="px-3 py-3">
+                    <textarea
+                      rows={3}
+                      value={(question.items ?? []).join("\n")}
+                      onChange={(event) => updateRow(index, "items", event.target.value.split("\n"))}
+                      className={`${textareaClassName} min-h-[80px]`}
+                      placeholder="Une réponse par ligne"
+                    />
+                  </td>
+                  <td className="px-3 py-3">
+                    <Input
+                      type="number"
+                      value={question.reponseIndex ?? ""}
+                      onChange={(event) => updateRow(index, "reponseIndex", event.target.value ? Number(event.target.value) : undefined)}
+                      className="rounded-lg border border-gray-300 px-3 py-2 text-xs dark:border-gray-700"
+                    />
+                  </td>
+                  <td className="px-3 py-3">
+                    <Input
+                      type="number"
+                      value={question.pts ?? ""}
+                      onChange={(event) => updateRow(index, "pts", event.target.value ? Number(event.target.value) : undefined)}
+                      className="rounded-lg border border-gray-300 px-3 py-2 text-xs dark:border-gray-700"
+                    />
+                  </td>
+                  <td className="px-3 py-3">
+                    <Input
+                      type="url"
+                      value={question.url ?? ""}
+                      onChange={(event) => updateRow(index, "url", event.target.value)}
+                      className="rounded-lg border border-gray-300 px-3 py-2 text-xs dark:border-gray-700"
+                      placeholder="Lien facultatif"
+                    />
+                  </td>
+                  <td className="px-3 py-3">
+                    <button
+                      type="button"
+                      className="text-xs font-semibold text-error-600 hover:text-error-700"
+                      onClick={() => removeQuestion(index)}
+                    >
+                      Supprimer
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={addQuestion}
+            className="rounded-full border border-brand-300 px-4 py-2 text-xs font-semibold text-brand-600 hover:bg-brand-50"
+          >
+            + Ajouter une question
+          </button>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Chaque ligne <em>items</em> correspond à une réponse, l’index commence à 0.
+          </p>
+        </div>
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="rounded-full border border-gray-300 px-4 py-2 text-sm font-medium text-gray-500 transition hover:border-gray-400">
+            Annuler
+          </button>
+          <button type="submit" className="rounded-full bg-brand-500 px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-600">
+            Enregistrer les questions
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function ActivityNotesModal({ activity, onClose }: { activity: TeacherCourseActivity | null; onClose: () => void }) {
+  if (!activity) {
+    return null;
+  }
+
+  return (
+    <Modal isOpen onClose={onClose} className="m-4 max-w-4xl">
+      <div className="space-y-5 rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <div className="text-xs uppercase tracking-[0.4em] text-gray-400 dark:text-gray-500">Notes enregistrées</div>
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white/90">{activity.designation || "Épreuve"}</h3>
+          </div>
+          <button type="button" onClick={onClose} className="text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-gray-300">
+            Fermer
+          </button>
+        </div>
+        {activity.notes.length === 0 ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400">Aucune note n'a encore été enregistrée pour cette activité.</p>
+        ) : (
+          <div className="space-y-3">
+            {activity.notes.map((note) => (
+              <article key={note.id} className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white/90">
+                    {note.student?.nom || "Étudiant"} {note.student?.prenom || ""}
+                  </p>
+                  <span className="rounded-full border border-gray-300 px-3 py-1 text-xs font-semibold text-gray-500 dark:border-gray-600">{note.status || "En cours"}</span>
+                </div>
+                <div className="mt-2 text-sm text-gray-600 dark:text-gray-300">Note : {typeof note.note === "number" ? `${note.note}` : "Non renseignée"}</div>
+                {note.comment ? (
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Commentaire : {note.comment}</p>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        )}
+        <div className="flex justify-end gap-2">
+          <form action={exportActivityNotesAction}>
+            <input type="hidden" name="activity_id" value={activity.id} />
+            <button
+              type="submit"
+              className="rounded-full border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300 dark:hover:border-brand-500/40 dark:hover:text-brand-300"
+            >
+              Exporter en CSV
+            </button>
+          </form>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-500 transition hover:border-gray-400"
+          >
+            Fermer
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function QuestionnaireEditor({ activity, onClose }: { activity: TeacherCourseActivity | null; onClose: () => void }) {
+  const [questionRows, setQuestionRows] = useState<TeacherCourseQuestion[]>([]);
+
+  useEffect(() => {
+    setQuestionRows(activity?.questions ?? []);
+  }, [activity]);
+
+  const updateRow = (index: number, field: keyof TeacherCourseQuestion, value: string | number | undefined | string[]) => {
+    setQuestionRows((current) =>
+      current.map((row, rowIndex) => {
+        if (rowIndex !== index) {
+          return row;
+        }
+
+        return {
+          ...row,
+          [field]: value,
+        };
+      }),
+    );
+  };
+
+  const updateItem = (questionIndex: number, itemIndex: number, value: string) => {
+    setQuestionRows((current) =>
+      current.map((row, rowIndex) => {
+        if (rowIndex !== questionIndex) {
+          return row;
+        }
+
+        const nextItems = [...(row.items ?? [])];
+        nextItems[itemIndex] = value;
+
+        return {
+          ...row,
+          items: nextItems,
+        };
+      }),
+    );
+  };
+
+  const addItem = (questionIndex: number) => {
+    setQuestionRows((current) =>
+      current.map((row, rowIndex) => {
+        if (rowIndex !== questionIndex) {
+          return row;
+        }
+
+        return {
+          ...row,
+          items: [...(row.items ?? []), ""],
+        };
+      }),
+    );
+  };
+
+  const removeItem = (questionIndex: number, itemIndex: number) => {
+    setQuestionRows((current) =>
+      current.map((row, rowIndex) => {
+        if (rowIndex !== questionIndex) {
+          return row;
+        }
+
+        const nextItems = [...(row.items ?? [])];
+        nextItems.splice(itemIndex, 1);
+
+        return {
+          ...row,
+          items: nextItems,
+        };
+      }),
+    );
+  };
+
+  const addQuestion = () => {
+    setQuestionRows((current) => [...current, { enonce: "", items: [""], reponseIndex: undefined, pts: undefined }]);
+  };
+
+  const removeQuestion = (index: number) => {
+    setQuestionRows((current) => current.filter((_, rowIndex) => rowIndex !== index));
+  };
+
+  if (!activity) {
+    return null;
+  }
+
+  const serializedQuestions = useMemo(
+    () =>
+      JSON.stringify(
+        questionRows.map((row) => ({
+          enonce: row.enonce,
+          items: Array.isArray(row.items) ? row.items.filter(Boolean) : [],
+          reponseIndex: typeof row.reponseIndex === "number" ? row.reponseIndex : undefined,
+          pts: typeof row.pts === "number" ? row.pts : undefined,
+        })),
+      ),
+    [questionRows],
+  );
+
+  return (
+    <section className="space-y-5 rounded-3xl border border-gray-200 bg-white p-6 shadow-theme-sm dark:border-gray-800 dark:bg-white/[0.03]">
+      <form action={saveTeacherActivityQuestionsAction} className="space-y-5">
+        <input type="hidden" name="activity_id" value={activity.id} />
+        <input type="hidden" name="tab" value={activity.category} />
+        <input type="hidden" name="questions" value={serializedQuestions} />
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div className="text-xs uppercase tracking-[0.4em] text-gray-400 dark:text-gray-500">Gestionnaire de questionnaire</div>
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white/90">{activity.designation || "Épreuve"}</h3>
+          </div>
+          <button type="button" onClick={onClose} className="text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-gray-300">
+            Retour au cours
+          </button>
+        </div>
+        <div className="space-y-6">
+          {questionRows.map((question, index) => (
+            <div key={`question-${index}`} className="space-y-3 rounded-2xl border border-gray-200 bg-gray-50/70 p-4 dark:border-gray-700 dark:bg-gray-900/40">
+              <Label className="text-xs uppercase tracking-[0.3em] text-gray-400 dark:text-gray-500">Énoncé #{index + 1}</Label>
+              <textarea
+                rows={3}
+                value={question.enonce}
+                onChange={(event) => updateRow(index, "enonce", event.target.value)}
+                className={`${textareaClassName} w-full`}
+                placeholder="Rédige l'énoncé complet de la question"
+              />
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <Label className="text-xs uppercase tracking-[0.3em] text-gray-400 dark:text-gray-500">Index correct</Label>
+                  <Input
+                    type="number"
+                    value={question.reponseIndex ?? ""}
+                    onChange={(event) => updateRow(index, "reponseIndex", event.target.value ? Number(event.target.value) : undefined)}
+                    className="rounded-lg border border-gray-300 px-3 py-2 text-xs dark:border-gray-700"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs uppercase tracking-[0.3em] text-gray-400 dark:text-gray-500">Points</Label>
+                  <Input
+                    type="number"
+                    value={question.pts ?? ""}
+                    onChange={(event) => updateRow(index, "pts", event.target.value ? Number(event.target.value) : undefined)}
+                    className="rounded-lg border border-gray-300 px-3 py-2 text-xs dark:border-gray-700"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="text-xs uppercase tracking-[0.3em] text-gray-400 dark:text-gray-500">Réponses possibles</div>
+                {(question.items ?? []).map((item, itemIndex) => (
+                  <div key={`item-${index}-${itemIndex}`} className="space-y-2">
+                    <Input
+                      type="text"
+                      value={item}
+                      onChange={(event) => updateItem(index, itemIndex, event.target.value)}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs dark:border-gray-700"
+                      placeholder={`Réponse ${itemIndex + 1}`}
+                    />
+                    <button
+                      type="button"
+                      className="text-xs font-semibold text-error-600 hover:text-error-700"
+                      onClick={() => removeItem(index, itemIndex)}
+                    >
+                      Supprimer
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => addItem(index)}
+                  className="inline-flex w-full items-center justify-center rounded-full border border-brand-300 px-3 py-1 text-xs font-semibold text-brand-600 hover:bg-brand-50"
+                >
+                  + Ajouter une réponse
+                </button>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  className="text-xs font-semibold text-error-600 hover:text-error-700"
+                  onClick={() => removeQuestion(index)}
+                >
+                  Supprimer la question
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={addQuestion}
+            className="rounded-full border border-brand-300 px-4 py-2 text-xs font-semibold text-brand-600 hover:bg-brand-50"
+          >
+            + Ajouter une question
+          </button>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Chaque champ “ligne” correspond à une réponse possible; indiquez l’index correct à partir de 0.
+          </p>
+        </div>
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="rounded-full border border-gray-300 px-4 py-2 text-sm font-medium text-gray-500 transition hover:border-gray-400">
+            Retour au cours
+          </button>
+          <button type="submit" className="rounded-full bg-brand-500 px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-600">
+            Enregistrer les questions
+          </button>
+        </div>
+      </form>
     </section>
   );
 }

@@ -35,9 +35,26 @@ export type TeacherCourseQuestion = {
   url?: string;
 };
 
+export type TeacherActivityNote = {
+  id: string;
+  activity_id: string | null;
+  status: string | null;
+  note: number | null;
+  comment: string | null;
+  created_at: string;
+  student: {
+    id: string;
+    nom: string | null;
+    post_nom: string | null;
+    prenom: string | null;
+    email: string | null;
+  } | null;
+};
+
 export type TeacherCourseActivity = ActivityRecord & {
   category: Extract<ActivityCategory, "qcm" | "tp">;
   questions: TeacherCourseQuestion[];
+  notes: TeacherActivityNote[];
 };
 
 export type TeacherProgrammeMenuYear = {
@@ -311,6 +328,59 @@ export const getTeacherCoursePageData = async (matiereId: string) => {
     throw new Error(activityError.message);
   }
 
+  const activityRecords = (activityData ?? []) as (ActivityRecord & { questions?: unknown })[];
+  const activityIds = activityRecords.map((activity) => activity.id).filter((value): value is string => Boolean(value));
+
+  const { data: activityNotesData, error: activityNotesError } = activityIds.length
+    ? await admin
+    .from("cmd_activity")
+    .select("id, created_at, activity_id, status, note, comment, student:students(id, nom, post_nom, prenom, email)")
+        .in("activity_id", activityIds)
+        .order("created_at", { ascending: true })
+    : { data: [], error: null };
+
+  if (activityNotesError) {
+    throw new Error(activityNotesError.message);
+  }
+
+  const notesByActivityId = new Map<string, TeacherActivityNote[]>();
+
+  for (const rawNote of (activityNotesData ?? []) as Array<Record<string, unknown>>) {
+    const activityId = typeof rawNote.activity_id === "string" ? rawNote.activity_id : null;
+
+    if (!activityId) {
+      continue;
+    }
+
+    const studentRecord = rawNote.student as
+      | { id: string; nom?: string | null; post_nom?: string | null; prenom?: string | null; email?: string | null; matricule?: string | null }
+      | null
+      | undefined;
+
+    const noteId = typeof rawNote.id === "string" ? rawNote.id : `note-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const normalizedNote: TeacherActivityNote = {
+      id: noteId,
+      activity_id: activityId,
+      status: typeof rawNote.status === "string" ? rawNote.status : null,
+      note: typeof rawNote.note === "number" ? rawNote.note : null,
+      comment: typeof rawNote.comment === "string" ? rawNote.comment : null,
+      created_at: typeof rawNote.created_at === "string" ? rawNote.created_at : new Date().toISOString(),
+      student: studentRecord
+        ? {
+            id: studentRecord.id,
+            nom: typeof studentRecord.nom === "string" ? studentRecord.nom : null,
+            post_nom: typeof studentRecord.post_nom === "string" ? studentRecord.post_nom : null,
+            prenom: typeof studentRecord.prenom === "string" ? studentRecord.prenom : null,
+            email: typeof studentRecord.email === "string" ? studentRecord.email : null,
+          }
+        : null,
+    };
+
+    const existing = notesByActivityId.get(activityId) ?? [];
+    existing.push(normalizedNote);
+    notesByActivityId.set(activityId, existing);
+  }
+
   const normalizeActivityCategory = (value: string | null | undefined): Extract<ActivityCategory, "qcm" | "tp"> | null => {
     const normalizedValue = typeof value === "string" ? value.trim().toLowerCase() : null;
     return normalizedValue === "qcm" || normalizedValue === "tp" ? normalizedValue : null;
@@ -359,6 +429,7 @@ export const getTeacherCoursePageData = async (matiereId: string) => {
 
   const activities = ((activityData ?? []) as (ActivityRecord & { questions?: unknown })[])
     .map((activity) => {
+      const notes = notesByActivityId.get(activity.id) ?? [];
       const category = normalizeActivityCategory(activity.categorie);
 
       if (!category) {
@@ -369,6 +440,7 @@ export const getTeacherCoursePageData = async (matiereId: string) => {
         ...activity,
         category,
         questions: parseQuestions(activity.questions),
+        notes,
       };
     })
     .filter((activity): activity is TeacherCourseActivity => activity !== null);
@@ -489,6 +561,109 @@ export const updateTeacherCoursePlan = async (formData: FormData) => {
   }
 
   const { error } = await admin.from("cours").update({ plan }).eq("id", courseId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+};
+
+const ensureTeacherOwnsCourse = async (coursId: string) => {
+  if (!coursId) {
+    throw new Error("cours_required");
+  }
+
+  const teacherAgentId = await getCurrentAuthenticatedTeacherAgentId();
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("cours").select("id, titulaire_id").eq("id", coursId).maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data || data.titulaire_id !== teacherAgentId) {
+    throw new Error("teacher_access_denied");
+  }
+
+  return data;
+};
+
+export const ensureTeacherActivityAccess = async (activityId: string) => {
+  if (!activityId) {
+    throw new Error("activity_required");
+  }
+
+  const admin = createAdminClient();
+  const { data: activity, error: activityError } = await admin.from("activity").select("id, cours_id").eq("id", activityId).maybeSingle();
+
+  if (activityError) {
+    throw new Error(activityError.message);
+  }
+
+  if (!activity || !activity.cours_id) {
+    throw new Error("activity_not_found");
+  }
+
+  await ensureTeacherOwnsCourse(activity.cours_id);
+
+  return activity;
+};
+
+export const createTeacherActivity = async ({
+  coursId,
+  designation,
+  description,
+  categorie,
+  montant,
+  note,
+  date_limite,
+}: {
+  coursId: string;
+  designation: string;
+  description: string | null;
+  categorie: Extract<ActivityCategory, "qcm" | "tp">;
+  montant: number | null;
+  note: number | null;
+  date_limite: string | null;
+}) => {
+  await ensureTeacherOwnsCourse(coursId);
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("activity").insert({
+    cours_id: coursId,
+    designation,
+    description,
+    categorie,
+    montant,
+    note,
+    date_limite,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+};
+
+export const updateTeacherActivityQuestions = async (activityId: string, rawQuestions: string | null) => {
+  await ensureTeacherActivityAccess(activityId);
+
+  let parsed: unknown[] = [];
+
+  if (rawQuestions && rawQuestions.trim().length > 0) {
+    try {
+      const parsedValue = JSON.parse(rawQuestions);
+
+      if (!Array.isArray(parsedValue)) {
+        throw new Error("invalid_questions_format");
+      }
+
+      parsed = parsedValue;
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : "invalid_questions_format");
+    }
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("activity").update({ questions: parsed }).eq("id", activityId);
 
   if (error) {
     throw new Error(error.message);
