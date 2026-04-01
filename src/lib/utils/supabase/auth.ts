@@ -6,6 +6,19 @@ const DEFAULT_POST_LOGIN_PATH = "/";
 const configuredAppUrl = process.env.NEXT_PUBLIC_HOST_URL;
 const configuredDelegatedScopes = process.env.ENTRA_DELEGATED_SCOPES;
 const defaultDelegatedScopes = "openid profile email offline_access User.Read";
+const loginModeCookieName = "campus-login-mode";
+
+export type LoginMode = "faculty_sso" | "student_password" | "teacher_password";
+
+const validLoginModes = new Set<LoginMode>(["faculty_sso", "student_password", "teacher_password"]);
+
+const buildCookieOptions = () => ({
+  httpOnly: true,
+  sameSite: "lax" as const,
+  secure: process.env.NODE_ENV === "production",
+  path: "/",
+  maxAge: 60 * 60 * 24 * 30,
+});
 
 const normalizeNextPath = (value: string | null | undefined) => {
   if (!value) {
@@ -39,12 +52,42 @@ const getRequestOrigin = async () => {
   return `${protocol}://${host}`;
 };
 
-export const getAuthCallbackUrl = async (nextPath?: string | null) => {
+export const normalizeLoginMode = (value: string | null | undefined): LoginMode | null => {
+  if (!value) {
+    return null;
+  }
+
+  const normalizedValue = value.trim().toLowerCase();
+  return validLoginModes.has(normalizedValue as LoginMode) ? (normalizedValue as LoginMode) : null;
+};
+
+export const getCurrentLoginMode = async () => {
+  const cookieStore = await cookies();
+  return normalizeLoginMode(cookieStore.get(loginModeCookieName)?.value);
+};
+
+export const setLoginModeCookie = async (mode: LoginMode) => {
+  const cookieStore = await cookies();
+  cookieStore.set(loginModeCookieName, mode, buildCookieOptions());
+};
+
+export const clearLoginModeCookie = async () => {
+  const cookieStore = await cookies();
+  cookieStore.set(loginModeCookieName, "", {
+    ...buildCookieOptions(),
+    maxAge: 0,
+  });
+};
+
+export const getAuthCallbackUrl = async (nextPath?: string | null, loginMode?: LoginMode | null) => {
   const origin = await getRequestOrigin();
   const safeNextPath = normalizeNextPath(nextPath);
   const callbackUrl = new URL("/auth/callback", origin);
 
   callbackUrl.searchParams.set("next", safeNextPath);
+  if (loginMode) {
+    callbackUrl.searchParams.set("login_mode", loginMode);
+  }
 
   return {
     callbackUrl: callbackUrl.toString(),
@@ -55,7 +98,9 @@ export const getAuthCallbackUrl = async (nextPath?: string | null) => {
 export const createAzureSignInUrl = async (nextPath?: string | null) => {
   const cookieStore = await cookies();
   const supabase = createServerSupabaseClient(cookieStore);
-  const { callbackUrl, nextPath: safeNextPath } = await getAuthCallbackUrl(nextPath);
+  const loginMode: LoginMode = "faculty_sso";
+  cookieStore.set(loginModeCookieName, loginMode, buildCookieOptions());
+  const { callbackUrl, nextPath: safeNextPath } = await getAuthCallbackUrl(nextPath, loginMode);
   const delegatedScopes = configuredDelegatedScopes?.trim() || defaultDelegatedScopes;
 
   const { data, error } = await supabase.auth.signInWithOAuth({
@@ -79,6 +124,7 @@ export const createAzureSignInUrl = async (nextPath?: string | null) => {
     authorizationUrl: data.url,
     callbackUrl,
     nextPath: safeNextPath,
+    loginMode,
   };
 };
 

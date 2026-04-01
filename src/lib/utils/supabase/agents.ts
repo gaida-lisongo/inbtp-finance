@@ -3,6 +3,7 @@ import { type User } from "@supabase/supabase-js";
 
 import type { AgentProfile, AgentRecord, AgentRole } from "@/lib/utils/supabase/agents-shared";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
+import { getCurrentLoginMode } from "@/lib/utils/supabase/auth";
 import { createClient as createServerSupabaseClient } from "@/lib/utils/supabase/server";
 
 export type AccountType = "agent" | "student";
@@ -24,6 +25,7 @@ export type AgentAccess = {
 const supabaseBucket = process.env.SUPABASE_BUCKET;
 const signedUrlExpiresInSeconds = 60 * 60;
 const allowedAgentRoles = new Set<AgentRole>(["organisateur", "titulaire", "gestionnaire"]);
+const adminAgentRoles = new Set<AgentRole>(["organisateur", "gestionnaire"]);
 
 const emptyToNull = (value: FormDataEntryValue | null) => {
   if (typeof value !== "string") {
@@ -47,6 +49,8 @@ export const normalizeAgentRole = (value: string | null | undefined): AgentRole 
 
   return null;
 };
+
+export const isAdminAgentRole = (role: AgentRole | null) => Boolean(role && adminAgentRoles.has(role));
 
 const getIdentityData = (user: User) => {
   const identity = user.identities?.[0];
@@ -169,6 +173,28 @@ const getAgentByEntraId = async (entraId: string) => {
   return data as AgentRecord | null;
 };
 
+const getAgentByNormalizedEmail = async (email: string) => {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("agents")
+    .select("*")
+    .ilike("email", email)
+    .order("created_at", { ascending: true })
+    .limit(2);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const agents = (data ?? []) as AgentRecord[];
+
+  if (agents.length > 1) {
+    throw new Error("teacher_email_conflict");
+  }
+
+  return agents[0] ?? null;
+};
+
 const attachAgentToUser = async (agent: AgentRecord, user: User) => {
   const admin = createAdminClient();
   const { data, error } = await admin
@@ -214,6 +240,58 @@ export const findAgentRecordForUser = async (user: User) => {
   return agentByEntraId.user_id === user.id ? agentByEntraId : null;
 };
 
+export const assertTeacherCanAuthenticate = async (email: string) => {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  if (!normalizedEmail) {
+    throw new Error("teacher_email_required");
+  }
+
+  const agent = await getAgentByNormalizedEmail(normalizedEmail);
+
+  if (!agent || normalizeAgentRole(agent.role) !== "titulaire") {
+    throw new Error("teacher_not_found");
+  }
+
+  return agent;
+};
+
+export const attachTeacherUserByEmail = async (email: string, userId: string) => {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  if (!normalizedEmail) {
+    throw new Error("teacher_email_required");
+  }
+
+  const agent = await getAgentByNormalizedEmail(normalizedEmail);
+
+  if (!agent || normalizeAgentRole(agent.role) !== "titulaire") {
+    throw new Error("teacher_not_found");
+  }
+
+  if (agent.user_id && agent.user_id !== userId) {
+    throw new Error("teacher_already_linked");
+  }
+
+  if (agent.user_id === userId) {
+    return agent;
+  }
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("agents")
+    .update({ user_id: userId })
+    .eq("id", agent.id)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as AgentRecord;
+};
+
 export const getCurrentAccountType = async (): Promise<AccountType> => {
   const user = await getCurrentAuthUser();
   const agent = await findAgentRecordForUser(user);
@@ -224,7 +302,8 @@ export const getCurrentAgentAccess = async (): Promise<AgentAccess> => {
   const user = await getCurrentAuthUser();
   const agent = await findAgentRecordForUser(user);
   const role = normalizeAgentRole(agent?.role);
-  const canAccessAdmin = Boolean(agent && role);
+  const loginMode = await getCurrentLoginMode();
+  const canAccessAdmin = Boolean(agent && isAdminAgentRole(role) && (loginMode === "faculty_sso" || loginMode === null));
   const isOrganizer = role === "organisateur";
   const isGestionnaire = role === "gestionnaire";
   const isTitulaire = role === "titulaire";

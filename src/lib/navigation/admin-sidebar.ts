@@ -2,6 +2,7 @@ import { autorisationLabels, getActiveAutorisationCodesForAgent, type Autorisati
 import { getProgrammes } from "@/lib/utils/supabase/programmes";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 import { getCurrentAuthenticatedStudent } from "@/lib/utils/supabase/commandes";
+import { getTeacherProgrammeMenuData } from "@/lib/utils/supabase/teacher-teaching";
 import type { AuthenticatedUser } from "@/lib/utils/supabase/session";
 
 export type SidebarMenuSubItem = {
@@ -26,7 +27,25 @@ export const getAdminSidebarMenu = async (user: AuthenticatedUser): Promise<Side
     },
   ];
 
-  if (user.accountType === "student") {
+  if (user.activePersona === "teacher") {
+    const years = await getTeacherProgrammeMenuData();
+
+    items.push({
+      name: "Enseignement",
+      iconKey: "folder",
+      subItems: years.map((year) => ({
+        name: year.designation || "Annee sans designation",
+        subItems: year.programmes.map((programme) => ({
+          name: programme.designation || "Promotion sans designation",
+          path: `/enseignant/promotion/${programme.id}`,
+        })),
+      })),
+    });
+
+    return items;
+  }
+
+  if (user.activePersona === "student") {
     const admin = createAdminClient();
     const student = await getCurrentAuthenticatedStudent();
     const [{ data: parcoursData, error: parcoursError }, { data: programmesData, error: programmesError }, { data: anneesData, error: anneesError }] =

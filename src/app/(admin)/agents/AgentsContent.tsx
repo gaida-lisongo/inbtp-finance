@@ -24,6 +24,7 @@ export default function AgentsContent() {
     prenom: "",
     email: "",
     grade: "",
+    role: "titulaire",
   });
 
   useEffect(() => {
@@ -50,6 +51,7 @@ export default function AgentsContent() {
       prenom: "",
       email: "",
       grade: "",
+      role: "titulaire",
     });
     setAgentModalOpen(true);
   };
@@ -62,6 +64,7 @@ export default function AgentsContent() {
       prenom: agent.prenom || "",
       email: agent.email || "",
       grade: agent.grade || "",
+      role: agent.role || "titulaire",
     });
     setAgentModalOpen(true);
   };
@@ -87,6 +90,7 @@ export default function AgentsContent() {
       formData.append("prenom", agentForm.prenom);
       formData.append("email", agentForm.email);
       formData.append("grade", agentForm.grade);
+      formData.append("role", agentForm.role);
 
       if (editingAgent) {
         await updateAgentAction(editingAgent.id, formData);
@@ -190,6 +194,20 @@ export default function AgentsContent() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md"
                   required
                 />
+              </div>
+              <div>
+                <Label htmlFor="role">Rôle</Label>
+                <select
+                  id="role"
+                  value={agentForm.role}
+                  onChange={(e) => setAgentForm({ ...agentForm, role: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  required
+                >
+                  <option value="titulaire">Titulaire</option>
+                  <option value="gestionnaire">Gestionnaire</option>
+                  <option value="organisateur">Organisateur</option>
+                </select>
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">

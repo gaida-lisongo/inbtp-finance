@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 
-export function middleware(request: NextRequest) {
-  if (request.nextUrl.pathname !== "/") {
-    return NextResponse.next();
+import { updateSession } from "@/lib/utils/supabase/middleware";
+
+export async function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+  const response = await updateSession(request);
+
+  if (pathname !== "/") {
+    return response;
   }
 
   const code = request.nextUrl.searchParams.get("code");
 
   if (!code) {
-    return NextResponse.next();
+    return response;
   }
 
   const callbackUrl = request.nextUrl.clone();

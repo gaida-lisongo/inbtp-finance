@@ -1,10 +1,20 @@
 import { cookies } from "next/headers";
 import { type User } from "@supabase/supabase-js";
 
-import { findAgentRecordForUser, normalizeAgentRole, type AccountType, type AgentRole } from "@/lib/utils/supabase/agents";
+import {
+  attachTeacherUserByEmail,
+  findAgentRecordForUser,
+  isAdminAgentRole,
+  normalizeAgentRole,
+  type AccountType,
+  type AgentRole,
+} from "@/lib/utils/supabase/agents";
+import { getCurrentLoginMode, type LoginMode } from "@/lib/utils/supabase/auth";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 import { createClient as createServerSupabaseClient } from "@/lib/utils/supabase/server";
 import { attachStudentUserByEmail } from "@/lib/utils/supabase/students";
+
+export type ActivePersona = "admin" | "student" | "teacher";
 
 export type AuthenticatedUser = {
   id: string;
@@ -12,6 +22,8 @@ export type AuthenticatedUser = {
   name: string;
   avatarUrl: string | null;
   accountType: AccountType;
+  loginMode: LoginMode | null;
+  activePersona: ActivePersona;
   agentId: string | null;
   role: AgentRole | null;
   canAccessAdmin: boolean;
@@ -105,14 +117,48 @@ const resolveAvatarUrl = async (avatarUrl: string | null) => {
   return data.signedUrl;
 };
 
-const buildAuthenticatedUser = async (user: User): Promise<AuthenticatedUser | null> => {
+const resolveActivePersona = ({
+  loginMode,
+  hasAgent,
+  role,
+}: {
+  loginMode: LoginMode | null;
+  hasAgent: boolean;
+  role: AgentRole | null;
+}): ActivePersona => {
+  if (loginMode === "student_password") {
+    return "student";
+  }
+
+  if (loginMode === "teacher_password") {
+    return "teacher";
+  }
+
+  if (loginMode === "faculty_sso") {
+    return isAdminAgentRole(role) ? "admin" : hasAgent ? "teacher" : "student";
+  }
+
+  if (hasAgent) {
+    return role === "titulaire" ? "teacher" : "admin";
+  }
+
+  return "student";
+};
+
+const buildAuthenticatedUser = async (user: User, loginMode: LoginMode | null): Promise<AuthenticatedUser | null> => {
   if (!user.email) {
     return null;
   }
 
   const agentRecord = await findAgentRecordForUser(user);
-  const accountType: AccountType = agentRecord ? "agent" : "student";
   const role = normalizeAgentRole(agentRecord?.role);
+  const activePersona = resolveActivePersona({
+    loginMode,
+    hasAgent: Boolean(agentRecord),
+    role,
+  });
+  const accountType: AccountType = activePersona === "student" ? "student" : "agent";
+  const canAccessAdmin = activePersona === "admin" && Boolean(agentRecord) && isAdminAgentRole(role);
   const isOrganizer = role === "organisateur";
   const isGestionnaire = role === "gestionnaire";
   const isTitulaire = role === "titulaire";
@@ -123,9 +169,11 @@ const buildAuthenticatedUser = async (user: User): Promise<AuthenticatedUser | n
     name: getUserName(user),
     avatarUrl: await resolveAvatarUrl(getAvatarUrl(user)),
     accountType,
+    loginMode,
+    activePersona,
     agentId: agentRecord?.id ?? null,
     role,
-    canAccessAdmin: Boolean(agentRecord && role),
+    canAccessAdmin,
     canManageYears: isOrganizer,
     canManageAuthorizations: isOrganizer,
     canManageStudents: isGestionnaire,
@@ -140,12 +188,13 @@ export const getAuthenticatedUser = async (): Promise<AuthenticatedUser | null> 
   const supabase = createServerSupabaseClient(cookieStore);
   const { data: userData } = await supabase.auth.getUser();
   const user = userData.user;
+  const loginMode = await getCurrentLoginMode();
 
   if (!user) {
     return null;
   }
 
-  const authenticatedUser = await buildAuthenticatedUser(user);
+  const authenticatedUser = await buildAuthenticatedUser(user, loginMode);
   return authenticatedUser;
 };
 
@@ -154,6 +203,7 @@ export const syncAuthenticatedUser = async (): Promise<AuthenticatedUser | null>
   const supabase = createServerSupabaseClient(cookieStore);
   const { data: userData } = await supabase.auth.getUser();
   const user = userData.user;
+  const loginMode = await getCurrentLoginMode();
 
   if (!user) {
     return null;
@@ -161,11 +211,17 @@ export const syncAuthenticatedUser = async (): Promise<AuthenticatedUser | null>
 
   const agentRecord = await findAgentRecordForUser(user);
 
-  if (!agentRecord && user.email) {
-    await attachStudentUserByEmail(user.email, user.id);
+  if (user.email) {
+    if (loginMode === "teacher_password") {
+      await attachTeacherUserByEmail(user.email, user.id);
+    } else if (loginMode === "student_password") {
+      await attachStudentUserByEmail(user.email, user.id);
+    } else if (!agentRecord && loginMode === null) {
+      await attachStudentUserByEmail(user.email, user.id);
+    }
   }
 
-  const authenticatedUser = await buildAuthenticatedUser(user);
+  const authenticatedUser = await buildAuthenticatedUser(user, loginMode);
   const storedAvatarUrl = getAvatarUrl(user);
 
   if (!authenticatedUser) {

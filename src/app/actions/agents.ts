@@ -20,6 +20,7 @@ export async function createAgentAction(formData: FormData) {
       prenom: formData.get("prenom") as string,
       email: formData.get("email") as string,
       grade: formData.get("grade") as string,
+      role: formData.get("role") as string,
     };
 
     const newAgent = await createAgent(agentData);
@@ -39,6 +40,7 @@ export async function updateAgentAction(id: string, formData: FormData) {
       prenom: formData.get("prenom") as string,
       email: formData.get("email") as string,
       grade: formData.get("grade") as string,
+      role: formData.get("role") as string,
     };
 
     const updatedAgent = await updateAgent(id, updates);

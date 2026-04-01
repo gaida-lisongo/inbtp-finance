@@ -14,7 +14,16 @@ type SignUpPageProps = {
   searchParams: Promise<{
     error?: string;
     next?: string;
+    tab?: string;
   }>;
+};
+
+const getSelectedTab = (value?: string): "student" | "teacher" => {
+  if (value === "teacher") {
+    return value;
+  }
+
+  return "student";
 };
 
 export default async function SignUp({ searchParams }: SignUpPageProps) {
@@ -25,5 +34,5 @@ export default async function SignUp({ searchParams }: SignUpPageProps) {
     redirect("/");
   }
 
-  return <SignUpForm error={params.error} nextPath={nextPath} />;
+  return <SignUpForm error={params.error} nextPath={nextPath} selectedTab={getSelectedTab(params.tab)} />;
 }

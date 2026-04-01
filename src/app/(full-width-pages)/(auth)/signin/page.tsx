@@ -14,7 +14,16 @@ type SignInPageProps = {
     error?: string;
     message?: string;
     next?: string;
+    tab?: string;
   }>;
+};
+
+const getSelectedTab = (value?: string): "student" | "teacher" | "admin" => {
+  if (value === "teacher" || value === "admin") {
+    return value;
+  }
+
+  return "student";
 };
 
 export default async function SignIn({ searchParams }: SignInPageProps) {
@@ -25,5 +34,12 @@ export default async function SignIn({ searchParams }: SignInPageProps) {
     redirect("/");
   }
 
-  return <SignInForm error={params.error} message={params.message} nextPath={nextPath} />;
+  return (
+    <SignInForm
+      error={params.error}
+      message={params.message}
+      nextPath={nextPath}
+      selectedTab={getSelectedTab(params.tab)}
+    />
+  );
 }
