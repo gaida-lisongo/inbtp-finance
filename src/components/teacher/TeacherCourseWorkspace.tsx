@@ -6,7 +6,6 @@ import { saveTeacherCourseDescriptorAction, saveTeacherCoursePlanAction } from "
 import FormSubmitButton from "@/components/common/FormSubmitButton";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
-import StudentCoursePlanCarousel from "@/components/student/course/StudentCoursePlanCarousel";
 import { parsePlanChapters, renderStructuredValue } from "@/components/student/course/course-overview-shared";
 import { Modal } from "@/components/ui/modal";
 import type { TeacherCourseActivity, TeacherCoursePageDetails } from "@/lib/utils/supabase/teacher-teaching";
@@ -76,6 +75,11 @@ export default function TeacherCourseWorkspace({
   const [activeTab, setActiveTab] = useState<TeacherTab>(initialTab === "plan" || initialTab === "qcm" || initialTab === "tp" ? initialTab : "descriptor");
   const [planDraft, setPlanDraft] = useState<PlanDraftChapter[]>(() => buildPlanDraft(data.courseDetails?.plan ?? null));
   const [modalField, setModalField] = useState<null | "description" | "objectifs" | "methodologies" | "penalites" | "competences" | "disponiblites">(null);
+  const [planViewMode, setPlanViewMode] = useState<"edit" | "read">("edit");
+  const [isChapterModalOpen, setIsChapterModalOpen] = useState(false);
+  const [modalChapterTitle, setModalChapterTitle] = useState("");
+  const [modalChapterItems, setModalChapterItems] = useState<string[]>([""]);
+  const [editingChapterId, setEditingChapterId] = useState<string | null>(null);
 
   const planPreview = useMemo(
     () =>
@@ -90,45 +94,73 @@ export default function TeacherCourseWorkspace({
   const qcmActivities = data.activities.filter((activity) => activity.category === "qcm");
   const tpActivities = data.activities.filter((activity) => activity.category === "tp");
 
-  const updateChapterField = (id: string, value: string) => {
-    setPlanDraft((current) => current.map((chapter) => (chapter.id === id ? { ...chapter, chapter: value } : chapter)));
+  const togglePlanViewMode = () => {
+    setPlanViewMode((current) => (current === "edit" ? "read" : "edit"));
   };
 
-  const updateItemField = (chapterId: string, itemIndex: number, value: string) => {
-    setPlanDraft((current) =>
-      current.map((chapter) =>
-        chapter.id === chapterId
-          ? {
-              ...chapter,
-              items: chapter.items.map((item, index) => (index === itemIndex ? value : item)),
-            }
-          : chapter,
-      ),
-    );
+  const openChapterEditor = (chapter?: PlanDraftChapter) => {
+    if (chapter) {
+      setEditingChapterId(chapter.id);
+      setModalChapterTitle(chapter.chapter);
+      setModalChapterItems(chapter.items.length > 0 ? chapter.items : [""]);
+    } else {
+      setEditingChapterId(null);
+      setModalChapterTitle("");
+      setModalChapterItems([""]);
+    }
+
+    setPlanViewMode("edit");
+    setIsChapterModalOpen(true);
   };
 
-  const addChapter = () => {
-    setPlanDraft((current) => [...current, { id: createPlanId(), chapter: "", items: [""] }]);
+  const closeChapterModal = () => {
+    setIsChapterModalOpen(false);
   };
+
+  const handleModalItemChange = (index: number, value: string) => {
+    setModalChapterItems((current) => current.map((item, itemIndex) => (itemIndex === index ? value : item)));
+  };
+
+  const addModalItem = () => setModalChapterItems((current) => [...current, ""]);
+
+  const removeModalItem = (index: number) =>
+    setModalChapterItems((current) => {
+      if (current.length <= 1) {
+        return [""];
+      }
+
+      return current.filter((_, itemIndex) => itemIndex !== index);
+    });
 
   const removeChapter = (id: string) => {
-    setPlanDraft((current) => (current.length > 1 ? current.filter((chapter) => chapter.id !== id) : current));
+    setPlanDraft((current) => current.filter((chapter) => chapter.id !== id));
   };
 
-  const addItem = (chapterId: string) => {
-    setPlanDraft((current) =>
-      current.map((chapter) => (chapter.id === chapterId ? { ...chapter, items: [...chapter.items, ""] } : chapter)),
-    );
-  };
+  const handleChapterSave = () => {
+    const trimmedTitle = modalChapterTitle.trim();
+    const sanitizedItems = modalChapterItems.map((item) => item.trim()).filter(Boolean);
+    const itemsForDraft = sanitizedItems.length > 0 ? sanitizedItems : [""];
+    const fallbackTitle = editingChapterId
+      ? planDraft.find((chapter) => chapter.id === editingChapterId)?.chapter ?? ""
+      : `Chapitre ${planDraft.length + 1}`;
 
-  const removeItem = (chapterId: string, itemIndex: number) => {
-    setPlanDraft((current) =>
-      current.map((chapter) =>
-        chapter.id === chapterId && chapter.items.length > 1
-          ? { ...chapter, items: chapter.items.filter((_, index) => index !== itemIndex) }
-          : chapter,
-      ),
-    );
+    setPlanDraft((current) => {
+      if (editingChapterId) {
+        return current.map((chapter) =>
+          chapter.id === editingChapterId
+            ? {
+                ...chapter,
+                chapter: trimmedTitle || chapter.chapter || fallbackTitle,
+                items: itemsForDraft,
+              }
+            : chapter,
+        );
+      }
+
+      return [...current, { id: createPlanId(), chapter: trimmedTitle || fallbackTitle, items: itemsForDraft }];
+    });
+
+    closeChapterModal();
   };
 
   return (
@@ -146,9 +178,29 @@ export default function TeacherCourseWorkspace({
       </section>
 
       {activeTab === "descriptor" ? <TeacherDescriptorTab data={data} onOpenModal={setModalField} modalField={modalField} /> : null}
-      {activeTab === "plan" ? <TeacherPlanTab data={data} planDraft={planDraft} planPreview={planPreview} onUpdateChapterField={updateChapterField} onUpdateItemField={updateItemField} onAddChapter={addChapter} onRemoveChapter={removeChapter} onAddItem={addItem} onRemoveItem={removeItem} /> : null}
+      {activeTab === "plan" ? (
+        <TeacherPlanTab
+          data={data}
+          planDraft={planDraft}
+          planPreview={planPreview}
+          planViewMode={planViewMode}
+          togglePlanViewMode={togglePlanViewMode}
+          openChapterEditor={openChapterEditor}
+          removeChapter={removeChapter}
+          isChapterModalOpen={isChapterModalOpen}
+          closeChapterModal={closeChapterModal}
+          handleChapterSave={handleChapterSave}
+          modalChapterTitle={modalChapterTitle}
+          setModalChapterTitle={setModalChapterTitle}
+          modalChapterItems={modalChapterItems}
+          onModalItemChange={handleModalItemChange}
+          addModalItem={addModalItem}
+          removeModalItem={removeModalItem}
+        />
+      ) : null}
       {activeTab === "qcm" ? <TeacherActivitiesTab title="Banque QCM" activities={qcmActivities} /> : null}
       {activeTab === "tp" ? <TeacherActivitiesTab title="Banque TP" activities={tpActivities} /> : null}
+      <DescriptorFieldModals data={data} openField={modalField} onClose={() => setModalField(null)} />
     </div>
   );
 }
@@ -193,6 +245,257 @@ function TeacherCourseBanner({ data }: { data: TeacherCoursePageDetails }) {
     </section>
   );
 }
+
+const getStructuredObjective = (value: unknown) => {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const general = typeof (value as Record<string, unknown>).general === "string" ? (value as Record<string, unknown>).general.trim() : null;
+  const specificsArray = Array.isArray((value as Record<string, unknown>).speficique)
+    ? (value as Record<string, unknown>).speficique
+    : Array.isArray((value as Record<string, unknown>).specifique)
+      ? (value as Record<string, unknown>).specifique
+      : [];
+
+  const specifics = specificsArray.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+
+  if (!general && specifics.length === 0) {
+    return null;
+  }
+
+  return { general, specifics };
+};
+
+const renderObjectiveValue = (value: unknown) => {
+  const structured = getStructuredObjective(value);
+
+  if (!structured) {
+    return renderStructuredValue(value);
+  }
+
+  return (
+    <div className="space-y-3">
+      {structured.general ? (
+        <div>
+          <div className="text-xs uppercase tracking-[0.4em] text-gray-400 dark:text-gray-500">Objectif général</div>
+          <h4 className="text-base font-semibold text-gray-900 dark:text-white/90 whitespace-pre-line">{structured.general}</h4>
+        </div>
+      ) : null}
+      {structured.specifics.length > 0 ? (
+        <div>
+          <div className="text-xs uppercase tracking-[0.4em] text-gray-400 dark:text-gray-500">Objectifs spécifiques</div>
+          <ul className="mt-2 space-y-2">
+            {structured.specifics.map((item, index) => (
+              <li
+                key={`${item}-${index}`}
+                className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+              >
+                {item.trim()}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
+const getMethodologiesValue = (value: unknown) => {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const methodes = Array.isArray((value as Record<string, unknown>).methodes)
+    ? (value as Record<string, unknown>).methodes
+    : [];
+
+  const parsed = methodes.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+
+  return parsed.length > 0 ? parsed : null;
+};
+
+const renderMethodologiesValue = (value: unknown) => {
+  const methods = getMethodologiesValue(value);
+
+  if (!methods) {
+    return renderStructuredValue(value);
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="text-xs uppercase tracking-[0.3em] text-gray-400 dark:text-gray-500">Méthodes</div>
+      <ul className="space-y-2">
+        {methods.map((method, index) => (
+          <li
+            key={`${method}-${index}`}
+            className="flex items-start gap-3 rounded-3xl border border-dashed border-brand-200 bg-brand-50/60 px-4 py-3 text-sm text-brand-900 dark:border-brand-500/40 dark:bg-brand-500/10 dark:text-brand-200"
+          >
+            <span className="mt-1 h-2.5 w-2.5 rounded-full bg-brand-500"></span>
+            <span className="whitespace-pre-line">{method.trim()}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
+const getPenaltiesValue = (value: unknown) => {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const penaltiesArray = Array.isArray((value as Record<string, unknown>).penalites)
+    ? (value as Record<string, unknown>).penalites
+    : [];
+
+  const parsed = penaltiesArray
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+
+      const record = entry as Record<string, unknown>;
+      const penalite = typeof record.penalite === "string" ? record.penalite.trim() : null;
+      const sanction = typeof record.sanction === "string" ? record.sanction.trim() : null;
+
+      if (!penalite && !sanction) {
+        return null;
+      }
+
+      return { penalite, sanction };
+    })
+    .filter((item): item is { penalite: string | null; sanction: string | null } => Boolean(item && (item.penalite || item.sanction)));
+
+  return parsed.length > 0 ? parsed : null;
+};
+
+const renderPenaltiesValue = (value: unknown) => {
+  const penalties = getPenaltiesValue(value);
+
+  if (!penalties) {
+    return renderStructuredValue(value);
+  }
+
+  return (
+    <div className="space-y-4">
+      {penalties.map((penalty, index) => (
+        <div
+          key={`${penalty.penalite}-${index}`}
+          className="rounded-3xl border border-gray-200 bg-white p-4 shadow-theme-sm dark:border-gray-800 dark:bg-white/[0.03]"
+        >
+          <div className="text-xs uppercase tracking-[0.3em] text-gray-400 dark:text-gray-500">Pénalité</div>
+          <p className="mt-1 text-base font-semibold leading-6 text-gray-900 dark:text-white/90">
+            {penalty.penalite || "Pénalité non renseignée"}
+          </p>
+          {penalty.sanction ? (
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{penalty.sanction}</p>
+          ) : (
+            <p className="mt-2 text-sm text-gray-500">Aucune sanction associée</p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const getCompetencesValue = (value: unknown) => {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const competencesArray = Array.isArray((value as Record<string, unknown>).competences)
+    ? (value as Record<string, unknown>).competences
+    : [];
+
+  const parsed = competencesArray
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+
+      const record = entry as Record<string, unknown>;
+      const competence = typeof record.competence === "string" ? record.competence.trim() : null;
+      const description = typeof record.description === "string" ? record.description.trim() : null;
+
+      if (!competence && !description) {
+        return null;
+      }
+
+      return { competence, description };
+    })
+    .filter((item): item is { competence: string | null; description: string | null } => Boolean(item && (item.competence || item.description)));
+
+  return parsed.length > 0 ? parsed : null;
+};
+
+const renderCompetencesValue = (value: unknown) => {
+  const competences = getCompetencesValue(value);
+
+  if (!competences) {
+    return renderStructuredValue(value);
+  }
+
+  return (
+    <div className="space-y-4">
+      {competences.map((item, index) => (
+        <div
+          key={`${item.competence}-${index}`}
+          className="rounded-3xl border border-dashed border-brand-200 bg-brand-50/60 p-4 dark:border-brand-500/40 dark:bg-brand-500/10"
+        >
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-xs uppercase tracking-[0.4em] text-brand-500">Compétence</span>
+            <span className="text-base font-semibold text-gray-900 dark:text-white/90">{item.competence || "Compétence non renseignée"}</span>
+          </div>
+          {item.description ? (
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{item.description}</p>
+          ) : (
+            <p className="mt-2 text-sm text-gray-500"></p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const getDisponibilitesValue = (value: unknown) => {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const keys: Array<"frequence" | "periode" | "contact" | "bureau"> = ["frequence", "periode", "contact", "bureau"];
+  const structured: Record<string, string> = {};
+
+  for (const key of keys) {
+    const text = typeof record[key] === "string" ? record[key].trim() : "";
+
+    if (text) {
+      structured[key] = text;
+    }
+  }
+
+  return Object.keys(structured).length > 0 ? structured : null;
+};
+
+const renderDisponibilitesValue = (value: unknown) => {
+  const disponibilites = getDisponibilitesValue(value);
+
+  if (!disponibilites) {
+    return renderStructuredValue(value);
+  }
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      {Object.entries(disponibilites).map(([key, text]) => (
+        <div key={key} className="rounded-3xl border border-gray-200 bg-white/60 p-4 text-sm text-gray-700 shadow-theme-sm dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-200">
+          <div className="text-xs uppercase tracking-[0.3em] text-gray-400 dark:text-gray-500">{key.charAt(0).toUpperCase() + key.slice(1)}</div>
+          <p className="font-semibold text-gray-900 dark:text-white/90">{text}</p>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 function TeacherDescriptorTab({
   data,
@@ -254,7 +557,17 @@ function TeacherDescriptorTab({
             </button>
           </summary>
           <div className="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">
-            {renderStructuredValue(item.value)}
+            {item.id === "objectifs"
+              ? renderObjectiveValue(item.value)
+              : item.id === "methodologies"
+                ? renderMethodologiesValue(item.value)
+                : item.id === "penalites"
+                  ? renderPenaltiesValue(item.value)
+                  : item.id === "competences"
+                    ? renderCompetencesValue(item.value)
+                    : item.id === "disponiblites"
+                      ? renderDisponibilitesValue(item.value)
+                      : renderStructuredValue(item.value)}
           </div>
         </details>
       ))}
@@ -275,114 +588,274 @@ function TeacherPlanTab({
   data,
   planDraft,
   planPreview,
-  onUpdateChapterField,
-  onUpdateItemField,
-  onAddChapter,
-  onRemoveChapter,
-  onAddItem,
-  onRemoveItem,
+  planViewMode,
+  togglePlanViewMode,
+  openChapterEditor,
+  removeChapter,
+  isChapterModalOpen,
+  closeChapterModal,
+  handleChapterSave,
+  modalChapterTitle,
+  setModalChapterTitle,
+  modalChapterItems,
+  onModalItemChange,
+  addModalItem,
+  removeModalItem,
 }: {
   data: TeacherCoursePageDetails;
   planDraft: PlanDraftChapter[];
   planPreview: Array<{ chapter: string; items: string[] }>;
-  onUpdateChapterField: (id: string, value: string) => void;
-  onUpdateItemField: (chapterId: string, itemIndex: number, value: string) => void;
-  onAddChapter: () => void;
-  onRemoveChapter: (id: string) => void;
-  onAddItem: (chapterId: string) => void;
-  onRemoveItem: (chapterId: string, itemIndex: number) => void;
+  planViewMode: "edit" | "read";
+  togglePlanViewMode: () => void;
+  openChapterEditor: (chapter?: PlanDraftChapter) => void;
+  removeChapter: (id: string) => void;
+  isChapterModalOpen: boolean;
+  closeChapterModal: () => void;
+  handleChapterSave: () => void;
+  modalChapterTitle: string;
+  setModalChapterTitle: (value: string) => void;
+  modalChapterItems: string[];
+  onModalItemChange: (index: number, value: string) => void;
+  addModalItem: () => void;
+  removeModalItem: (index: number) => void;
 }) {
   return (
-    <form action={saveTeacherCoursePlanAction} className="space-y-6">
-      <input type="hidden" name="matiere_id" value={data.matiere.id} />
-      <input type="hidden" name="course_id" value={data.cours.id} />
-      <input type="hidden" name="plan" value={JSON.stringify(planPreview)} />
+    <>
+      <form action={saveTeacherCoursePlanAction} className="space-y-6">
+        <input type="hidden" name="matiere_id" value={data.matiere.id} />
+        <input type="hidden" name="course_id" value={data.cours.id} />
+        <input type="hidden" name="plan" value={JSON.stringify(planPreview)} />
 
-      <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-theme-sm dark:border-gray-800 dark:bg-white/[0.03]">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-medium uppercase tracking-[0.2em] text-brand-500">Edition structuree</div>
-            <h2 className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white/90">Plan du cours</h2>
-          </div>
-          <button
-            type="button"
-            onClick={onAddChapter}
-            className="inline-flex items-center justify-center rounded-lg border border-brand-300 px-4 py-2 text-sm font-medium text-brand-600 transition hover:bg-brand-50 dark:border-brand-500/40 dark:text-brand-300 dark:hover:bg-brand-500/10"
-          >
-            Ajouter un chapitre
-          </button>
-        </div>
-
-        <div className="mt-6 space-y-5">
-          {planDraft.map((chapter, chapterIndex) => (
-            <article key={chapter.id} className="rounded-3xl border border-gray-200 p-5 dark:border-gray-800">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-medium text-gray-900 dark:text-white/90">Chapitre {chapterIndex + 1}</div>
+        <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-theme-sm dark:border-gray-800 dark:bg-white/[0.03]">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-sm font-medium uppercase tracking-[0.2em] text-brand-500">Edition structuree</div>
+              <h2 className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white/90">Plan du cours</h2>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={togglePlanViewMode}
+                className="inline-flex items-center justify-center rounded-full border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300 dark:hover:border-brand-500/40 dark:hover:text-brand-300"
+              >
+                {planViewMode === "edit" ? "Basculer en mode lecture" : "Retour à l'édition"}
+              </button>
+              {planViewMode === "edit" ? (
                 <button
                   type="button"
-                  onClick={() => onRemoveChapter(chapter.id)}
-                  className="text-sm font-medium text-error-600 transition hover:text-error-700"
+                  onClick={() => openChapterEditor()}
+                  className="inline-flex items-center justify-center rounded-full border border-brand-300 px-4 py-2 text-sm font-medium text-brand-600 transition hover:bg-brand-50 dark:border-brand-500/40 dark:text-brand-300 dark:hover:bg-brand-500/10"
                 >
-                  Supprimer
+                  + Ajouter un chapitre
                 </button>
-              </div>
+              ) : null}
+            </div>
+          </div>
 
-              <div className="mt-4">
-                <Label htmlFor={`${chapter.id}-title`}>Titre du chapitre</Label>
-                <Input
-                  id={`${chapter.id}-title`}
-                  type="text"
-                  value={chapter.chapter}
-                  onChange={(event) => onUpdateChapterField(chapter.id, event.target.value)}
-                />
-              </div>
-
-              <div className="mt-5 space-y-3">
-                {chapter.items.map((item, itemIndex) => (
-                  <div key={`${chapter.id}-${itemIndex}`} className="flex items-start gap-3">
-                    <textarea
-                      rows={3}
-                      value={item}
-                      onChange={(event) => onUpdateItemField(chapter.id, itemIndex, event.target.value)}
-                      className={`${textareaClassName} flex-1`}
-                      placeholder="Contenu ou élément du chapitre"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => onRemoveItem(chapter.id, itemIndex)}
-                      className="mt-2 text-sm font-medium text-error-600 transition hover:text-error-700"
-                    >
-                      Retirer
-                    </button>
-                  </div>
+          <div className="mt-6">
+            {planViewMode === "read" ? (
+              <PlanReadView chapters={planPreview} />
+            ) : planDraft.length === 0 ? (
+              <article className="rounded-3xl border border-dashed border-gray-300 bg-white/60 p-6 text-sm text-gray-500 shadow-theme-sm dark:border-gray-700 dark:bg-white/[0.03] dark:text-gray-400">
+                Ajoute au moins un chapitre pour commencer le plan du cours.
+              </article>
+            ) : (
+              <div className="space-y-4">
+                {planDraft.map((chapter, chapterIndex) => (
+                  <PlanChapterCard
+                    key={chapter.id}
+                    chapter={chapter}
+                    index={chapterIndex}
+                    onEdit={() => openChapterEditor(chapter)}
+                    onDelete={() => removeChapter(chapter.id)}
+                  />
                 ))}
               </div>
+            )}
+          </div>
 
-              <div className="mt-4">
-                <button
-                  type="button"
-                  onClick={() => onAddItem(chapter.id)}
-                  className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/[0.03]"
-                >
-                  Ajouter un item
-                </button>
+          {planViewMode === "edit" ? (
+            <div className="mt-6 flex justify-end">
+              <FormSubmitButton idleLabel="Enregistrer le plan" pendingLabel="Enregistrement..." />
+            </div>
+          ) : null}
+        </section>
+      </form>
+
+      <Modal isOpen={isChapterModalOpen} onClose={closeChapterModal} className="m-4 max-w-3xl">
+        <form
+          className="space-y-6 rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900"
+          onSubmit={(event) => {
+            event.preventDefault();
+            handleChapterSave();
+          }}
+        >
+          <div>
+            <Label htmlFor="chapter-title">Titre du chapitre</Label>
+            <Input
+              id="chapter-title"
+              type="text"
+              value={modalChapterTitle}
+              onChange={(event) => setModalChapterTitle(event.target.value)}
+              placeholder="Ex: Introduction à la matière"
+            />
+          </div>
+
+          <div className="space-y-4">
+            {modalChapterItems.map((item, index) => (
+              <div key={`modal-item-${index}`} className="space-y-2">
+                <Label htmlFor={`chapter-item-${index}`}>Élément {index + 1}</Label>
+                <div className="flex gap-2">
+                  <textarea
+                    id={`chapter-item-${index}`}
+                    rows={3}
+                    value={item}
+                    onChange={(event) => onModalItemChange(index, event.target.value)}
+                    className={`${textareaClassName} flex-1`}
+                    placeholder="Ajouter un point ou un objectif pour ce chapitre"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeModalItem(index)}
+                    className="mt-2 text-sm font-medium text-error-600 transition hover:text-error-700"
+                  >
+                    Supprimer
+                  </button>
+                </div>
               </div>
-            </article>
+            ))}
+
+            <button
+              type="button"
+              onClick={() => addModalItem()}
+              className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300 dark:hover:border-brand-500/40 dark:hover:text-brand-300"
+            >
+              Ajouter un élément
+            </button>
+          </div>
+
+          <div className="flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={closeChapterModal}
+              className="rounded-full border border-gray-300 px-4 py-2 text-sm font-medium text-gray-500 transition hover:border-gray-400 dark:border-gray-600 dark:text-gray-300"
+            >
+              Annuler
+            </button>
+            <button
+              type="submit"
+              className="rounded-full bg-brand-500 px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-600"
+            >
+              Enregistrer
+            </button>
+          </div>
+        </form>
+      </Modal>
+    </>
+  );
+}
+
+function PlanChapterCard({
+  chapter,
+  index,
+  onEdit,
+  onDelete,
+}: {
+  chapter: PlanDraftChapter;
+  index: number;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const displayItems = chapter.items.map((item) => item.trim()).filter(Boolean);
+
+  return (
+    <article className="rounded-3xl border border-gray-200 bg-white/70 p-5 shadow-theme-sm dark:border-gray-800 dark:bg-white/[0.03]">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-xs uppercase tracking-[0.3em] text-gray-400 dark:text-gray-500">Chapitre {index + 1}</div>
+          <h3 className="mt-1 text-lg font-semibold text-gray-900 dark:text-white/90">
+            {chapter.chapter || "Chapitre sans titre"}
+          </h3>
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onEdit}
+            className="rounded-full border border-gray-300 px-4 py-1 text-xs font-medium text-gray-600 transition hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300 dark:hover:border-brand-500/40 dark:hover:text-brand-300"
+          >
+            Modifier
+          </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            className="rounded-full border border-error-200 px-4 py-1 text-xs font-medium text-error-600 transition hover:border-error-400 hover:text-error-700"
+          >
+            Supprimer
+          </button>
+        </div>
+      </div>
+
+      {displayItems.length > 0 ? (
+        <ul className="mt-4 space-y-2">
+          {displayItems.map((item, itemIndex) => (
+            <li
+              key={`${item}-${itemIndex}`}
+              className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+            >
+              {item}
+            </li>
           ))}
-        </div>
+        </ul>
+      ) : (
+        <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">Aucun élément structuré n'est encore défini.</p>
+      )}
+    </article>
+  );
+}
 
-        <div className="mt-6 flex justify-end">
-          <FormSubmitButton idleLabel="Enregistrer le plan" pendingLabel="Enregistrement..." />
-        </div>
-      </section>
+function PlanReadView({ chapters }: { chapters: Array<{ chapter: string; items: string[] }> }) {
+  if (chapters.length === 0) {
+    return (
+      <article className="rounded-3xl border border-dashed border-gray-300 bg-white/60 p-6 text-sm text-gray-500 shadow-theme-sm dark:border-gray-700 dark:bg-white/[0.03] dark:text-gray-400">
+        Aucun chapitre n'est encore enregistré. Passe en mode édition pour ajouter des chapitres.
+      </article>
+    );
+  }
 
-      {planPreview.length > 0 ? <StudentCoursePlanCarousel chapters={planPreview} /> : null}
-      {planPreview.length === 0 ? (
-        <article className="border border-dashed border-gray-300 bg-white p-6 text-sm text-gray-500 shadow-theme-sm dark:border-gray-700 dark:bg-white/[0.03] dark:text-gray-400">
-          Ajoute au moins un chapitre valide pour générer le plan du cours.
-        </article>
-      ) : null}
-    </form>
+  return (
+    <div className="space-y-4">
+      {chapters.map((chapter, index) => {
+        const displayItems = chapter.items.filter((item) => item.trim().length > 0);
+
+        return (
+          <article
+            key={`${chapter.chapter}-${index}`}
+            className="rounded-3xl border border-gray-200 bg-white/80 px-5 py-5 shadow-theme-sm dark:border-gray-800 dark:bg-white/[0.03]"
+          >
+            <div>
+              <div className="text-xs uppercase tracking-[0.3em] text-gray-400 dark:text-gray-500">Chapitre {index + 1}</div>
+              <h3 className="mt-1 text-lg font-semibold text-gray-900 dark:text-white/90">
+                {chapter.chapter || "Chapitre sans titre"}
+              </h3>
+            </div>
+            {displayItems.length > 0 ? (
+              <ul className="mt-4 space-y-2">
+                {displayItems.map((item, itemIndex) => (
+                  <li
+                    key={`${index}-${item}-${itemIndex}`}
+                    className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                  >
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">Aucun contenu défini pour ce chapitre.</p>
+            )}
+          </article>
+        );
+      })}
+    </div>
   );
 }
 
@@ -738,4 +1211,3 @@ function TeacherActivitiesTab({ title, activities }: { title: string; activities
     </section>
   );
 }
-      <DescriptorFieldModals data={data} openField={modalField} onClose={() => setModalField(null)} />

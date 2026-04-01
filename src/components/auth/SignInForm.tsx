@@ -15,7 +15,48 @@ type SignInFormProps = {
   selectedTab: AuthTab;
 };
 
+const parseStructuredError = (value?: string) => {
+  if (!value) {
+    return null;
+  }
+
+  if (!value.trim().startsWith("{")) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
+
+    const general = typeof parsed.general === "string" ? parsed.general.trim() : null;
+    const specifics = Array.isArray(parsed.speficique)
+      ? parsed.speficique.filter((item) => typeof item === "string" && item.trim().length > 0)
+      : Array.isArray(parsed.specifique)
+        ? parsed.specifique.filter((item) => typeof item === "string" && item.trim().length > 0)
+        : [];
+
+    if (!general && specifics.length === 0) {
+      return null;
+    }
+
+    return [general, ...specifics.map((line) => `- ${line.trim()}`)]
+      .filter((line): line is string => Boolean(line && line.trim().length > 0))
+      .join("\n");
+  } catch {
+    return null;
+  }
+};
+
 const getErrorMessage = (error?: string) => {
+  const structured = parseStructuredError(error);
+
+  if (structured) {
+    return structured;
+  }
+
   switch (error) {
     case "access_denied":
       return "Votre compte est connecte, mais il ne dispose pas d'un acces aux vues administratives.";

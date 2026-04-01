@@ -281,6 +281,34 @@ export default function UserDropdown({ user }: UserDropdownProps) {
               Mon profil
             </DropdownItem>
           </li>
+
+          {user.role === "titulaire" ? (
+            <li>
+              <DropdownItem
+                onItemClick={closeDropdown}
+                tag="a"
+                href="/jury"
+                className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+              >
+                <svg
+                  className="fill-gray-500 group-hover:fill-gray-700 dark:fill-gray-400 dark:group-hover:fill-gray-300"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M4 5C4 4.44772 4.44772 4 5 4H19C19.5523 4 20 4.44772 20 5V9H4V5ZM4 11H20V19C20 19.5523 19.5523 20 19 20H5C4.44772 20 4 19.5523 4 19V11ZM6 13V17H18V13H6Z"
+                    fill=""
+                  />
+                </svg>
+                Jury
+              </DropdownItem>
+            </li>
+          ) : null}
         </ul>
 
         <form action={signOutAction} className="mt-3">

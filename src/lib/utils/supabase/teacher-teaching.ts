@@ -380,6 +380,12 @@ export const getTeacherCoursePageData = async (matiereId: string) => {
   } satisfies TeacherCoursePageDetails;
 };
 
+const slugify = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
 export const updateTeacherCourseDescriptor = async (formData: FormData) => {
   const teacherAgentId = await getCurrentAuthenticatedTeacherAgentId();
   const courseId = typeof formData.get("course_id") === "string" ? formData.get("course_id") : null;
@@ -391,7 +397,7 @@ export const updateTeacherCourseDescriptor = async (formData: FormData) => {
   const admin = createAdminClient();
   const { data: course, error: courseError } = await admin
     .from("cours")
-    .select("id, titulaire_id")
+    .select("id, titulaire_id, matiere_id, slug")
     .eq("id", courseId)
     .maybeSingle();
 
@@ -403,18 +409,43 @@ export const updateTeacherCourseDescriptor = async (formData: FormData) => {
     throw new Error("teacher_access_denied");
   }
 
-  const slugValue = formData.get("slug");
-  const slug = typeof slugValue === "string" && slugValue.trim().length > 0 ? slugValue.trim() : null;
+  const payload: Record<string, unknown> = {};
+  const setField = (key: string, parser: (value: FormDataEntryValue) => unknown) => {
+    if (!formData.has(key)) {
+      return;
+    }
 
-  const payload = {
-    description: parseStructuredInput(formData.get("description")),
-    objectifs: parseStructuredInput(formData.get("objectifs")),
-    methodologies: parseStructuredInput(formData.get("methodologies")),
-    penalites: parseStructuredInput(formData.get("penalites")),
-    competences: parseStructuredInput(formData.get("competences")),
-    disponiblites: parseStructuredInput(formData.get("disponiblites")),
-    slug,
+    const value = formData.get(key);
+    if (value !== null) {
+      payload[key] = parser(value);
+    }
   };
+
+  setField("description", parseStructuredInput);
+  setField("objectifs", parseStructuredInput);
+  setField("methodologies", parseStructuredInput);
+  setField("penalites", parseStructuredInput);
+  setField("competences", parseStructuredInput);
+  setField("disponiblites", parseStructuredInput);
+
+  if (!course.slug) {
+    const { data: matiereData, error: matiereError } = await admin
+      .from("matieres")
+      .select("designation")
+      .eq("id", course.matiere_id)
+      .maybeSingle();
+
+    if (matiereError) {
+      throw new Error(matiereError.message);
+    }
+
+    const defaultSlug = matiereData?.designation ? slugify(matiereData.designation) : `cours-${courseId}`;
+    payload.slug = defaultSlug;
+  }
+
+  if (Object.keys(payload).length === 0) {
+    return;
+  }
 
   const { error } = await admin.from("cours").update(payload).eq("id", courseId);
 
