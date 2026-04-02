@@ -19,6 +19,7 @@ export interface UniteNote {
 export interface SemestreNote {
   _id: string;
   designation: string;
+  credit: number;
   unites: UniteNote[];
 }
 
@@ -73,6 +74,7 @@ export interface UniteResultat {
 export interface SemestreResultat {
   _id: string;
   designation: string;
+  credit: number;
   ncv: number;
   ncnv: number;
   totalObtenu: number;
@@ -112,6 +114,8 @@ type SessionMoyenneAccumulator = {
   points: number;
   credits: number;
 };
+
+type SessionCreditMap = Record<SessionType, number>;
 
 export class NoteManager {
   private static round(value: number): number {
@@ -255,11 +259,47 @@ export class NoteManager {
     }, {} as Record<SessionType, SessionSummary>);
   }
 
+  private static buildSessionCredits(defaultValue = 0): SessionCreditMap {
+    return SESSION_TYPES.reduce(
+      (acc, type) => ({
+        ...acc,
+        [type]: defaultValue,
+      }),
+      {} as SessionCreditMap,
+    );
+  }
+
+  private static applySemestreCreditTotals(
+    summaries: Record<SessionType, SessionSummary>,
+    semestreCredit: number,
+  ): Record<SessionType, SessionSummary> {
+    if (semestreCredit <= 0) {
+      return summaries;
+    }
+
+    const semestreTotalMax = semestreCredit * 20;
+
+    return SESSION_TYPES.reduce((acc, type) => {
+      const summary = summaries[type];
+      const totalObtenu = this.round((summary.pourcentage / 100) * semestreTotalMax);
+
+      acc[type] = {
+        ...summary,
+        totalObtenu,
+        totalMax: semestreTotalMax,
+      };
+
+      return acc;
+    }, {} as Record<SessionType, SessionSummary>);
+  }
+
   private static calculerResultatSemestre(
     semestre: SemestreNote,
   ): SemestreResultat {
     const unitesResultat: UniteResultat[] = [];
     const sessionAccumulator = this.buildSessionAccumulator();
+    const validatedCredits = this.buildSessionCredits();
+    const semestreCredit = semestre.credit || 0;
 
     for (const unite of semestre.unites) {
       const { sessions, elements } = this.calculerMoyenneUnite(unite);
@@ -272,9 +312,7 @@ export class NoteManager {
         aggregator.totalObtenu += summary.moyenne * credit;
         aggregator.totalMax += 20 * credit;
         if (summary.isValide) {
-          aggregator.ncv += credit;
-        } else {
-          aggregator.ncnv += credit;
+          validatedCredits[type] += credit;
         }
       });
 
@@ -290,12 +328,30 @@ export class NoteManager {
       });
     }
 
-    const sessions = this.buildSessionSummaries(sessionAccumulator);
+    const sessions = this.applySemestreCreditTotals(
+      this.buildSessionSummaries(sessionAccumulator),
+      semestreCredit,
+    );
+
+    SESSION_TYPES.forEach((type) => {
+      const session = sessions[type];
+      const totalCredits = semestreCredit > 0 ? semestreCredit : session.ncv + session.ncnv;
+      const ncv = this.round(validatedCredits[type]);
+      const ncnv = this.round(Math.max(totalCredits - ncv, 0));
+
+      sessions[type] = {
+        ...session,
+        ncv,
+        ncnv,
+      };
+    });
+
     const bestSessionSummary = sessions.best;
 
     return {
       _id: semestre._id,
       designation: semestre.designation,
+      credit: semestre.credit || 0,
       ncv: bestSessionSummary.ncv,
       ncnv: bestSessionSummary.ncnv,
       totalObtenu: bestSessionSummary.totalObtenu,
@@ -312,6 +368,7 @@ export class NoteManager {
   ): ResultatEtudiant {
     const semestresResultat: SemestreResultat[] = [];
     const sessionAccumulator = this.buildSessionAccumulator();
+    const promotionCredits = this.buildSessionCredits();
 
     for (const semestre of notesEtudiant.semestres) {
       const resultatSemestre = this.calculerResultatSemestre(semestre);
@@ -323,11 +380,25 @@ export class NoteManager {
         aggregator.totalObtenu += summary.totalObtenu;
         aggregator.totalMax += summary.totalMax;
         aggregator.ncv += summary.ncv;
-        aggregator.ncnv += summary.ncnv;
+        promotionCredits[type] += resultatSemestre.credit || 0;
       });
     }
 
     const promotionSummaries = this.buildSessionSummaries(sessionAccumulator);
+
+    SESSION_TYPES.forEach((type) => {
+      const summary = promotionSummaries[type];
+      const totalCredits = promotionCredits[type] > 0 ? promotionCredits[type] : summary.ncv + summary.ncnv;
+      const ncv = this.round(summary.ncv);
+      const ncnv = this.round(Math.max(totalCredits - ncv, 0));
+
+      promotionSummaries[type] = {
+        ...summary,
+        ncv,
+        ncnv,
+      };
+    });
+
     const bestSummary = promotionSummaries.best;
 
     return {

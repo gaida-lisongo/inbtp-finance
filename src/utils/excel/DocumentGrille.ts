@@ -12,6 +12,7 @@ import { StyleOptions } from "./Document";
 type DocumentGrilleOptions = {
   sessionType?: SessionType;
   includeAnnualSheet?: boolean;
+  includeSemesterSheets?: boolean;
 };
 
 export default class DocumentGrille extends DocumentJury {
@@ -23,10 +24,13 @@ export default class DocumentGrille extends DocumentJury {
     const sessionType = options?.sessionType ?? "best";
     const includeAnnualSheet =
       options?.includeAnnualSheet ?? sessionType === "best";
+    const includeSemesterSheets = options?.includeSemesterSheets ?? true;
     // 1. Feuilles semestrielles
-    const nbSemestres = resultats[0].semestres.length;
-    for (let i = 0; i < nbSemestres; i++) {
-      this.renderGrilleSheet(resultats, identity, i, sessionType);
+    if (includeSemesterSheets) {
+      const nbSemestres = resultats[0].semestres.length;
+      for (let i = 0; i < nbSemestres; i++) {
+        this.renderGrilleSheet(resultats, identity, i, sessionType);
+      }
     }
 
     // 2. Grille Globale (Récapitulative)
@@ -190,9 +194,9 @@ export default class DocumentGrille extends DocumentJury {
       pourcentage,
       ncv,
       ncnv,
-      mention: summary.mention,
-      appreciation: isAdjourne ? "AJ" : "SAT",
-      decision: isAdjourne ? "D" : "P",
+      mention: this.getMentionCode(pourcentage),
+      appreciation: isAdjourne ? "AJOURNÉ(E)" : "SATISFAISANT(E)",
+      decision: isAdjourne ? "AJOURNÉ" : "ADMIS",
     };
   }
 
@@ -234,7 +238,7 @@ export default class DocumentGrille extends DocumentJury {
       "C: ≥ 70% | D: ≥ 60%",
       "E: ≥ 50% | F: ≥ 40%",
       "G: ≥ 35% | H: < 35%",
-      "APPR: S=Statisfaction / A=Ajournée",
+      "APPR: SATISFAISANT(E) / AJOURNÉ(E)",
       "AJOURNÉ si NCV < 75%",
     ];
 

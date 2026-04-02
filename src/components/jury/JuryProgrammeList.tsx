@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { startTransition } from "react";
 
 import DocumentGeneratorModal from "@/components/jury/DocumentGeneratorModal";
 import ProgrammeDeliberationCard from "@/components/jury/ProgrammeDeliberationCard";
@@ -15,6 +16,7 @@ type JuryProgrammeListProps = {
 export default function JuryProgrammeList({ jury, programmes }: JuryProgrammeListProps) {
   const [activeProgramme, setActiveProgramme] = useState<ProgrammeRecord | null>(null);
   const [isModalOpen, setModalOpen] = useState(false);
+  const [isGenerating, setGenerating] = useState(false);
 
   const handleDocumentRequest = useCallback((programme: ProgrammeRecord) => {
     setActiveProgramme(programme);
@@ -24,6 +26,78 @@ export default function JuryProgrammeList({ jury, programmes }: JuryProgrammeLis
   const closeModal = useCallback(() => {
     setModalOpen(false);
   }, []);
+
+  const handleGenerateDocument = useCallback(
+    async ({
+      selectedGrids,
+      tab,
+    }: {
+      selectedGrids: string[];
+      tab: "grilles" | "pv" | "palmares";
+    }) => {
+      if (!activeProgramme || !jury.id) {
+        return;
+      }
+
+      setGenerating(true);
+
+      try {
+        let response: Response;
+        let fallbackFilename = `document-${activeProgramme.id}.xlsx`;
+
+        if (tab === "palmares") {
+          response = await fetch(
+            `/api/jury/jury/${jury.id}/promotion/${activeProgramme.id}/documents/palmares`,
+            { method: "GET" },
+          );
+          fallbackFilename = `palmares-${activeProgramme.id}.xlsx`;
+        } else if (tab === "grilles") {
+          response = await fetch(
+            `/api/jury/jury/${jury.id}/promotion/${activeProgramme.id}/documents/grilles`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ selectedGrids }),
+            },
+          );
+          fallbackFilename = `grilles-${activeProgramme.id}.xlsx`;
+        } else if (tab === "pv") {
+          response = await fetch(
+            `/api/jury/jury/${jury.id}/promotion/${activeProgramme.id}/documents/pv`,
+            { method: "GET" },
+          );
+          fallbackFilename = `pv-${activeProgramme.id}.xlsx`;
+        } else {
+          throw new Error("Le document demandé n'est pas encore disponible.");
+        }
+
+        if (!response.ok) {
+          const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(payload?.error || "Impossible de générer le document.");
+        }
+
+        const blob = await response.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = window.document.createElement("a");
+        const disposition = response.headers.get("Content-Disposition");
+        const filenameMatch = disposition?.match(/filename="([^"]+)"/i);
+
+        link.href = downloadUrl;
+        link.download = filenameMatch?.[1] ?? fallbackFilename;
+        window.document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(downloadUrl);
+
+        startTransition(() => {
+          setModalOpen(false);
+        });
+      } finally {
+        setGenerating(false);
+      }
+    },
+    [activeProgramme, jury.id],
+  );
 
   const programmeCountText = useMemo(() => {
     return programmes.length === 0
@@ -64,9 +138,8 @@ export default function JuryProgrammeList({ jury, programmes }: JuryProgrammeLis
         isOpen={isModalOpen}
         programmeName={activeProgramme?.designation ?? null}
         onClose={closeModal}
-        onGenerate={({ selectedGrids, tab }) => {
-          console.log("Génération demandée", { programme: activeProgramme, selectedGrids, tab });
-        }}
+        onGenerate={handleGenerateDocument}
+        isGenerating={isGenerating}
       />
     </>
   );

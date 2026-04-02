@@ -35,6 +35,7 @@ export type JuryWithMembers = JuryRecord & {
     id: string;
     designation: string | null;
   } | null;
+  password: string | null;
 };
 
 type AgentSummary = Pick<
@@ -247,7 +248,7 @@ export const getNotesForProgramme = async (programmeId: string) => {
 
   const { data: semestresData, error: semestresError } = await admin
     .from("semestres")
-    .select("id, created_at, designation")
+    .select("id, created_at, designation, credits")
     .eq("programme_id", programmeId)
     .order("created_at", { ascending: true });
 
@@ -258,6 +259,7 @@ export const getNotesForProgramme = async (programmeId: string) => {
   const semestres = (semestresData ?? []) as Array<{
     id: string;
     designation: string | null;
+    credits: number | null;
     created_at: string;
   }>;
 
@@ -381,6 +383,7 @@ export const getNotesForProgramme = async (programmeId: string) => {
         return {
           _id: semestre.id,
           designation: semestre.designation ?? "Semestre",
+          credit: semestre.credits ?? 0,
           unites: semUnites.map((unite) => {
             const uniteMatieres = matieresByUniteId.get(unite.id) ?? [];
             return {

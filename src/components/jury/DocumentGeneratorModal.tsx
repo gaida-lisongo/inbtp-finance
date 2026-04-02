@@ -10,6 +10,7 @@ type DocumentGeneratorModalProps = {
   programmeName: string | null;
   onClose: () => void;
   onGenerate?: (options: { selectedGrids: string[]; tab: DocumentTab }) => void;
+  isGenerating?: boolean;
 };
 
 const gridOptions = [
@@ -29,6 +30,7 @@ export default function DocumentGeneratorModal({
   onClose,
   programmeName,
   onGenerate,
+  isGenerating = false,
 }: DocumentGeneratorModalProps) {
   const [activeTab, setActiveTab] = useState<DocumentTab>("grilles");
   const [selectedGrids, setSelectedGrids] = useState<string[]>([
@@ -42,9 +44,9 @@ export default function DocumentGeneratorModal({
   }, []);
 
   const handleGenerate = useCallback(() => {
+    if (isGenerating) return;
     onGenerate?.({ selectedGrids, tab: activeTab });
-    onClose();
-  }, [activeTab, onClose, onGenerate, selectedGrids]);
+  }, [activeTab, isGenerating, onGenerate, selectedGrids]);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="xl">
@@ -63,6 +65,7 @@ export default function DocumentGeneratorModal({
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
+              disabled={isGenerating}
               className={`rounded-full px-4 py-1 text-sm font-semibold transition ${
                 activeTab === tab.id
                   ? "bg-indigo-600 text-white"
@@ -109,15 +112,17 @@ export default function DocumentGeneratorModal({
         <div className="flex justify-end gap-3 pt-3">
           <button
             onClick={onClose}
+            disabled={isGenerating}
             className="rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-600 dark:border-gray-800 dark:text-gray-300"
           >
             Annuler
           </button>
           <button
             onClick={handleGenerate}
-            className="rounded-full bg-indigo-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500"
+            disabled={isGenerating}
+            className="rounded-full bg-indigo-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-60"
           >
-            Générer
+            {isGenerating ? "Génération..." : "Générer"}
           </button>
         </div>
       </div>

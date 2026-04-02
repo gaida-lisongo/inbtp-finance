@@ -289,9 +289,6 @@ export async function POST(
     return NextResponse.json({ error: "Mot de passe requis." }, { status: 400 });
   }
 
-  console.log('Password received for jury:', password);
-  console.log('Actual jury password:', jury);
-
   if ((jury.password ?? "") !== password) {
     return NextResponse.json({ error: "Mot de passe incorrect." }, { status: 403 });
   }
