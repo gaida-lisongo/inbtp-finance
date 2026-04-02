@@ -4,15 +4,20 @@ import NotificationDropdown from "@/components/header/NotificationDropdown";
 import UserDropdown from "@/components/header/UserDropdown";
 import { useSidebar } from "@/context/SidebarContext";
 import type { AuthenticatedUser } from "@/lib/utils/supabase/session";
+import type { TeacherRecoursNotificationItem } from "@/lib/utils/supabase/teacher-notifications";
 import Image from "next/image";
 import Link from "next/link";
 import React, { useEffect, useRef, useState } from "react";
 
 type AppHeaderProps = {
   user: AuthenticatedUser;
+  teacherNotifications?: {
+    items: TeacherRecoursNotificationItem[];
+    pendingCount: number;
+  };
 };
 
-const AppHeader: React.FC<AppHeaderProps> = ({ user }) => {
+const AppHeader: React.FC<AppHeaderProps> = ({ user, teacherNotifications }) => {
   const [isApplicationMenuOpen, setApplicationMenuOpen] = useState(false);
 
   const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
@@ -170,7 +175,11 @@ const AppHeader: React.FC<AppHeaderProps> = ({ user }) => {
             <ThemeToggleButton />
             {/* <!-- Dark Mode Toggler --> */}
 
-           <NotificationDropdown />
+           <NotificationDropdown
+             user={user}
+             items={teacherNotifications?.items ?? []}
+             pendingCount={teacherNotifications?.pendingCount ?? 0}
+           />
             {/* <!-- Notification Menu Area --> */}
           </div>
           {/* <!-- User Area --> */}

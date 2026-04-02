@@ -15,9 +15,9 @@ import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import { parsePlanChapters, renderStructuredValue } from "@/components/student/course/course-overview-shared";
 import { Modal } from "@/components/ui/modal";
-import type { TeacherCourseActivity, TeacherCoursePageDetails } from "@/lib/utils/supabase/teacher-teaching";
+import type { TeacherCourseActivity, TeacherCourseCotationStudent, TeacherCoursePageDetails } from "@/lib/utils/supabase/teacher-teaching";
 
-type TeacherTab = "descriptor" | "plan" | "qcm" | "tp";
+type TeacherTab = "descriptor" | "plan" | "qcm" | "tp" | "cotation";
 type PlanDraftChapter = {
   id: string;
   chapter: string;
@@ -29,6 +29,7 @@ const tabs: Array<{ id: TeacherTab; label: string }> = [
   { id: "plan", label: "Plan du Cours" },
   { id: "qcm", label: "QCM" },
   { id: "tp", label: "TP" },
+  { id: "cotation", label: "Fiche de cotation" },
 ];
 
 const tabClassName = (isActive: boolean) =>
@@ -76,7 +77,9 @@ export default function TeacherCourseWorkspace({
   data: TeacherCoursePageDetails;
   initialTab?: string;
 }) {
-  const [activeTab, setActiveTab] = useState<TeacherTab>(initialTab === "plan" || initialTab === "qcm" || initialTab === "tp" ? initialTab : "descriptor");
+  const [activeTab, setActiveTab] = useState<TeacherTab>(
+    initialTab === "plan" || initialTab === "qcm" || initialTab === "tp" || initialTab === "cotation" ? initialTab : "descriptor",
+  );
   const [planDraft, setPlanDraft] = useState<PlanDraftChapter[]>(() => buildPlanDraft(data.courseDetails?.plan ?? null));
   const [modalField, setModalField] = useState<null | "description" | "objectifs" | "methodologies" | "penalites" | "competences" | "disponiblites">(null);
   const [planViewMode, setPlanViewMode] = useState<"edit" | "read">("edit");
@@ -240,6 +243,9 @@ export default function TeacherCourseWorkspace({
               onViewNotes={openNotesModal}
             />
           ) : null}
+          {activeTab === "cotation" ? (
+            <TeacherCotationTab data={data} />
+          ) : null}
         </>
       )}
       <ActivityNotesModal activity={notesModalActivity} onClose={closeNotesModal} />
@@ -251,6 +257,727 @@ export default function TeacherCourseWorkspace({
       />
       <DescriptorFieldModals data={data} openField={modalField} onClose={() => setModalField(null)} />
     </div>
+  );
+}
+
+function TeacherCotationTab({ data }: { data: TeacherCoursePageDetails }) {
+  type CsvPreviewStatus = "ready" | "already_saved" | "not_found" | "invalid";
+  type CsvPreviewRow = {
+    reference: string;
+    studentName: string;
+    cc: string;
+    examen: string;
+    rattrapage: string;
+    rachat: string;
+    status: CsvPreviewStatus;
+    reason: string;
+    saveRow?: {
+      studentId: string;
+      cc: number;
+      examen: number;
+      rattrapage: number | null;
+      rachat: number | null;
+    };
+  };
+
+  const [search, setSearch] = useState("");
+  const [draft, setDraft] = useState<
+    Record<string, { cc: string; examen: string; rattrapage: string; rachat: string }>
+  >({});
+  const [csvContent, setCsvContent] = useState("");
+  const [csvFilename, setCsvFilename] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
+  const [isSavingImport, setIsSavingImport] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [csvPreviewRows, setCsvPreviewRows] = useState<CsvPreviewRow[]>([]);
+
+  const students = data.cotationStudents;
+
+  const filteredStudents = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) {
+      return students;
+    }
+
+    return students.filter((row) => {
+      const label = `${row.reference ?? ""} ${[row.student.prenom, row.student.post_nom, row.student.nom].filter(Boolean).join(" ")} ${row.student.email ?? ""}`.toLowerCase();
+      return label.includes(query);
+    });
+  }, [search, students]);
+
+  const parseRaw = (value: string) => {
+    if (!value.trim()) {
+      return { value: null as number | null, isValid: true };
+    }
+
+    const parsed = Number(value.replace(",", "."));
+    if (!Number.isFinite(parsed)) {
+      return { value: null as number | null, isValid: false };
+    }
+
+    return { value: parsed, isValid: true };
+  };
+
+  const inRange = (value: number | null, max: number) => value === null || (value >= 0 && value <= max);
+
+  const detectCsvDelimiter = (row: string): ";" | "," => {
+    let inQuotes = false;
+    let semicolonCount = 0;
+    let commaCount = 0;
+
+    for (let index = 0; index < row.length; index += 1) {
+      const char = row[index];
+      const nextChar = row[index + 1];
+
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          index += 1;
+        } else {
+          inQuotes = !inQuotes;
+        }
+        continue;
+      }
+
+      if (!inQuotes) {
+        if (char === ";") {
+          semicolonCount += 1;
+        } else if (char === ",") {
+          commaCount += 1;
+        }
+      }
+    }
+
+    return semicolonCount >= commaCount ? ";" : ",";
+  };
+
+  const splitCsvRow = (row: string, delimiter: ";" | ",") => {
+    const cells: string[] = [];
+    let current = "";
+    let inQuotes = false;
+
+    for (let index = 0; index < row.length; index += 1) {
+      const char = row[index];
+      const nextChar = row[index + 1];
+
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          current += '"';
+          index += 1;
+        } else {
+          inQuotes = !inQuotes;
+        }
+        continue;
+      }
+
+      if (char === delimiter && !inQuotes) {
+        cells.push(current);
+        current = "";
+        continue;
+      }
+
+      current += char;
+    }
+
+    cells.push(current);
+    return cells.map((cell) => cell.trim());
+  };
+
+  const getDraftValue = (
+    student: TeacherCourseCotationStudent,
+    field: "cc" | "examen" | "rattrapage" | "rachat",
+  ) => {
+    const local = draft[student.student.id]?.[field];
+    if (local !== undefined) {
+      return local;
+    }
+
+    const remote = student.cotation?.[field];
+    return remote === null || remote === undefined ? "" : String(remote);
+  };
+
+  const pendingRows = students
+    .filter((student) => !student.cotation?.id)
+    .map((student) => {
+      const ccRaw = getDraftValue(student, "cc");
+      const examenRaw = getDraftValue(student, "examen");
+      const rattrapageRaw = getDraftValue(student, "rattrapage");
+      const rachatRaw = getDraftValue(student, "rachat");
+
+      const cc = parseRaw(ccRaw);
+      const examen = parseRaw(examenRaw);
+      const rattrapage = parseRaw(rattrapageRaw);
+      const rachat = parseRaw(rachatRaw);
+
+      if (!cc.isValid || !examen.isValid || !rattrapage.isValid || !rachat.isValid) {
+        return null;
+      }
+
+      if (!inRange(cc.value, 10) || !inRange(examen.value, 10) || !inRange(rattrapage.value, 20) || !inRange(rachat.value, 20)) {
+        return null;
+      }
+
+      if (cc.value === null || examen.value === null) {
+        return null;
+      }
+
+      if (rachat.value !== null && rattrapage.value === null) {
+        return null;
+      }
+
+      return {
+        studentId: student.student.id,
+        cc: cc.value,
+        examen: examen.value,
+        rattrapage: rattrapage.value,
+        rachat: rachat.value,
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => Boolean(row));
+
+  const importRowsToSave = useMemo(
+    () => csvPreviewRows.filter((row) => row.status === "ready" && row.saveRow).map((row) => row.saveRow!),
+    [csvPreviewRows],
+  );
+
+  const importStatusStyles: Record<CsvPreviewStatus, string> = {
+    ready: "bg-brand-100 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300",
+    already_saved: "bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200",
+    not_found: "bg-warning-100 text-warning-700 dark:bg-warning-500/20 dark:text-warning-300",
+    invalid: "bg-error-100 text-error-700 dark:bg-error-500/20 dark:text-error-300",
+  };
+
+  const importStatusLabel: Record<CsvPreviewStatus, string> = {
+    ready: "Prêt",
+    already_saved: "Déjà coté",
+    not_found: "Introuvable",
+    invalid: "Invalide",
+  };
+
+  const redirectWithStatus = (status: "success" | "error", message: string) => {
+    const params = new URLSearchParams({
+      tab: "cotation",
+      status,
+      message,
+    });
+    window.location.href = `/enseignant/cours/${data.matiere.id}?${params.toString()}`;
+  };
+
+  const handleCsvImport = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setLocalError(null);
+    setCsvPreviewRows([]);
+
+    if (!csvContent.trim()) {
+      setLocalError("Veuillez sélectionner un fichier CSV avant l'import.");
+      return;
+    }
+
+    setIsImporting(true);
+
+    try {
+      const normalized = csvContent.replace(/\r/g, "").trim();
+      const lines = normalized.split("\n").filter((line) => line.trim().length > 0);
+
+      if (lines.length < 2) {
+        setLocalError("Le fichier CSV est vide ou ne contient pas de lignes de cotes.");
+        return;
+      }
+      const delimiter = detectCsvDelimiter(lines[0]);
+
+      const studentByReference = new Map(
+        students
+          .filter((student) => student.reference && student.reference.trim().length > 0)
+          .map((student) => [student.reference!.trim().toLowerCase(), student] as const),
+      );
+
+      const previewRows: CsvPreviewRow[] = [];
+
+      for (const line of lines.slice(1)) {
+        const cells = splitCsvRow(line, delimiter);
+        const reference = cells[0]?.trim() ?? "";
+
+        if (!reference) {
+          continue;
+        }
+
+        const student = studentByReference.get(reference.toLowerCase());
+        const ccRaw = cells[2] ?? "";
+        const examenRaw = cells[3] ?? "";
+        const rattrapageRaw = cells[4] ?? "";
+        const rachatRaw = cells[5] ?? "";
+
+        if (!student) {
+          previewRows.push({
+            reference,
+            studentName: "Étudiant introuvable",
+            cc: ccRaw,
+            examen: examenRaw,
+            rattrapage: rattrapageRaw,
+            rachat: rachatRaw,
+            status: "not_found",
+            reason: "Référence absente de la promotion.",
+          });
+          continue;
+        }
+
+        const fullName =
+          [student.student.prenom, student.student.post_nom, student.student.nom].filter(Boolean).join(" ").trim() ||
+          student.student.email ||
+          student.student.id;
+
+        if (student.cotation?.id) {
+          previewRows.push({
+            reference,
+            studentName: fullName,
+            cc: ccRaw,
+            examen: examenRaw,
+            rattrapage: rattrapageRaw,
+            rachat: rachatRaw,
+            status: "already_saved",
+            reason: "Cotation déjà enregistrée.",
+          });
+          continue;
+        }
+
+        const cc = parseRaw(ccRaw);
+        const examen = parseRaw(examenRaw);
+        const rattrapage = parseRaw(rattrapageRaw);
+        const rachat = parseRaw(rachatRaw);
+
+        let reason = "";
+
+        if (!cc.isValid || !examen.isValid || !rattrapage.isValid || !rachat.isValid) {
+          reason = "Format de note invalide.";
+        } else if (!inRange(cc.value, 10)) {
+          reason = "CC doit être entre 0 et 10.";
+        } else if (!inRange(examen.value, 10)) {
+          reason = "Examen doit être entre 0 et 10.";
+        } else if (!inRange(rattrapage.value, 20)) {
+          reason = "Rattrapage doit être entre 0 et 20.";
+        } else if (!inRange(rachat.value, 20)) {
+          reason = "Rachat doit être entre 0 et 20.";
+        } else if (cc.value === null || examen.value === null) {
+          reason = "CC et Examen sont obligatoires.";
+        } else if (rachat.value !== null && rattrapage.value === null) {
+          reason = "Le rachat nécessite une note de rattrapage.";
+        }
+
+        if (reason) {
+          previewRows.push({
+            reference,
+            studentName: fullName,
+            cc: ccRaw,
+            examen: examenRaw,
+            rattrapage: rattrapageRaw,
+            rachat: rachatRaw,
+            status: "invalid",
+            reason,
+          });
+          continue;
+        }
+
+        previewRows.push({
+          reference,
+          studentName: fullName,
+          cc: ccRaw,
+          examen: examenRaw,
+          rattrapage: rattrapageRaw,
+          rachat: rachatRaw,
+          status: "ready",
+          reason: "Ligne valide pour enregistrement.",
+          saveRow: {
+            studentId: student.student.id,
+            cc: cc.value as number,
+            examen: examen.value as number,
+            rattrapage: rattrapage.value,
+            rachat: rachat.value,
+          },
+        });
+      }
+
+      if (previewRows.length === 0) {
+        setLocalError("Aucune ligne exploitable trouvée dans ce fichier.");
+        return;
+      }
+
+      setDraft((current) => {
+        const next = { ...current };
+
+        for (const row of previewRows) {
+          if (row.status !== "ready" || !row.saveRow) {
+            continue;
+          }
+
+          next[row.saveRow.studentId] = {
+            cc: row.cc,
+            examen: row.examen,
+            rattrapage: row.rattrapage,
+            rachat: row.rachat,
+          };
+        }
+
+        return next;
+      });
+
+      setCsvPreviewRows(previewRows);
+    } catch {
+      setLocalError("Erreur réseau pendant l'import CSV.");
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleSaveImportedRows = async () => {
+    setLocalError(null);
+
+    if (importRowsToSave.length === 0) {
+      setLocalError("Aucune ligne importée valide à enregistrer.");
+      return;
+    }
+
+    setIsSavingImport(true);
+
+    try {
+      const response = await fetch(`/api/teacher/cours/${data.matiere.id}/cotation/save`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          rows: importRowsToSave,
+        }),
+      });
+
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+
+      if (!response.ok) {
+        redirectWithStatus("error", payload?.error || "cotation_save_failed");
+        return;
+      }
+
+      redirectWithStatus("success", "cotation_saved");
+    } catch {
+      setLocalError("Erreur réseau pendant l'enregistrement des cotes importées.");
+    } finally {
+      setIsSavingImport(false);
+    }
+  };
+
+  const handleSaveCotation = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setLocalError(null);
+
+    if (pendingRows.length === 0) {
+      redirectWithStatus("error", "invalid_cotation_rows");
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const response = await fetch(`/api/teacher/cours/${data.matiere.id}/cotation/save`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          rows: pendingRows,
+        }),
+      });
+
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+
+      if (!response.ok) {
+        redirectWithStatus("error", payload?.error || "cotation_save_failed");
+        return;
+      }
+
+      redirectWithStatus("success", "cotation_saved");
+    } catch {
+      setLocalError("Erreur réseau pendant l'enregistrement des cotes.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <section className="space-y-6 rounded-3xl border border-gray-200 bg-white p-6 shadow-theme-sm dark:border-gray-800 dark:bg-white/[0.03]">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <div className="text-sm font-medium uppercase tracking-[0.2em] text-brand-500">
+            Fiche de cotation
+          </div>
+          <h2 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white/90">
+            Notes de la matière
+          </h2>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            CC/10 et Examen/10 obligatoires. Rattrapage/20 et Rachat/20 sont optionnels. Les cotes déjà enregistrées sont verrouillées.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <a
+            href={`/api/teacher/cours/${data.matiere.id}/cotation/template`}
+            className="rounded-full border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:border-brand-400 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300"
+          >
+            Télécharger le template CSV
+          </a>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-gray-200 p-4 dark:border-gray-800">
+        <form onSubmit={handleCsvImport} className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            onChange={async (event) => {
+              const file = event.target.files?.[0];
+              if (!file) {
+                setCsvContent("");
+                setCsvFilename("");
+                return;
+              }
+
+              const text = await file.text();
+              setCsvContent(text);
+              setCsvFilename(file.name);
+            }}
+            className="block w-full text-sm text-gray-700 file:mr-3 file:rounded-full file:border-0 file:bg-brand-500 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-brand-600 dark:text-gray-300"
+          />
+          <button
+            type="submit"
+            disabled={!csvContent || isImporting}
+            className="rounded-full bg-brand-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-600 disabled:opacity-50"
+          >
+            {isImporting ? "Analyse en cours..." : "Importer le CSV"}
+          </button>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            {csvFilename || "Aucun fichier sélectionné"}
+          </span>
+        </form>
+      </div>
+
+      {csvPreviewRows.length > 0 ? (
+        <div className="space-y-4 rounded-2xl border border-gray-200 p-4 dark:border-gray-800">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Résultats de l&apos;import CSV</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {importRowsToSave.length} ligne(s) valide(s) après filtrage des étudiants déjà cotés.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleSaveImportedRows}
+              disabled={isSavingImport || importRowsToSave.length === 0}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSavingImport ? "Enregistrement..." : `Enregistrer les cotes importées (${importRowsToSave.length})`}
+            </button>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50 text-xs uppercase tracking-[0.18em] text-gray-500 dark:bg-gray-900 dark:text-gray-400">
+                <tr>
+                  <th className="px-4 py-3 text-left">Réf.</th>
+                  <th className="px-4 py-3 text-left">Étudiant</th>
+                  <th className="px-4 py-3 text-right">CC</th>
+                  <th className="px-4 py-3 text-right">Examen</th>
+                  <th className="px-4 py-3 text-right">Rattrapage</th>
+                  <th className="px-4 py-3 text-right">Rachat</th>
+                  <th className="px-4 py-3 text-center">État</th>
+                  <th className="px-4 py-3 text-left">Détail</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {csvPreviewRows.map((row, index) => (
+                  <tr key={`${row.reference}-${index}`}>
+                    <td className="px-4 py-3 font-medium text-gray-700 dark:text-gray-200">{row.reference}</td>
+                    <td className="px-4 py-3 text-gray-900 dark:text-white">{row.studentName}</td>
+                    <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-200">{row.cc || "—"}</td>
+                    <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-200">{row.examen || "—"}</td>
+                    <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-200">{row.rattrapage || "—"}</td>
+                    <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-200">{row.rachat || "—"}</td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`rounded-full px-3 py-1 text-xs font-medium ${importStatusStyles[row.status]}`}>
+                        {importStatusLabel[row.status]}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{row.reason}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <input
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Rechercher un étudiant (référence, nom, email)"
+          className="w-full rounded-2xl border border-gray-300 px-4 py-2.5 text-sm text-gray-800 outline-hidden focus:border-brand-400 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+        />
+        <span className="shrink-0 text-sm text-gray-500 dark:text-gray-400">
+          {pendingRows.length} ligne(s) prêtes à enregistrer
+        </span>
+      </div>
+
+      <form onSubmit={handleSaveCotation} className="space-y-4">
+        <div className="overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-800">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50 text-xs uppercase tracking-[0.2em] text-gray-500 dark:bg-gray-900 dark:text-gray-400">
+              <tr>
+                <th className="px-4 py-3 text-left">Réf.</th>
+                <th className="px-4 py-3 text-left">Étudiant</th>
+                <th className="px-4 py-3 text-right">CC /10</th>
+                <th className="px-4 py-3 text-right">Examen /10</th>
+                <th className="px-4 py-3 text-right">Rattrapage /20</th>
+                <th className="px-4 py-3 text-right">Rachat /20</th>
+                <th className="px-4 py-3 text-right">Finale</th>
+                <th className="px-4 py-3 text-center">État</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+              {filteredStudents.map((student) => {
+                const locked = Boolean(student.cotation?.id);
+                const ccRaw = getDraftValue(student, "cc");
+                const examenRaw = getDraftValue(student, "examen");
+                const rattrapageRaw = getDraftValue(student, "rattrapage");
+                const rachatRaw = getDraftValue(student, "rachat");
+
+                const cc = parseRaw(ccRaw);
+                const examen = parseRaw(examenRaw);
+                const rattrapage = parseRaw(rattrapageRaw);
+                const rachat = parseRaw(rachatRaw);
+
+                const hasSessionScores = cc.value !== null && examen.value !== null;
+                const hasRachatDependencyError = rachat.value !== null && rattrapage.value === null;
+                const canUseRachat = hasSessionScores && rattrapage.value !== null && !locked;
+
+                const finalValue =
+                  hasSessionScores
+                    ? (rachat.value !== null && rattrapage.value !== null
+                        ? rachat.value
+                        : Math.max((cc.value ?? 0) + (examen.value ?? 0), rattrapage.value ?? 0))
+                    : null;
+
+                const hasRangeError =
+                  !cc.isValid ||
+                  !examen.isValid ||
+                  !rattrapage.isValid ||
+                  !rachat.isValid ||
+                  hasRachatDependencyError ||
+                  !inRange(cc.value, 10) ||
+                  !inRange(examen.value, 10) ||
+                  !inRange(rattrapage.value, 20) ||
+                  !inRange(rachat.value, 20);
+
+                const fullName = [student.student.prenom, student.student.post_nom, student.student.nom].filter(Boolean).join(" ").trim() || student.student.email || student.student.id;
+
+                return (
+                  <tr key={student.student.id} className={hasRangeError ? "bg-error-50/40 dark:bg-error-500/5" : ""}>
+                    <td className="px-4 py-3 font-medium text-gray-700 dark:text-gray-200">{student.reference ?? "—"}</td>
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-gray-900 dark:text-white">{fullName}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{student.student.email ?? ""}</div>
+                    </td>
+                    {(
+                      [
+                        { field: "cc", value: ccRaw, max: 10 },
+                        { field: "examen", value: examenRaw, max: 10 },
+                        { field: "rattrapage", value: rattrapageRaw, max: 20 },
+                      ] as const
+                    ).map((column) => (
+                      <td key={column.field} className="px-4 py-3">
+                        <input
+                          value={column.value}
+                          disabled={locked}
+                          inputMode="decimal"
+                          onChange={(event) =>
+                            setDraft((current) => ({
+                              ...current,
+                              [student.student.id]: {
+                                cc: getDraftValue(student, "cc"),
+                                examen: getDraftValue(student, "examen"),
+                                rattrapage: getDraftValue(student, "rattrapage"),
+                                rachat: getDraftValue(student, "rachat"),
+                                ...(current[student.student.id] ?? {}),
+                                [column.field]: event.target.value,
+                              },
+                            }))
+                          }
+                          className="w-24 rounded-lg border border-gray-300 px-3 py-1.5 text-right text-sm outline-hidden focus:border-brand-400 disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:disabled:bg-gray-800"
+                        />
+                      </td>
+                    ))}
+                    <td className="px-4 py-3">
+                      <input
+                        value={rachatRaw}
+                        disabled={!canUseRachat}
+                        inputMode="decimal"
+                        onChange={(event) =>
+                          setDraft((current) => ({
+                            ...current,
+                            [student.student.id]: {
+                              cc: getDraftValue(student, "cc"),
+                              examen: getDraftValue(student, "examen"),
+                              rattrapage: getDraftValue(student, "rattrapage"),
+                              rachat: getDraftValue(student, "rachat"),
+                              ...(current[student.student.id] ?? {}),
+                              rachat: event.target.value,
+                            },
+                          }))
+                        }
+                        className="w-24 rounded-lg border border-gray-300 px-3 py-1.5 text-right text-sm outline-hidden focus:border-brand-400 disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:disabled:bg-gray-800"
+                      />
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold text-gray-900 dark:text-white">
+                      {finalValue === null || Number.isNaN(finalValue) ? "—" : finalValue.toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {locked ? (
+                        <span className="rounded-full bg-gray-200 px-3 py-1 text-xs font-medium text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+                          Verrouillée
+                        </span>
+                      ) : hasRangeError ? (
+                        <span className="rounded-full bg-error-100 px-3 py-1 text-xs font-medium text-error-700 dark:bg-error-500/20 dark:text-error-300">
+                          Valeur invalide
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-brand-100 px-3 py-1 text-xs font-medium text-brand-700 dark:bg-brand-500/20 dark:text-brand-300">
+                          Éditable
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {localError ? (
+          <div className="rounded-xl border border-error-200 bg-error-50 px-3 py-2 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300">
+            {localError}
+          </div>
+        ) : null}
+
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            disabled={isSaving || pendingRows.length === 0}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-5 py-3 text-sm font-medium text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isSaving ? "Enregistrement..." : "Enregistrer les cotes"}
+          </button>
+        </div>
+      </form>
+    </section>
   );
 }
 

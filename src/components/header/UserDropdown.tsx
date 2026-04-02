@@ -309,6 +309,34 @@ export default function UserDropdown({ user }: UserDropdownProps) {
               </DropdownItem>
             </li>
           ) : null}
+
+          {user.role === "titulaire" ? (
+            <li>
+              <DropdownItem
+                onItemClick={closeDropdown}
+                tag="a"
+                href="/enseignant/retraits"
+                className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+              >
+                <svg
+                  className="fill-gray-500 group-hover:fill-gray-700 dark:fill-gray-400 dark:group-hover:fill-gray-300"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M11.1173 2.75C8.1143 2.75 5.68007 5.18423 5.68007 8.18725V10.4508H4.375C3.61561 10.4508 3 11.0664 3 11.8258V18.5C3 19.8807 4.11929 21 5.5 21H18.5C19.8807 21 21 19.8807 21 18.5V11.8258C21 11.0664 20.3844 10.4508 19.625 10.4508H18.3199V8.18725C18.3199 5.18423 15.8857 2.75 12.8827 2.75H11.1173ZM16.8199 10.4508V8.18725C16.8199 6.01265 15.0573 4.25 12.8827 4.25H11.1173C8.94273 4.25 7.18007 6.01265 7.18007 8.18725V10.4508H16.8199ZM12 13.25C12.4142 13.25 12.75 13.5858 12.75 14V16.25C12.75 16.6642 12.4142 17 12 17C11.5858 17 11.25 16.6642 11.25 16.25V14C11.25 13.5858 11.5858 13.25 12 13.25Z"
+                    fill=""
+                  />
+                </svg>
+                Retrait
+              </DropdownItem>
+            </li>
+          ) : null}
         </ul>
 
         <form action={signOutAction} className="mt-3">

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { getAdminSidebarMenu } from "@/lib/navigation/admin-sidebar";
+import { getTeacherRecoursNotificationSnapshot } from "@/lib/utils/supabase/teacher-notifications";
 import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 import AdminShell from "@/layout/AdminShell";
 
@@ -16,9 +17,22 @@ export default async function AdminLayout({
   }
 
   const sidebarMenu = await getAdminSidebarMenu(user);
+  const teacherNotificationSnapshot =
+    user.activePersona === "teacher" ? await getTeacherRecoursNotificationSnapshot(user.agentId ?? undefined) : null;
 
   return (
-    <AdminShell user={user} sidebarMenu={sidebarMenu}>
+    <AdminShell
+      user={user}
+      sidebarMenu={sidebarMenu}
+      teacherNotifications={
+        teacherNotificationSnapshot
+          ? {
+              items: teacherNotificationSnapshot.items.slice(0, 5),
+              pendingCount: teacherNotificationSnapshot.pendingCount,
+            }
+          : undefined
+      }
+    >
       {children}
     </AdminShell>
   );

@@ -48,6 +48,30 @@ const getFeedbackMessage = (status?: string, message?: string) => {
       return "Ce cours n'est pas accessible avec votre compte enseignant.";
     case "cours_required":
       return "Le cours à modifier est introuvable.";
+    case "cotation_saved":
+      return "Les fiches de cotation ont été enregistrées.";
+    case "cotation_csv_imported":
+      return "Le fichier CSV a été importé avec succès.";
+    case "cc_out_of_range":
+      return "La note CC doit être comprise entre 0 et 10.";
+    case "examen_out_of_range":
+      return "La note Examen doit être comprise entre 0 et 10.";
+    case "rattrapage_out_of_range":
+      return "La note de rattrapage doit être comprise entre 0 et 20.";
+    case "rachat_out_of_range":
+      return "La note de rachat doit être comprise entre 0 et 20.";
+    case "csv_empty":
+      return "Le fichier CSV est vide ou invalide.";
+    case "rachat_requires_all_scores":
+      return "Le rachat n'est autorisé que si CC, Examen et Rattrapage sont renseignés.";
+    case "matiere_required":
+      return "La matière ciblée est introuvable.";
+    case "invalid_cotation_rows":
+      return "Le payload de cotation est invalide.";
+    case "cotation_save_failed":
+      return "Impossible d'enregistrer les cotes.";
+    case "cotation_csv_import_failed":
+      return "Impossible d'importer le fichier CSV.";
     default:
       return message;
   }
@@ -79,6 +103,7 @@ export default async function TeacherCoursePage({ params, searchParams }: Teache
   }
 
   const feedbackMessage = getFeedbackMessage(queryParams.status, queryParams.message);
+  const workspaceData = JSON.parse(JSON.stringify(assignment)) as typeof assignment;
 
   return (
     <div className="space-y-6">
@@ -93,7 +118,7 @@ export default async function TeacherCoursePage({ params, searchParams }: Teache
           {feedbackMessage}
         </div>
       ) : null}
-      <TeacherCourseWorkspace data={assignment} initialTab={queryParams.tab} />
+      <TeacherCourseWorkspace data={workspaceData} initialTab={queryParams.tab} />
     </div>
   );
 }

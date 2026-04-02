@@ -5,13 +5,21 @@ import { redirect, unstable_rethrow } from "next/navigation";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 import {
   createTeacherActivity,
+  exportTeacherCourseCotationTemplateCsv,
   ensureTeacherActivityAccess,
+  importTeacherCourseCotationFromCsv,
+  saveTeacherCourseCotationRows,
   updateTeacherActivityQuestions,
   updateTeacherCourseDescriptor,
   updateTeacherCoursePlan,
 } from "@/lib/utils/supabase/teacher-teaching";
 
-const buildRedirectUrl = (formData: FormData, status: "success" | "error", tab: "descriptor" | "plan", message?: string) => {
+const buildRedirectUrl = (
+  formData: FormData,
+  status: "success" | "error",
+  tab: "descriptor" | "plan" | "qcm" | "tp" | "cotation",
+  message?: string,
+) => {
   const matiereId = formData.get("matiere_id");
   const query = new URLSearchParams();
 
@@ -53,6 +61,9 @@ export async function saveTeacherCoursePlanAction(formData: FormData) {
 
 const buildActivityRedirectUrl = (formData: FormData, status: "success" | "error", tab: "qcm" | "tp", message?: string) =>
   buildRedirectUrl(formData, status, tab, message);
+
+const buildCotationRedirectUrl = (formData: FormData, status: "success" | "error", message?: string) =>
+  buildRedirectUrl(formData, status, "cotation", message);
 
 export async function createTeacherActivityAction(formData: FormData) {
   const category = typeof formData.get("categorie") === "string" ? formData.get("categorie") : "qcm";
@@ -150,4 +161,81 @@ export async function exportActivityNotesAction(formData: FormData) {
       "Content-Disposition": `attachment; filename="notes-${activityId}.csv"`,
     },
   });
+}
+
+export async function saveTeacherCourseCotationAction(formData: FormData) {
+  const matiereId = typeof formData.get("matiere_id") === "string" ? formData.get("matiere_id") : null;
+  const rawRows = typeof formData.get("rows") === "string" ? formData.get("rows") : "[]";
+
+  if (!matiereId) {
+    redirect(buildCotationRedirectUrl(formData, "error", "matiere_required"));
+  }
+
+  let rows: Array<{
+    studentId?: string;
+    cc?: number | null;
+    examen?: number | null;
+    rattrapage?: number | null;
+    rachat?: number | null;
+  }> = [];
+
+  try {
+    const parsed = JSON.parse(rawRows);
+    rows = Array.isArray(parsed) ? parsed : [];
+  } catch {
+    redirect(buildCotationRedirectUrl(formData, "error", "invalid_cotation_rows"));
+  }
+
+  try {
+    await saveTeacherCourseCotationRows(
+      matiereId!,
+      rows.map((row) => ({
+        studentId: typeof row.studentId === "string" ? row.studentId : "",
+        cc: typeof row.cc === "number" ? row.cc : null,
+        examen: typeof row.examen === "number" ? row.examen : null,
+        rattrapage: typeof row.rattrapage === "number" ? row.rattrapage : null,
+        rachat: typeof row.rachat === "number" ? row.rachat : null,
+      })),
+    );
+    redirect(buildCotationRedirectUrl(formData, "success", "cotation_saved"));
+  } catch (error) {
+    unstable_rethrow(error);
+    const message = error instanceof Error ? error.message : "cotation_save_failed";
+    redirect(buildCotationRedirectUrl(formData, "error", message));
+  }
+}
+
+export async function exportTeacherCourseCotationTemplateAction(formData: FormData) {
+  const matiereId = typeof formData.get("matiere_id") === "string" ? formData.get("matiere_id") : null;
+
+  if (!matiereId) {
+    throw new Error("matiere_required");
+  }
+
+  const csv = await exportTeacherCourseCotationTemplateCsv(matiereId);
+
+  return new Response(csv, {
+    headers: {
+      "Content-Type": "text/csv",
+      "Content-Disposition": `attachment; filename="cotation-template-${matiereId}.csv"`,
+    },
+  });
+}
+
+export async function importTeacherCourseCotationCsvAction(formData: FormData) {
+  const matiereId = typeof formData.get("matiere_id") === "string" ? formData.get("matiere_id") : null;
+  const csvContent = typeof formData.get("csv_content") === "string" ? formData.get("csv_content") : "";
+
+  if (!matiereId) {
+    redirect(buildCotationRedirectUrl(formData, "error", "matiere_required"));
+  }
+
+  try {
+    await importTeacherCourseCotationFromCsv(matiereId!, csvContent);
+    redirect(buildCotationRedirectUrl(formData, "success", "cotation_csv_imported"));
+  } catch (error) {
+    unstable_rethrow(error);
+    const message = error instanceof Error ? error.message : "cotation_csv_import_failed";
+    redirect(buildCotationRedirectUrl(formData, "error", message));
+  }
 }

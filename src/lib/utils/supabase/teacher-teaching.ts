@@ -57,6 +57,29 @@ export type TeacherCourseActivity = ActivityRecord & {
   notes: TeacherActivityNote[];
 };
 
+export type TeacherCourseCotation = {
+  id: string;
+  cc: number | null;
+  examen: number | null;
+  rattrapage: number | null;
+  rachat: number | null;
+  is_validate: string | null;
+};
+
+export type TeacherCourseCotationStudent = {
+  parcoursId: string;
+  reference: string | null;
+  status: string | null;
+  student: {
+    id: string;
+    nom: string | null;
+    post_nom: string | null;
+    prenom: string | null;
+    email: string | null;
+  };
+  cotation: TeacherCourseCotation | null;
+};
+
 export type TeacherProgrammeMenuYear = {
   id: string;
   designation: string | null;
@@ -76,6 +99,38 @@ export type TeacherProgrammePageData = {
 export type TeacherCoursePageDetails = TeacherAssignedCourse & {
   courseDetails: CourseDetailRecord | null;
   activities: TeacherCourseActivity[];
+  cotationStudents: TeacherCourseCotationStudent[];
+};
+
+export type TeacherActivityCommandeEditorRow = {
+  id: string;
+  created_at: string;
+  status: string | null;
+  note: number | null;
+  comment: string | null;
+  student: {
+    id: string;
+    nom: string | null;
+    post_nom: string | null;
+    prenom: string | null;
+    email: string | null;
+  } | null;
+};
+
+export type TeacherActivityCommandesPageData = {
+  activity: ActivityRecord & {
+    category: Extract<ActivityCategory, "qcm" | "tp">;
+  };
+  assignment: TeacherAssignedCourse;
+  commandes: TeacherActivityCommandeEditorRow[];
+};
+
+export type TeacherCourseCotationDraftRow = {
+  studentId: string;
+  cc?: number | null;
+  examen?: number | null;
+  rattrapage?: number | null;
+  rachat?: number | null;
 };
 
 const parseStructuredInput = (value: FormDataEntryValue | null) => {
@@ -109,6 +164,130 @@ const getCurrentAuthenticatedTeacherAgentId = async () => {
 
   return user.agentId;
 };
+
+const buildStudentFullName = (student: {
+  nom?: string | null;
+  post_nom?: string | null;
+  prenom?: string | null;
+  email?: string | null;
+  id?: string | null;
+}) =>
+  [student.prenom, student.post_nom, student.nom].filter(Boolean).join(" ").trim() ||
+  student.email ||
+  student.id ||
+  "Étudiant";
+
+const roundNote = (value: number) => Math.round(value * 100) / 100;
+
+const parseNullableNoteValue = (value: unknown) => {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const parsed = typeof value === "number" ? value : Number(String(value).replace(",", "."));
+  return Number.isFinite(parsed) ? roundNote(parsed) : null;
+};
+
+const normalizeTeacherActivityCategory = (
+  value: string | null | undefined,
+): Extract<ActivityCategory, "qcm" | "tp"> | null => {
+  const normalizedValue = typeof value === "string" ? value.trim().toLowerCase() : null;
+  return normalizedValue === "qcm" || normalizedValue === "tp" ? normalizedValue : null;
+};
+
+const validateNoteRange = (
+  value: number | null,
+  max: number,
+  field: "cc" | "examen" | "rattrapage" | "rachat",
+) => {
+  if (value === null) {
+    return;
+  }
+
+  if (value < 0 || value > max) {
+    throw new Error(`${field}_out_of_range`);
+  }
+};
+
+const computeTeacherCotationValidation = (input: {
+  cc: number | null;
+  examen: number | null;
+  rattrapage: number | null;
+  rachat: number | null;
+}) => {
+  const session = roundNote((input.cc ?? 0) + (input.examen ?? 0));
+  const final = input.rachat !== null ? input.rachat : Math.max(session, input.rattrapage ?? 0);
+
+  return {
+    final: roundNote(final),
+    is_validate: final >= 10 ? "V" : "NV",
+  };
+};
+
+const detectCsvDelimiter = (row: string): ";" | "," => {
+  let inQuotes = false;
+  let semicolonCount = 0;
+  let commaCount = 0;
+
+  for (let index = 0; index < row.length; index += 1) {
+    const char = row[index];
+    const nextChar = row[index + 1];
+
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (!inQuotes) {
+      if (char === ";") {
+        semicolonCount += 1;
+      } else if (char === ",") {
+        commaCount += 1;
+      }
+    }
+  }
+
+  return semicolonCount >= commaCount ? ";" : ",";
+};
+
+const splitCsvRow = (row: string, delimiter: ";" | ",") => {
+  const cells: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < row.length; index += 1) {
+    const char = row[index];
+    const nextChar = row[index + 1];
+
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === delimiter && !inQuotes) {
+      cells.push(current);
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  cells.push(current);
+  return cells.map((cell) => cell.trim());
+};
+
+const toCsvCell = (value: string | number | null | undefined) =>
+  `"${String(value ?? "").replace(/"/g, '""')}"`;
 
 export const getTeacherAssignedCourses = async (agentId?: string): Promise<TeacherAssignedCourse[]> => {
   const teacherAgentId = agentId ?? (await getCurrentAuthenticatedTeacherAgentId());
@@ -445,11 +624,260 @@ export const getTeacherCoursePageData = async (matiereId: string) => {
     })
     .filter((activity): activity is TeacherCourseActivity => activity !== null);
 
+  const cotationStudents = await getTeacherCourseCotationStudents(matiereId);
+
   return {
     ...assignment,
     courseDetails: (courseData ?? null) as CourseDetailRecord | null,
     activities,
+    cotationStudents,
   } satisfies TeacherCoursePageDetails;
+};
+
+export const getTeacherCourseCotationStudents = async (matiereId: string): Promise<TeacherCourseCotationStudent[]> => {
+  const assignment = (await getTeacherAssignedCourses()).find((item) => item.matiere.id === matiereId);
+
+  if (!assignment) {
+    throw new Error("programme_access_denied");
+  }
+
+  if (!assignment.programme?.id) {
+    return [];
+  }
+
+  const admin = createAdminClient();
+  const { data: parcoursData, error: parcoursError } = await admin
+    .from("parcours")
+    .select("id, created_at, reference, status, student:students(id, nom, post_nom, prenom, email)")
+    .eq("programme_id", assignment.programme.id)
+    .order("created_at", { ascending: false });
+
+  if (parcoursError) {
+    throw new Error(parcoursError.message);
+  }
+
+  const parcoursRows = (parcoursData ?? []) as Array<{
+    id: string;
+    created_at: string;
+    reference: string | null;
+    status: string | null;
+    student: {
+      id: string;
+      nom: string | null;
+      post_nom: string | null;
+      prenom: string | null;
+      email: string | null;
+    } | null;
+  }>;
+
+  const latestParcoursByStudentId = new Map<string, TeacherCourseCotationStudent>();
+
+  for (const row of parcoursRows) {
+    if (!row.student || latestParcoursByStudentId.has(row.student.id)) {
+      continue;
+    }
+
+    latestParcoursByStudentId.set(row.student.id, {
+      parcoursId: row.id,
+      reference: row.reference,
+      status: row.status,
+      student: {
+        id: row.student.id,
+        nom: row.student.nom,
+        post_nom: row.student.post_nom,
+        prenom: row.student.prenom,
+        email: row.student.email,
+      },
+      cotation: null,
+    });
+  }
+
+  const studentIds = Array.from(latestParcoursByStudentId.keys());
+
+  if (studentIds.length === 0) {
+    return [];
+  }
+
+  const { data: cotationData, error: cotationError } = await admin
+    .from("fiche_cotation")
+    .select("id, student_id, cc, examen, rattrapage, rachat, is_validate")
+    .eq("matiere_id", matiereId)
+    .in("student_id", studentIds);
+
+  if (cotationError) {
+    throw new Error(cotationError.message);
+  }
+
+  const cotationByStudentId = new Map(
+    ((cotationData ?? []) as Array<{
+      id: string;
+      student_id: string | null;
+      cc: number | null;
+      examen: number | null;
+      rattrapage: number | null;
+      rachat: number | null;
+      is_validate: string | null;
+    }>)
+      .filter((row) => row.student_id)
+      .map((row) => [
+        row.student_id as string,
+        {
+          id: row.id,
+          cc: row.cc,
+          examen: row.examen,
+          rattrapage: row.rattrapage,
+          rachat: row.rachat,
+          is_validate: row.is_validate,
+        },
+      ] as const),
+  );
+
+  return Array.from(latestParcoursByStudentId.values())
+    .map((row) => ({
+      ...row,
+      cotation: cotationByStudentId.get(row.student.id) ?? null,
+    }))
+    .sort((left, right) =>
+      buildStudentFullName(left.student).localeCompare(buildStudentFullName(right.student)),
+    );
+};
+
+export const saveTeacherCourseCotationRows = async (
+  matiereId: string,
+  rows: TeacherCourseCotationDraftRow[],
+) => {
+  const cotationStudents = await getTeacherCourseCotationStudents(matiereId);
+
+  if (rows.length === 0) {
+    return { inserted: 0, skipped: 0 };
+  }
+
+  const studentById = new Map(cotationStudents.map((row) => [row.student.id, row] as const));
+  const admin = createAdminClient();
+
+  let inserted = 0;
+  let skipped = 0;
+
+  for (const row of rows) {
+    const target = studentById.get(row.studentId);
+    if (!target) {
+      skipped += 1;
+      continue;
+    }
+
+    if (target.cotation?.id) {
+      skipped += 1;
+      continue;
+    }
+
+    const cc = parseNullableNoteValue(row.cc);
+    const examen = parseNullableNoteValue(row.examen);
+    const rattrapage = parseNullableNoteValue(row.rattrapage);
+    const rachat = parseNullableNoteValue(row.rachat);
+
+    validateNoteRange(cc, 10, "cc");
+    validateNoteRange(examen, 10, "examen");
+    validateNoteRange(rattrapage, 20, "rattrapage");
+    validateNoteRange(rachat, 20, "rachat");
+
+    if (cc === null || examen === null) {
+      skipped += 1;
+      continue;
+    }
+
+    if (rachat !== null && rattrapage === null) {
+      throw new Error("rachat_requires_all_scores");
+    }
+
+    const validation = computeTeacherCotationValidation({
+      cc,
+      examen,
+      rattrapage,
+      rachat,
+    });
+
+    const { error } = await admin.from("fiche_cotation").insert({
+      student_id: target.student.id,
+      matiere_id: matiereId,
+      cc,
+      examen,
+      rattrapage,
+      rachat,
+      is_validate: validation.is_validate,
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    inserted += 1;
+  }
+
+  return { inserted, skipped };
+};
+
+export const exportTeacherCourseCotationTemplateCsv = async (matiereId: string) => {
+  const students = await getTeacherCourseCotationStudents(matiereId);
+  const header = ["parcours.ref", "student.nomComplet", "cc", "examen", "rattrapage", "rachat"];
+
+  const rows = students.map((row) => [
+    row.reference ?? "",
+    buildStudentFullName(row.student),
+    row.cotation?.cc ?? "",
+    row.cotation?.examen ?? "",
+    row.cotation?.rattrapage ?? "",
+    row.cotation?.rachat ?? "",
+  ]);
+
+  return [header, ...rows].map((row) => row.map((entry) => toCsvCell(entry)).join(";")).join("\n");
+};
+
+export const importTeacherCourseCotationFromCsv = async (matiereId: string, rawCsv: string) => {
+  const normalized = rawCsv.replace(/\r/g, "").trim();
+  if (!normalized) {
+    throw new Error("csv_empty");
+  }
+
+  const lines = normalized.split("\n").filter((line) => line.trim().length > 0);
+  if (lines.length < 2) {
+    throw new Error("csv_empty");
+  }
+  const delimiter = detectCsvDelimiter(lines[0]);
+
+  const students = await getTeacherCourseCotationStudents(matiereId);
+  const studentByReference = new Map(
+    students
+      .filter((row) => row.reference && row.reference.trim().length > 0)
+      .map((row) => [row.reference!.trim().toLowerCase(), row] as const),
+  );
+
+  const parsedRows: TeacherCourseCotationDraftRow[] = [];
+
+  for (const line of lines.slice(1)) {
+    const cells = splitCsvRow(line, delimiter);
+    const reference = cells[0]?.trim() ?? "";
+    if (!reference) continue;
+
+    const target = studentByReference.get(reference.toLowerCase());
+    if (!target || target.cotation?.id) {
+      continue;
+    }
+
+    const cc = parseNullableNoteValue(cells[2] ?? null);
+    const examen = parseNullableNoteValue(cells[3] ?? null);
+    const rattrapage = parseNullableNoteValue(cells[4] ?? null);
+    const rachat = parseNullableNoteValue(cells[5] ?? null);
+
+    parsedRows.push({
+      studentId: target.student.id,
+      cc,
+      examen,
+      rattrapage,
+      rachat,
+    });
+  }
+
+  return saveTeacherCourseCotationRows(matiereId, parsedRows);
 };
 
 const slugify = (value: string) =>
@@ -634,6 +1062,82 @@ export const ensureTeacherActivityAccess = async (activityId: string) => {
   await ensureTeacherOwnsCourse(activity.cours_id);
 
   return activity;
+};
+
+export const getTeacherActivityCommandesPageData = async (activityId: string): Promise<TeacherActivityCommandesPageData> => {
+  const activityAccess = await ensureTeacherActivityAccess(activityId);
+  const assignment = (await getTeacherAssignedCourses()).find((item) => item.cours.id === activityAccess.cours_id);
+
+  if (!assignment) {
+    throw new Error("programme_access_denied");
+  }
+
+  const admin = createAdminClient();
+  const [{ data: rawActivity, error: activityError }, { data: rawNotes, error: notesError }] = await Promise.all([
+    admin.from("activity").select("*").eq("id", activityId).maybeSingle(),
+    admin
+      .from("cmd_activity")
+      .select("id, created_at, status, note, comment, student:students(id, nom, post_nom, prenom, email)")
+      .eq("activity_id", activityId)
+      .order("created_at", { ascending: false }),
+  ]);
+
+  if (activityError) {
+    throw new Error(activityError.message);
+  }
+
+  if (!rawActivity) {
+    throw new Error("activity_not_found");
+  }
+
+  if (notesError) {
+    throw new Error(notesError.message);
+  }
+
+  const category = normalizeTeacherActivityCategory(rawActivity.categorie);
+
+  if (!category) {
+    throw new Error("activity_category_invalid");
+  }
+
+  const commandes = ((rawNotes ?? []) as Array<Record<string, unknown>>).map((row) => {
+    const studentRecord = row.student as
+      | {
+          id: string;
+          nom?: string | null;
+          post_nom?: string | null;
+          prenom?: string | null;
+          email?: string | null;
+        }
+      | null
+      | undefined;
+
+    return {
+      id: typeof row.id === "string" ? row.id : `cmd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      created_at: typeof row.created_at === "string" ? row.created_at : new Date().toISOString(),
+      status: typeof row.status === "string" ? row.status : null,
+      note: typeof row.note === "number" ? row.note : null,
+      comment: typeof row.comment === "string" ? row.comment : null,
+      student: studentRecord
+        ? {
+            id: studentRecord.id,
+            nom: typeof studentRecord.nom === "string" ? studentRecord.nom : null,
+            post_nom: typeof studentRecord.post_nom === "string" ? studentRecord.post_nom : null,
+            prenom: typeof studentRecord.prenom === "string" ? studentRecord.prenom : null,
+            email: typeof studentRecord.email === "string" ? studentRecord.email : null,
+          }
+        : null,
+    } satisfies TeacherActivityCommandeEditorRow;
+  });
+
+  return {
+    activity: {
+      ...(rawActivity as ActivityRecord),
+      category,
+    },
+    assignment,
+    commandes,
+  };
 };
 
 export const createTeacherActivity = async ({
