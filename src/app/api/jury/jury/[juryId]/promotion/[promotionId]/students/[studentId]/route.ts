@@ -148,44 +148,15 @@ export async function GET(
     designation: string | null;
     credits: number | null;
   }>;
-  const matiereIds = matieres.map((matiere) => matiere.id);
-
-  const { data: coursData, error: coursError } = matiereIds.length
-    ? await admin
-        .from("cours")
-        .select("id, created_at, matiere_id")
-        .in("matiere_id", matiereIds)
-        .order("created_at", { ascending: true })
-    : { data: [], error: null };
-
-  if (coursError) {
-    return NextResponse.json({ error: coursError.message }, { status: 500 });
-  }
-
-  const coursRows = (coursData ?? []) as Array<{
-    id: string;
-    created_at: string;
-    matiere_id: string | null;
-  }>;
-
-  const coursByMatiereId = new Map<string, string>();
-  for (const row of coursRows) {
-    if (!row.matiere_id) continue;
-    if (coursByMatiereId.has(row.matiere_id)) continue;
-    coursByMatiereId.set(row.matiere_id, row.id);
-  }
-
   const semestresById = new Map(semestres.map((semestre) => [semestre.id, semestre] as const));
   const unitesById = new Map(unites.map((unite) => [unite.id, unite] as const));
-  const matieresById = new Map(matieres.map((matiere) => [matiere.id, matiere] as const));
-
-  const coursIds = Array.from(new Set(Array.from(coursByMatiereId.values())));
-  const { data: ficheData, error: ficheError } = coursIds.length
+  const matiereIds = matieres.map((matiere) => matiere.id);
+  const { data: ficheData, error: ficheError } = matiereIds.length
     ? await admin
         .from("fiche_cotation")
-        .select("id, cours_id, cc, examen, rattrapage, rachat, is_validate")
+        .select("id, matiere_id, cc, examen, rattrapage, rachat, is_validate")
         .eq("student_id", studentId)
-        .in("cours_id", coursIds)
+        .in("matiere_id", matiereIds)
     : { data: [], error: null };
 
   if (ficheError) {
@@ -194,17 +165,17 @@ export async function GET(
 
   const ficheRows = (ficheData ?? []) as Array<{
     id: string;
-    cours_id: string | null;
+    matiere_id: string | null;
     cc: number | null;
     examen: number | null;
     rattrapage: number | null;
     rachat: number | null;
     is_validate: string | null;
   }>;
-  const ficheByCoursId = new Map(
+  const ficheByMatiereId = new Map(
     ficheRows
-      .filter((row) => row.cours_id)
-      .map((row) => [row.cours_id as string, row] as const),
+      .filter((row) => row.matiere_id)
+      .map((row) => [row.matiere_id as string, row] as const),
   );
 
   const notes = await getNotesForProgramme(promotionId);
@@ -215,14 +186,12 @@ export async function GET(
 
   const courses = matieres
     .map((matiere) => {
-      const coursId = coursByMatiereId.get(matiere.id) ?? null;
       const unite = matiere.unite_id ? unitesById.get(matiere.unite_id) ?? null : null;
       const semestre = unite?.semestre_id ? semestresById.get(unite.semestre_id) ?? null : null;
-      const fiche = coursId ? ficheByCoursId.get(coursId) ?? null : null;
+      const fiche = ficheByMatiereId.get(matiere.id) ?? null;
 
       return {
         matiere_id: matiere.id,
-        cours_id: coursId,
         matiere: {
           id: matiere.id,
           designation: matiere.designation,
@@ -242,19 +211,16 @@ export async function GET(
               designation: semestre.designation,
             }
           : null,
-        cotation: coursId
-          ? {
-              id: fiche?.id ?? null,
-              cc: fiche?.cc ?? null,
-              examen: fiche?.examen ?? null,
-              rattrapage: fiche?.rattrapage ?? null,
-              rachat: fiche?.rachat ?? null,
-              is_validate: fiche?.is_validate ?? null,
-            }
-          : null,
+        cotation: {
+          id: fiche?.id ?? null,
+          cc: fiche?.cc ?? null,
+          examen: fiche?.examen ?? null,
+          rattrapage: fiche?.rattrapage ?? null,
+          rachat: fiche?.rachat ?? null,
+          is_validate: fiche?.is_validate ?? null,
+        },
       };
-    })
-    .filter((item) => item.cours_id !== null);
+    });
 
   return NextResponse.json({
     jury: { id: jury.id, designation: jury.designation },
@@ -286,7 +252,7 @@ export async function POST(
   }
 
   const user = await getAuthenticatedUser();
-  if (!user || !user.canManageCharges || !user.agentId || user.role !== "titulaire") {
+  if (!user || !user.agentId || user.role !== "titulaire") {
     return NextResponse.json({ error: "Accès refusé." }, { status: 403 });
   }
 
@@ -308,7 +274,7 @@ export async function POST(
     | {
         password?: string;
         items?: Array<{
-          cours_id?: string;
+          matiere_id?: string;
           cc?: unknown;
           examen?: unknown;
           rattrapage?: unknown;
@@ -322,6 +288,9 @@ export async function POST(
   if (!password) {
     return NextResponse.json({ error: "Mot de passe requis." }, { status: 400 });
   }
+
+  console.log('Password received for jury:', password);
+  console.log('Actual jury password:', jury);
 
   if ((jury.password ?? "") !== password) {
     return NextResponse.json({ error: "Mot de passe incorrect." }, { status: 403 });
@@ -339,14 +308,14 @@ export async function POST(
   const items = Array.isArray(body?.items) ? body?.items ?? [] : [];
   const normalized = items
     .map((item) => ({
-      cours_id: typeof item.cours_id === "string" ? item.cours_id : null,
+      matiere_id: typeof item.matiere_id === "string" ? item.matiere_id : null,
       cc: asNumberOrNull(item.cc),
       examen: asNumberOrNull(item.examen),
       rattrapage: asNumberOrNull(item.rattrapage),
       rachat: asNumberOrNull(item.rachat),
       is_validate: typeof item.is_validate === "string" ? item.is_validate : null,
     }))
-    .filter((item) => Boolean(item.cours_id));
+    .filter((item) => Boolean(item.matiere_id));
 
   if (normalized.length === 0) {
     return NextResponse.json({ error: "Aucune cote à enregistrer." }, { status: 400 });
@@ -371,12 +340,12 @@ export async function POST(
   }
 
   for (const item of normalized) {
-    const coursId = item.cours_id as string;
+    const matiereId = item.matiere_id as string;
     const { data: existingRow, error: existingError } = await admin
       .from("fiche_cotation")
       .select("id")
       .eq("student_id", studentId)
-      .eq("cours_id", coursId)
+      .eq("matiere_id", matiereId)
       .limit(1)
       .maybeSingle();
 
@@ -404,7 +373,7 @@ export async function POST(
     } else {
       const { error: insertError } = await admin.from("fiche_cotation").insert({
         student_id: studentId,
-        cours_id: coursId,
+        matiere_id: matiereId,
         ...payload,
       });
 

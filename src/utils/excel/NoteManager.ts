@@ -5,6 +5,7 @@ export interface ElementNote {
   cc: number;
   examen: number;
   rattrapage: number;
+  rachat: number;
 }
 
 export interface UniteNote {
@@ -54,6 +55,7 @@ export interface ElementResultat {
   examen: number;
   noteSession: number;
   rattrapage: number;
+  rachat: number;
   noteFinale: number;
 }
 
@@ -129,13 +131,17 @@ export class NoteManager {
     const noteCC = element.cc ?? 0;
     const noteExamen = element.examen ?? 0;
     const noteRattrapage = element.rattrapage ?? 0;
+    const noteRachat = element.rachat ?? 0;
 
     const noteSession = this.round(noteCC + noteExamen);
-    const noteFinale = this.round(Math.max(noteSession, noteRattrapage));
+    const noteFinale = noteRachat > 0
+      ? this.round(noteRachat)
+      : this.round(Math.max(noteSession, noteRattrapage));
 
     return {
       noteSession,
       noteRattrapage: this.round(noteRattrapage),
+      noteRachat: this.round(noteRachat),
       noteFinale,
     };
   }
@@ -170,7 +176,7 @@ export class NoteManager {
 
     for (const element of elements) {
       const credit = element.credit || 1;
-      const { noteSession, noteRattrapage, noteFinale } = this.buildElementScores(element);
+      const { noteSession, noteRattrapage, noteRachat, noteFinale } = this.buildElementScores(element);
 
       accumulators.principale.points += noteSession * credit;
       accumulators.principale.credits += credit;
@@ -189,6 +195,7 @@ export class NoteManager {
         examen: this.round(element.examen ?? 0),
         noteSession,
         rattrapage: noteRattrapage,
+        rachat: noteRachat,
         noteFinale,
       });
     }

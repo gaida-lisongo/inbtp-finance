@@ -121,6 +121,7 @@ const JURY_FIELDS = [
   "president_id",
   "secretaire_id",
   "isActivate",
+  "password",
 ] as const;
 
 type JuryRow = JuryRecord & {
@@ -305,42 +306,16 @@ export const getNotesForProgramme = async (programmeId: string) => {
     credits: number | null;
   }>;
 
-  const matiereIds = matieres.map((matiere) => matiere.id);
-
-  const { data: coursData, error: coursError } = matiereIds.length
-    ? await admin
-        .from("cours")
-        .select("id, created_at, matiere_id")
-        .in("matiere_id", matiereIds)
-        .order("created_at", { ascending: true })
-    : { data: [], error: null };
-
-  if (coursError) {
-    throw new Error(coursError.message);
-  }
-
-  const coursRows = (coursData ?? []) as Array<{
-    id: string;
-    created_at: string;
-    matiere_id: string | null;
-  }>;
-
-  const coursByMatiereId = new Map<string, string>();
-  for (const row of coursRows) {
-    if (!row.matiere_id) continue;
-    if (coursByMatiereId.has(row.matiere_id)) continue;
-    coursByMatiereId.set(row.matiere_id, row.id);
-  }
-
   const studentIds = students.map((student) => student.id);
-  const coursIds = Array.from(new Set(Array.from(coursByMatiereId.values())));
+  const matiereIds = matieres.map((matiere) => matiere.id);
 
   type FicheCotationRow = {
     student_id: string | null;
-    cours_id: string | null;
+    matiere_id: string | null;
     cc: number | null;
     examen: number | null;
     rattrapage: number | null;
+    rachat: number | null;
   };
 
   const chunk = <T,>(values: T[], size: number) => {
@@ -352,14 +327,14 @@ export const getNotesForProgramme = async (programmeId: string) => {
   };
 
   const ficheRows: FicheCotationRow[] = [];
-  if (studentIds.length > 0 && coursIds.length > 0) {
+  if (studentIds.length > 0 && matiereIds.length > 0) {
     const studentChunks = chunk(studentIds, 150);
     for (const studentChunk of studentChunks) {
       const { data, error } = await admin
         .from("fiche_cotation")
-        .select("student_id, cours_id, cc, examen, rattrapage")
+        .select("student_id, matiere_id, cc, examen, rattrapage, rachat")
         .in("student_id", studentChunk)
-        .in("cours_id", coursIds);
+        .in("matiere_id", matiereIds);
 
       if (error) {
         throw new Error(error.message);
@@ -369,10 +344,10 @@ export const getNotesForProgramme = async (programmeId: string) => {
     }
   }
 
-  const ficheByStudentCours = new Map<string, FicheCotationRow>();
+  const ficheByStudentMatiere = new Map<string, FicheCotationRow>();
   for (const row of ficheRows) {
-    if (!row.student_id || !row.cours_id) continue;
-    ficheByStudentCours.set(`${row.student_id}:${row.cours_id}`, row);
+    if (!row.student_id || !row.matiere_id) continue;
+    ficheByStudentMatiere.set(`${row.student_id}:${row.matiere_id}`, row);
   }
 
   const unitesBySemestreId = new Map<string, typeof unites>();
@@ -414,10 +389,8 @@ export const getNotesForProgramme = async (programmeId: string) => {
               designation: unite.designation ?? "Unité",
               credit: unite.credits ?? 0,
               elements: uniteMatieres.map((matiere) => {
-                const coursId = coursByMatiereId.get(matiere.id) ?? null;
-                const fiche = coursId
-                  ? ficheByStudentCours.get(`${student.id}:${coursId}`) ?? null
-                  : null;
+                const fiche =
+                  ficheByStudentMatiere.get(`${student.id}:${matiere.id}`) ?? null;
                 return {
                   _id: matiere.id,
                   designation: matiere.designation ?? "Matière",
@@ -425,6 +398,7 @@ export const getNotesForProgramme = async (programmeId: string) => {
                   cc: fiche?.cc ?? 0,
                   examen: fiche?.examen ?? 0,
                   rattrapage: fiche?.rattrapage ?? 0,
+                  rachat: fiche?.rachat ?? 0,
                 };
               }),
             };

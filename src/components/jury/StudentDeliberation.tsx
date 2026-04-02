@@ -14,7 +14,7 @@ type StudentHeader = {
 };
 
 type CourseCotation = {
-  cours_id: string;
+  matiere_id: string;
   matiere: { id: string; designation: string | null; credits: number | null };
   unite: { id: string; code: string | null; designation: string | null } | null;
   semestre: { id: string; designation: string | null } | null;
@@ -45,6 +45,7 @@ type DeliberationElement = {
   examen: number;
   noteSession: number;
   rattrapage: number;
+  rachat: number;
   noteFinale: number;
 };
 
@@ -80,7 +81,7 @@ type StudentDeliberationData = {
   student: StudentHeader;
   result: StudentDeliberationResult | null;
   courses: Array<{
-    cours_id: string;
+    matiere_id: string;
     matiere: CourseCotation["matiere"];
     unite: CourseCotation["unite"];
     semestre: CourseCotation["semestre"];
@@ -112,9 +113,13 @@ const getLiveScores = (values: {
   cc: number | null;
   examen: number | null;
   rattrapage: number | null;
+  rachat: number | null;
 }) => {
   const session = (values.cc ?? 0) + (values.examen ?? 0);
-  const final = Math.max(session, values.rattrapage ?? 0);
+  const final =
+    (values.rachat ?? 0) > 0
+      ? (values.rachat ?? 0)
+      : Math.max(session, values.rattrapage ?? 0);
 
   return {
     session: Math.round(session * 100) / 100,
@@ -180,7 +185,7 @@ export default function StudentDeliberation({
       setData(payload);
       const initialDraft: Record<string, CourseCotation["cotation"]> = {};
       for (const course of payload.courses ?? []) {
-        initialDraft[course.cours_id] = {
+        initialDraft[course.matiere_id] = {
           id: course.cotation?.id ?? null,
           cc: course.cotation?.cc ?? null,
           examen: course.cotation?.examen ?? null,
@@ -225,7 +230,7 @@ export default function StudentDeliberation({
         courses.map((course) => [
           course.matiere.id,
           {
-            coursId: course.cours_id,
+            matiereId: course.matiere_id,
             unite: course.unite,
             semestre: course.semestre,
           },
@@ -235,11 +240,11 @@ export default function StudentDeliberation({
   );
 
   const updateDraft = useCallback(
-    (coursId: string, field: keyof NonNullable<CourseCotation["cotation"]>, value: unknown) => {
+    (matiereId: string, field: keyof NonNullable<CourseCotation["cotation"]>, value: unknown) => {
       setDraft((prev) => ({
         ...prev,
-        [coursId]: {
-          ...(prev[coursId] ?? {
+        [matiereId]: {
+          ...(prev[matiereId] ?? {
             id: null,
             cc: null,
             examen: null,
@@ -262,10 +267,10 @@ export default function StudentDeliberation({
   const pendingItems = useMemo(() => {
     return courses
       .map((course) => {
-        const current = draft[course.cours_id] ?? null;
+        const current = draft[course.matiere_id] ?? null;
         if (!current) return null;
         return {
-          cours_id: course.cours_id,
+          matiere_id: course.matiere_id,
           cc: current.cc,
           examen: current.examen,
           rattrapage: current.rattrapage,
@@ -512,6 +517,7 @@ export default function StudentDeliberation({
                               <th className="px-4 py-3 text-right">Examen</th>
                               <th className="px-4 py-3 text-right">Session</th>
                               <th className="px-4 py-3 text-right">Rattrapage</th>
+                              <th className="px-4 py-3 text-right">Rachat</th>
                               <th className="px-4 py-3 text-right">Finale</th>
                             </tr>
                           </thead>
@@ -519,12 +525,13 @@ export default function StudentDeliberation({
                             {unite.elements.map((element) => {
                               const courseMeta = courseMetaByMatiereId.get(element._id) ?? null;
                               const current = courseMeta
-                                ? draft[courseMeta.coursId]
+                                ? draft[courseMeta.matiereId]
                                 : null;
                               const liveScores = getLiveScores({
                                 cc: current?.cc ?? element.cc,
                                 examen: current?.examen ?? element.examen,
                                 rattrapage: current?.rattrapage ?? element.rattrapage,
+                                rachat: current?.rachat ?? element.rachat,
                               });
 
                               return (
@@ -541,7 +548,7 @@ export default function StudentDeliberation({
                                       onChange={(e) =>
                                         courseMeta
                                           ? updateDraft(
-                                              courseMeta.coursId,
+                                              courseMeta.matiereId,
                                               "cc",
                                               e.target.value,
                                             )
@@ -558,7 +565,7 @@ export default function StudentDeliberation({
                                       onChange={(e) =>
                                         courseMeta
                                           ? updateDraft(
-                                              courseMeta.coursId,
+                                              courseMeta.matiereId,
                                               "examen",
                                               e.target.value,
                                             )
@@ -578,8 +585,25 @@ export default function StudentDeliberation({
                                       onChange={(e) =>
                                         courseMeta
                                           ? updateDraft(
-                                              courseMeta.coursId,
+                                              courseMeta.matiereId,
                                               "rattrapage",
+                                              e.target.value,
+                                            )
+                                          : undefined
+                                      }
+                                      disabled={!courseMeta}
+                                    />
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <input
+                                      className="w-24 rounded-xl border border-gray-200 bg-white px-3 py-2 text-right text-sm text-gray-800 outline-none focus:border-indigo-500 dark:border-gray-800 dark:bg-gray-950 dark:text-white"
+                                      value={current?.rachat ?? element.rachat ?? ""}
+                                      inputMode="decimal"
+                                      onChange={(e) =>
+                                        courseMeta
+                                          ? updateDraft(
+                                              courseMeta.matiereId,
+                                              "rachat",
                                               e.target.value,
                                             )
                                           : undefined
