@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 
-import ProgrammeDeliberationCard from "@/components/jury/ProgrammeDeliberationCard";
+import JuryProgrammeList from "@/components/jury/JuryProgrammeList";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 import { getJuryById, getProgrammesByYear } from "@/lib/utils/supabase/jury";
@@ -70,25 +70,7 @@ export default async function JuryDetailPage({ params }: JuryDetailPageProps) {
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        {programmes.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-gray-700">
-            Aucune promotion enregistrée pour cette année.
-          </div>
-        ) : (
-          programmes.map((programme) => (
-            <ProgrammeDeliberationCard
-              key={programme.id}
-              programme={{
-                id: programme.id,
-                designation: programme.designation,
-                description: programme.description,
-                annee_id: programme.annee_id,
-              }}
-            />
-          ))
-        )}
-      </div>
+      <JuryProgrammeList jury={jury} programmes={programmes} />
     </div>
   );
 }

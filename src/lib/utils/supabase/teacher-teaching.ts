@@ -458,6 +458,34 @@ const slugify = (value: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
+export const updateTeacherActivityNote = async (
+  noteId: string,
+  payload: { note?: number | null; status?: string | null; comment?: string | null },
+) => {
+  if (!noteId) {
+    throw new Error("note_required");
+  }
+
+  const admin = createAdminClient();
+  const { data: noteRecord, error: fetchError } = await admin.from("cmd_activity").select("activity_id").eq("id", noteId).maybeSingle();
+
+  if (fetchError) {
+    throw new Error(fetchError.message);
+  }
+
+  if (!noteRecord || !noteRecord.activity_id) {
+    throw new Error("note_not_found");
+  }
+
+  await ensureTeacherActivityAccess(noteRecord.activity_id);
+
+  const { error: updateError } = await admin.from("cmd_activity").update(payload).eq("id", noteId);
+
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+};
+
 export const updateTeacherCourseDescriptor = async (formData: FormData) => {
   const teacherAgentId = await getCurrentAuthenticatedTeacherAgentId();
   const courseId = typeof formData.get("course_id") === "string" ? formData.get("course_id") : null;

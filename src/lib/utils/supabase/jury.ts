@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 import type { ProgrammeRecord } from "@/lib/utils/supabase/programmes";
+import type { NotesEtudiant } from "@/utils/excel/NoteManager";
 
 export type JuryRecord = {
   id: string;
@@ -36,6 +37,19 @@ export type JuryWithMembers = JuryRecord & {
   } | null;
 };
 
+type AgentSummary = Pick<
+  NonNullable<JuryWithMembers["president"]>,
+  "id" | "nom" | "post_nom" | "prenom"
+>;
+
+type AnneeSummary = NonNullable<JuryWithMembers["annee"]>;
+
+const buildAgentMap = (agents: AgentSummary[]) =>
+  new Map(agents.map((agent) => [agent.id, agent] as const));
+
+const buildAnneeMap = (annees: AnneeSummary[]) =>
+  new Map(annees.map((annee) => [annee.id, annee] as const));
+
 export const getProgrammesByYear = async (anneeId: string) => {
   const admin = createAdminClient();
   const { data, error } = await admin
@@ -55,44 +69,81 @@ export const getStudentsForProgramme = async (programmeId: string) => {
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("parcours")
-    .select("student:students(id, matricule, nom, post_nom, prenom)")
+    .select("id, created_at, reference, student:students(id, nom, post_nom, prenom)")
     .eq("programme_id", programmeId)
-    .order("created_at", { ascending: true });
+    // Dernière inscription en premier pour dédupliquer (si un étudiant a plusieurs parcours)
+    .order("created_at", { ascending: false });
 
   if (error) {
     throw new Error(error.message);
   }
 
-  return (
-    (data ?? []) as Array<{
-      student: {
-        id: string;
-        matricule: string | null;
-        nom: string | null;
-        post_nom: string | null;
-        prenom: string | null;
-      } | null;
-    }>
-  )
-    .map((row) => row.student)
-    .filter((student): student is NonNullable<typeof student> => Boolean(student));
+  const rows = (data ?? []) as Array<{
+    id: string;
+    created_at: string;
+    reference: string | null;
+    student: {
+      id: string;
+      nom: string | null;
+      post_nom: string | null;
+      prenom: string | null;
+    } | null;
+  }>;
+
+  const studentsById = new Map<
+    string,
+    {
+      id: string;
+      matricule: string | null;
+      nom: string | null;
+      post_nom: string | null;
+      prenom: string | null;
+    }
+  >();
+
+  for (const row of rows) {
+    if (!row.student) continue;
+    if (studentsById.has(row.student.id)) continue;
+    studentsById.set(row.student.id, {
+      ...row.student,
+      matricule: row.reference,
+    });
+  }
+
+  return Array.from(studentsById.values());
 };
+
+const JURY_FIELDS = [
+  "id",
+  "created_at",
+  "designation",
+  "annee_id",
+  "president_id",
+  "secretaire_id",
+  "isActivate",
+] as const;
+
+type JuryRow = JuryRecord & {
+  president_id: string | null;
+  secretaire_id: string | null;
+};
+
+const mapJuryMembers = (
+  jury: JuryRow,
+  agents: Map<string, AgentSummary>,
+  annees: Map<string, AnneeSummary>,
+): JuryWithMembers => ({
+  ...jury,
+  president: jury.president_id ? agents.get(jury.president_id) ?? null : null,
+  secretaire: jury.secretaire_id ? agents.get(jury.secretaire_id) ?? null : null,
+  annee: jury.annee_id ? annees.get(jury.annee_id) ?? null : null,
+});
 
 export const getJuryById = async (juryId: string) => {
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("jury")
-    .select(
-      [
-        "id",
-        "designation",
-        "annee_id",
-        "isActivate",
-        "president:agents!jury_president_id_fkey(id, nom, post_nom, prenom)",
-        "secretaire:agents!jury_secretaire_id_fkey(id, nom, post_nom, prenom)",
-        "annee:annees(id, designation)",
-      ].join(","),
-    )
+    .select(JURY_FIELDS.join(","))
     .eq("id", juryId)
     .maybeSingle();
 
@@ -100,35 +151,28 @@ export const getJuryById = async (juryId: string) => {
     throw new Error(error.message);
   }
 
-  return data as JuryWithMembers | null;
-};
-
-const formatAgent = (
-  agent: JuryWithMembers["president"] | JuryWithMembers["secretaire"],
-) => {
-  if (!agent) {
-    return "Non renseigné";
+  if (!data) {
+    return null;
   }
-  const parts = [agent.prenom, agent.post_nom, agent.nom].filter(Boolean);
-  return parts.join(" ") || "Non renseigné";
+
+  const agentIds = [data.president_id, data.secretaire_id].filter(
+    (value): value is string => Boolean(value),
+  );
+  const anneeIds = data.annee_id ? [data.annee_id] : [];
+
+  const [agentsMap, anneesMap] = await Promise.all([
+    fetchAgentsByIds(agentIds),
+    fetchAnneesByIds(anneeIds),
+  ]);
+
+  return mapJuryMembers(data as JuryRow, agentsMap, anneesMap);
 };
 
 export const getJuriesForAgent = async (agentId: string) => {
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("jury")
-    .select(
-      [
-        "id",
-        "created_at",
-        "designation",
-        "annee_id",
-        "isActivate",
-        "president:agents!jury_president_id_fkey(id, nom, post_nom, prenom)",
-        "secretaire:agents!jury_secretaire_id_fkey(id, nom, post_nom, prenom)",
-        "annee:annees(id, designation)",
-      ].join(","),
-    )
+    .select(JURY_FIELDS.join(","))
     .or(`president_id.eq.${agentId},secretaire_id.eq.${agentId}`)
     .order("created_at", { ascending: false });
 
@@ -136,5 +180,257 @@ export const getJuriesForAgent = async (agentId: string) => {
     throw new Error(error.message);
   }
 
-  return (data ?? []) as JuryWithMembers[];
+  const juries = (data ?? []) as JuryRow[];
+  const agentIds = Array.from(
+    new Set(
+      juries.flatMap((jury) =>
+        [jury.president_id, jury.secretaire_id].filter(
+          (value): value is string => Boolean(value),
+        ),
+      ),
+    ),
+  );
+  const anneeIds = Array.from(
+    new Set(juries.map((jury) => jury.annee_id).filter((value): value is string => Boolean(value))),
+  );
+
+  const [agentsMap, anneesMap] = await Promise.all([
+    fetchAgentsByIds(agentIds),
+    fetchAnneesByIds(anneeIds),
+  ]);
+
+  return juries.map((jury) => mapJuryMembers(jury, agentsMap, anneesMap));
+};
+
+const fetchAgentsByIds = async (agentIds: string[]) => {
+  if (agentIds.length === 0) {
+    return new Map<string, AgentSummary>();
+  }
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("agents")
+    .select("id, nom, post_nom, prenom")
+    .in("id", agentIds);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const agents = (data ?? []) as AgentSummary[];
+  return buildAgentMap(agents);
+};
+
+const fetchAnneesByIds = async (anneeIds: string[]) => {
+  if (anneeIds.length === 0) {
+    return new Map<string, AnneeSummary>();
+  }
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("annees")
+    .select("id, designation")
+    .in("id", anneeIds);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const annees = (data ?? []) as AnneeSummary[];
+  return buildAnneeMap(annees);
+};
+
+export const getNotesForProgramme = async (programmeId: string) => {
+  const admin = createAdminClient();
+  const students = await getStudentsForProgramme(programmeId);
+
+  const { data: semestresData, error: semestresError } = await admin
+    .from("semestres")
+    .select("id, created_at, designation")
+    .eq("programme_id", programmeId)
+    .order("created_at", { ascending: true });
+
+  if (semestresError) {
+    throw new Error(semestresError.message);
+  }
+
+  const semestres = (semestresData ?? []) as Array<{
+    id: string;
+    designation: string | null;
+    created_at: string;
+  }>;
+
+  const semestreIds = semestres.map((semestre) => semestre.id);
+
+  const { data: unitesData, error: unitesError } = semestreIds.length
+    ? await admin
+        .from("unites")
+        .select("id, created_at, semestre_id, designation, code, credits")
+        .in("semestre_id", semestreIds)
+        .order("created_at", { ascending: true })
+    : { data: [], error: null };
+
+  if (unitesError) {
+    throw new Error(unitesError.message);
+  }
+
+  const unites = (unitesData ?? []) as Array<{
+    id: string;
+    created_at: string;
+    semestre_id: string | null;
+    designation: string | null;
+    code: string | null;
+    credits: number | null;
+  }>;
+
+  const uniteIds = unites.map((unite) => unite.id);
+
+  const { data: matieresData, error: matieresError } = uniteIds.length
+    ? await admin
+        .from("matieres")
+        .select("id, created_at, unite_id, designation, credits")
+        .in("unite_id", uniteIds)
+        .order("created_at", { ascending: true })
+    : { data: [], error: null };
+
+  if (matieresError) {
+    throw new Error(matieresError.message);
+  }
+
+  const matieres = (matieresData ?? []) as Array<{
+    id: string;
+    created_at: string;
+    unite_id: string | null;
+    designation: string | null;
+    credits: number | null;
+  }>;
+
+  const matiereIds = matieres.map((matiere) => matiere.id);
+
+  const { data: coursData, error: coursError } = matiereIds.length
+    ? await admin
+        .from("cours")
+        .select("id, created_at, matiere_id")
+        .in("matiere_id", matiereIds)
+        .order("created_at", { ascending: true })
+    : { data: [], error: null };
+
+  if (coursError) {
+    throw new Error(coursError.message);
+  }
+
+  const coursRows = (coursData ?? []) as Array<{
+    id: string;
+    created_at: string;
+    matiere_id: string | null;
+  }>;
+
+  const coursByMatiereId = new Map<string, string>();
+  for (const row of coursRows) {
+    if (!row.matiere_id) continue;
+    if (coursByMatiereId.has(row.matiere_id)) continue;
+    coursByMatiereId.set(row.matiere_id, row.id);
+  }
+
+  const studentIds = students.map((student) => student.id);
+  const coursIds = Array.from(new Set(Array.from(coursByMatiereId.values())));
+
+  type FicheCotationRow = {
+    student_id: string | null;
+    cours_id: string | null;
+    cc: number | null;
+    examen: number | null;
+    rattrapage: number | null;
+  };
+
+  const chunk = <T,>(values: T[], size: number) => {
+    const chunks: T[][] = [];
+    for (let i = 0; i < values.length; i += size) {
+      chunks.push(values.slice(i, i + size));
+    }
+    return chunks;
+  };
+
+  const ficheRows: FicheCotationRow[] = [];
+  if (studentIds.length > 0 && coursIds.length > 0) {
+    const studentChunks = chunk(studentIds, 150);
+    for (const studentChunk of studentChunks) {
+      const { data, error } = await admin
+        .from("fiche_cotation")
+        .select("student_id, cours_id, cc, examen, rattrapage")
+        .in("student_id", studentChunk)
+        .in("cours_id", coursIds);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      ficheRows.push(...((data ?? []) as FicheCotationRow[]));
+    }
+  }
+
+  const ficheByStudentCours = new Map<string, FicheCotationRow>();
+  for (const row of ficheRows) {
+    if (!row.student_id || !row.cours_id) continue;
+    ficheByStudentCours.set(`${row.student_id}:${row.cours_id}`, row);
+  }
+
+  const unitesBySemestreId = new Map<string, typeof unites>();
+  for (const unite of unites) {
+    if (!unite.semestre_id) continue;
+    const list = unitesBySemestreId.get(unite.semestre_id) ?? [];
+    list.push(unite);
+    unitesBySemestreId.set(unite.semestre_id, list);
+  }
+
+  const matieresByUniteId = new Map<string, typeof matieres>();
+  for (const matiere of matieres) {
+    if (!matiere.unite_id) continue;
+    const list = matieresByUniteId.get(matiere.unite_id) ?? [];
+    list.push(matiere);
+    matieresByUniteId.set(matiere.unite_id, list);
+  }
+
+  return students.map((student): NotesEtudiant => {
+    const studentName = [student.prenom, student.post_nom, student.nom]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+
+    return {
+      studentId: student.id,
+      studentName: studentName || student.matricule || student.id,
+      matricule: student.matricule ?? "",
+      semestres: semestres.map((semestre) => {
+        const semUnites = unitesBySemestreId.get(semestre.id) ?? [];
+        return {
+          _id: semestre.id,
+          designation: semestre.designation ?? "Semestre",
+          unites: semUnites.map((unite) => {
+            const uniteMatieres = matieresByUniteId.get(unite.id) ?? [];
+            return {
+              _id: unite.id,
+              code: unite.code ?? "",
+              designation: unite.designation ?? "Unité",
+              credit: unite.credits ?? 0,
+              elements: uniteMatieres.map((matiere) => {
+                const coursId = coursByMatiereId.get(matiere.id) ?? null;
+                const fiche = coursId
+                  ? ficheByStudentCours.get(`${student.id}:${coursId}`) ?? null
+                  : null;
+                return {
+                  _id: matiere.id,
+                  designation: matiere.designation ?? "Matière",
+                  credit: matiere.credits ?? 0,
+                  cc: fiche?.cc ?? 0,
+                  examen: fiche?.examen ?? 0,
+                  rattrapage: fiche?.rattrapage ?? 0,
+                };
+              }),
+            };
+          }),
+        };
+      }),
+    };
+  });
 };

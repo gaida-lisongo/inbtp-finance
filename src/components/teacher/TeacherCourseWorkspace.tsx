@@ -1748,7 +1748,9 @@ function QuestionnaireEditor({ activity, onClose }: { activity: TeacherCourseAct
         <div className="space-y-6">
           {questionRows.map((question, index) => (
             <div key={`question-${index}`} className="space-y-3 rounded-2xl border border-gray-200 bg-gray-50/70 p-4 dark:border-gray-700 dark:bg-gray-900/40">
-              <Label className="text-xs uppercase tracking-[0.3em] text-gray-400 dark:text-gray-500">Énoncé #{index + 1}</Label>
+              <Label className="text-xs uppercase tracking-[0.3em] text-gray-400 dark:text-gray-500">
+                {activity.category === "tp" ? "Énoncé" : `Énoncé #${index + 1}`}
+              </Label>
               <textarea
                 rows={3}
                 value={question.enonce}
@@ -1757,16 +1759,30 @@ function QuestionnaireEditor({ activity, onClose }: { activity: TeacherCourseAct
                 placeholder="Rédige l'énoncé complet de la question"
               />
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <Label className="text-xs uppercase tracking-[0.3em] text-gray-400 dark:text-gray-500">Index correct</Label>
-                  <Input
-                    type="number"
-                    value={question.reponseIndex ?? ""}
-                    onChange={(event) => updateRow(index, "reponseIndex", event.target.value ? Number(event.target.value) : undefined)}
-                    className="rounded-lg border border-gray-300 px-3 py-2 text-xs dark:border-gray-700"
-                  />
+              {activity.category === "qcm" && (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <Label className="text-xs uppercase tracking-[0.3em] text-gray-400 dark:text-gray-500">Index correct</Label>
+                    <Input
+                      type="number"
+                      value={question.reponseIndex ?? ""}
+                      onChange={(event) => updateRow(index, "reponseIndex", event.target.value ? Number(event.target.value) : undefined)}
+                      className="rounded-lg border border-gray-300 px-3 py-2 text-xs dark:border-gray-700"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs uppercase tracking-[0.3em] text-gray-400 dark:text-gray-500">Points</Label>
+                    <Input
+                      type="number"
+                      value={question.pts ?? ""}
+                      onChange={(event) => updateRow(index, "pts", event.target.value ? Number(event.target.value) : undefined)}
+                      className="rounded-lg border border-gray-300 px-3 py-2 text-xs dark:border-gray-700"
+                    />
+                  </div>
                 </div>
+              )}
+
+              {activity.category === "tp" && (
                 <div>
                   <Label className="text-xs uppercase tracking-[0.3em] text-gray-400 dark:text-gray-500">Points</Label>
                   <Input
@@ -1776,36 +1792,38 @@ function QuestionnaireEditor({ activity, onClose }: { activity: TeacherCourseAct
                     className="rounded-lg border border-gray-300 px-3 py-2 text-xs dark:border-gray-700"
                   />
                 </div>
-              </div>
+              )}
 
-              <div className="space-y-3">
-                <div className="text-xs uppercase tracking-[0.3em] text-gray-400 dark:text-gray-500">Réponses possibles</div>
-                {(question.items ?? []).map((item, itemIndex) => (
-                  <div key={`item-${index}-${itemIndex}`} className="space-y-2">
-                    <Input
-                      type="text"
-                      value={item}
-                      onChange={(event) => updateItem(index, itemIndex, event.target.value)}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs dark:border-gray-700"
-                      placeholder={`Réponse ${itemIndex + 1}`}
-                    />
-                    <button
-                      type="button"
-                      className="text-xs font-semibold text-error-600 hover:text-error-700"
-                      onClick={() => removeItem(index, itemIndex)}
-                    >
-                      Supprimer
-                    </button>
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => addItem(index)}
-                  className="inline-flex w-full items-center justify-center rounded-full border border-brand-300 px-3 py-1 text-xs font-semibold text-brand-600 hover:bg-brand-50"
-                >
-                  + Ajouter une réponse
-                </button>
-              </div>
+              {activity.category === "qcm" && (
+                <div className="space-y-3">
+                  <div className="text-xs uppercase tracking-[0.3em] text-gray-400 dark:text-gray-500">Réponses possibles</div>
+                  {(question.items ?? []).map((item, itemIndex) => (
+                    <div key={`item-${index}-${itemIndex}`} className="space-y-2">
+                      <Input
+                        type="text"
+                        value={item}
+                        onChange={(event) => updateItem(index, itemIndex, event.target.value)}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs dark:border-gray-700"
+                        placeholder={`Réponse ${itemIndex + 1}`}
+                      />
+                      <button
+                        type="button"
+                        className="text-xs font-semibold text-error-600 hover:text-error-700"
+                        onClick={() => removeItem(index, itemIndex)}
+                      >
+                        Supprimer
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => addItem(index)}
+                    className="inline-flex w-full items-center justify-center rounded-full border border-brand-300 px-3 py-1 text-xs font-semibold text-brand-600 hover:bg-brand-50"
+                  >
+                    + Ajouter une réponse
+                  </button>
+                </div>
+              )}
 
               <div className="flex justify-end">
                 <button
@@ -1813,7 +1831,7 @@ function QuestionnaireEditor({ activity, onClose }: { activity: TeacherCourseAct
                   className="text-xs font-semibold text-error-600 hover:text-error-700"
                   onClick={() => removeQuestion(index)}
                 >
-                  Supprimer la question
+                  {activity.category === "tp" ? "Supprimer l'énoncé" : "Supprimer la question"}
                 </button>
               </div>
             </div>
@@ -1825,11 +1843,13 @@ function QuestionnaireEditor({ activity, onClose }: { activity: TeacherCourseAct
             onClick={addQuestion}
             className="rounded-full border border-brand-300 px-4 py-2 text-xs font-semibold text-brand-600 hover:bg-brand-50"
           >
-            + Ajouter une question
+            + {activity.category === "tp" ? "Ajouter un énoncé" : "Ajouter une question"}
           </button>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            Chaque champ “ligne” correspond à une réponse possible; indiquez l’index correct à partir de 0.
-          </p>
+          {activity.category === "qcm" && (
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Chaque champ "ligne" correspond à une réponse possible; indiquez l'index correct à partir de 0.
+            </p>
+          )}
         </div>
         <div className="flex justify-end gap-2">
           <button type="button" onClick={onClose} className="rounded-full border border-gray-300 px-4 py-2 text-sm font-medium text-gray-500 transition hover:border-gray-400">
