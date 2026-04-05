@@ -20,8 +20,10 @@ export async function POST(request: Request, context: { params: Promise<{ produc
     const recipientName = sanitizeText(formData.get("recipient_name"));
     const recipientQuality = sanitizeText(formData.get("recipient_quality"));
     const recipientSex = sanitizeText(formData.get("recipient_sex"));
+    const companyName = sanitizeText(formData.get("company_name"));
+    const companyLocation = sanitizeText(formData.get("company_location"));
 
-    if (!recipientName || !recipientQuality || (recipientSex !== "M" && recipientSex !== "F")) {
+    if (!recipientName || !recipientQuality || !companyName || !companyLocation || (recipientSex !== "M" && recipientSex !== "F")) {
       return new NextResponse("Informations de generation invalides.", { status: 400 });
     }
 
@@ -41,6 +43,9 @@ export async function POST(request: Request, context: { params: Promise<{ produc
       recipientName,
       recipientQuality,
       recipientSex,
+      companyName,
+      companyLocation,
+      documentReference: productData.existingSuccessCommande?.orderNumber ?? productData.existingSuccessCommande?.id ?? null,
     });
 
     const pdfBuffer = await document.generateBuffer();

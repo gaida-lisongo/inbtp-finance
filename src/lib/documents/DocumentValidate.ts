@@ -1,5 +1,5 @@
 import { Document, type PdfDocumentDefinition, type ReferenceItem } from "@/lib/documents/Document";
-import { getSchoolPdfBrandingAssets } from "@/lib/assets/asset-images";
+import { getSchoolPdfBrandingAssets } from "@/lib/assets/asset-images.server";
 
 export class DocumentValidate extends Document<Record<string, unknown>> {
   info() {

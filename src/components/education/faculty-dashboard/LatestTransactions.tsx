@@ -16,6 +16,7 @@ type LatestTransactionsProps = {
   rows: FacultyDashboardCommande[];
   categoryFilter: string;
   onCategoryFilterChange: (value: string) => void;
+  allowStageLettersBulkDownload?: boolean;
 };
 
 export default function LatestTransactions({
@@ -24,11 +25,16 @@ export default function LatestTransactions({
   rows,
   categoryFilter,
   onCategoryFilterChange,
+  allowStageLettersBulkDownload = false,
 }: LatestTransactionsProps) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [selectedTransaction, setSelectedTransaction] = useState<FacultyDashboardCommande | null>(null);
+  const [bulkDownloadState, setBulkDownloadState] = useState<{ loading: boolean; error: string | null }>({
+    loading: false,
+    error: null,
+  });
   const deferredSearch = useDeferredValue(search);
   const rowsPerPage = 5;
 
@@ -62,6 +68,58 @@ export default function LatestTransactions({
     () => Array.from(new Map(rows.map((row) => [row.categoryKey, row.categoryLabel])).entries()),
     [rows],
   );
+
+  const stageSuccessRows = useMemo(
+    () =>
+      filteredRows.filter(
+        (row) => row.status === "success" && (row.categoryKey === "stage" || row.categoryKey === "stages"),
+      ),
+    [filteredRows],
+  );
+
+  const canDownloadStageLetters = allowStageLettersBulkDownload && stageSuccessRows.length > 0;
+
+  const downloadStageLetters = async () => {
+    if (!canDownloadStageLetters) {
+      return;
+    }
+
+    try {
+      setBulkDownloadState({ loading: true, error: null });
+
+      const response = await fetch("/api/admin/stage-letters/bulk", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          commandeIds: stageSuccessRows.map((row) => row.id),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorPayload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(errorPayload?.error ?? "Impossible de generer le PDF des lettres de stage.");
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", "lettres-stage-success.pdf");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      setBulkDownloadState({ loading: false, error: null });
+    } catch (error) {
+      setBulkDownloadState({
+        loading: false,
+        error: error instanceof Error ? error.message : "Erreur lors du telechargement des lettres.",
+      });
+    }
+  };
 
   return (
     <>
@@ -103,7 +161,13 @@ export default function LatestTransactions({
             <option value="success">Success</option>
             <option value="pending">Pending</option>
           </select>
+          {allowStageLettersBulkDownload ? (
+            <Button onClick={downloadStageLetters} disabled={!canDownloadStageLetters || bulkDownloadState.loading}>
+              {bulkDownloadState.loading ? "Generation..." : `Telecharger lettres stage (${stageSuccessRows.length})`}
+            </Button>
+          ) : null}
         </div>
+        {bulkDownloadState.error ? <p className="mt-3 text-sm text-error-600">{bulkDownloadState.error}</p> : null}
 
         <div className="divide-y divide-gray-200 dark:divide-gray-800">
           {paginatedRows.length === 0 ? (

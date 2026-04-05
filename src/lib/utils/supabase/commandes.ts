@@ -5,6 +5,7 @@ import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 import type { StudentRecord } from "@/lib/utils/supabase/students-shared";
 import type { SessionRecord } from "@/lib/utils/supabase/appariteur";
 import type { ResearchRecord } from "@/lib/utils/supabase/recherche-shared";
+import { sendMicrosoft365Mail } from "@/lib/utils/microsoft-graph";
 
 export type CommandeCategory = "documents" | "session" | "stages" | "sujets" | "laboratoire";
 export type PaymentChannel = "MOBILE_MONEY" | "CREDIT_CARD";
@@ -356,6 +357,68 @@ const buildCommandeDescription = (resource: CommandeResourceSummary, channel: Pa
   return descriptionParts.join(" - ");
 };
 
+const notifyOrganizersWhenCommandeSuccess = async (commande: CommandeRecord) => {
+  const admin = createAdminClient();
+  const { data: organizerRows, error: organizerError } = await admin
+    .from("agents")
+    .select("email")
+    .eq("role", "organisateur");
+
+  if (organizerError) {
+    throw new Error(organizerError.message);
+  }
+
+  const recipients = Array.from(
+    new Set(
+      ((organizerRows ?? []) as Array<{ email: string | null }>)
+        .map((row) => row.email?.trim().toLowerCase() ?? "")
+        .filter(Boolean),
+    ),
+  );
+
+  if (recipients.length === 0) {
+    return;
+  }
+
+  const amountLabel =
+    typeof commande.total === "number"
+      ? new Intl.NumberFormat("fr-FR", {
+          style: "currency",
+          currency: "USD",
+          maximumFractionDigits: 2,
+        }).format(commande.total)
+      : "Montant indisponible";
+
+  const orderRef = normalizeText(commande.orderNumber) ?? commande.id;
+  const categoryLabel = normalizeText(commande.categorie) ?? "commande";
+
+  await sendMicrosoft365Mail({
+    to: recipients,
+    subject: `Commande ${orderRef} validee avec succes`,
+    html: `
+      <div style="font-family:Arial,sans-serif;background:#f5f7fb;padding:24px;color:#1f2937;">
+        <div style="max-width:680px;margin:0 auto;background:#ffffff;border-radius:16px;border:1px solid #e5e7eb;overflow:hidden;">
+          <div style="padding:20px 24px;background:#111827;color:#ffffff;">
+            <div style="font-size:12px;letter-spacing:0.14em;text-transform:uppercase;opacity:0.85;">Notification paiement</div>
+            <h1 style="margin:10px 0 0;font-size:22px;line-height:1.35;">Commande confirmee</h1>
+          </div>
+          <div style="padding:24px;">
+            <p style="margin:0 0 12px;font-size:15px;line-height:1.7;">
+              La commande <strong>${orderRef}</strong> est passee au statut <strong>success</strong>.
+            </p>
+            <p style="margin:0 0 10px;font-size:14px;line-height:1.7;">
+              Categorie: <strong>${categoryLabel}</strong>
+            </p>
+            <p style="margin:0 0 10px;font-size:14px;line-height:1.7;">
+              Montant: <strong>${amountLabel}</strong>
+            </p>
+          </div>
+        </div>
+      </div>
+    `,
+  });
+};
+
 const extractOrderNumber = (payload: unknown): string | null => {
   if (!payload || typeof payload !== "object") {
     return null;
@@ -670,6 +733,7 @@ export const validateStudentCommandePayment = async (input: {
   }
 
   const commande = commandeData as CommandeRecord;
+  const previousStatus = commande.status;
   const orderNumber = normalizeText(commande.orderNumber) ?? commande.id;
   const paymentService = PaymentService.getInstance();
   const paymentResponse = await paymentService.check(orderNumber);
@@ -685,6 +749,14 @@ export const validateStudentCommandePayment = async (input: {
 
   if (updateError) {
     throw new Error(updateError.message);
+  }
+
+  if (isSuccess && previousStatus !== "success") {
+    try {
+      await notifyOrganizersWhenCommandeSuccess(updatedCommande as CommandeRecord);
+    } catch (notificationError) {
+      console.error("organizer notification failed", notificationError);
+    }
   }
 
   return {
@@ -724,6 +796,7 @@ export const validateCommandePaymentByOrderNumber = async (orderNumber: string):
   }
 
   const commande = commandeData as CommandeRecord;
+  const previousStatus = commande.status;
   const rawCategory = normalizeText(commande.categorie);
   const productId = normalizeText(commande.product);
 
@@ -746,6 +819,14 @@ export const validateCommandePaymentByOrderNumber = async (orderNumber: string):
 
   if (updateError) {
     throw new Error(updateError.message);
+  }
+
+  if (isSuccess && previousStatus !== "success") {
+    try {
+      await notifyOrganizersWhenCommandeSuccess(updatedCommande as CommandeRecord);
+    } catch (notificationError) {
+      console.error("organizer notification failed", notificationError);
+    }
   }
 
   return {

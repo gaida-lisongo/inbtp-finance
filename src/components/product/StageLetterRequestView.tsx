@@ -87,6 +87,32 @@ export default function StageLetterRequestView({
           </select>
         </div>
 
+        <div>
+          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="company_name">
+            Entreprise
+          </label>
+          <input
+            id="company_name"
+            name="company_name"
+            required
+            placeholder="Ex: Gecamines SA"
+            className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+          />
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="company_location">
+            Lieu
+          </label>
+          <input
+            id="company_location"
+            name="company_location"
+            required
+            placeholder="Ex: Lubumbashi"
+            className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+          />
+        </div>
+
         <div className="flex justify-end">
           <button
             type="submit"

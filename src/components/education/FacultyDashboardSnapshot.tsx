@@ -139,6 +139,7 @@ export default function FacultyDashboardSnapshot({ snapshot }: FacultyDashboardS
         }
         categoryFilter={transactionsCategoryFilter}
         onCategoryFilterChange={setTransactionsCategoryFilter}
+        allowStageLettersBulkDownload
       />
 
       <CategoryModal

@@ -26,7 +26,7 @@ export type StudentDocumentIdentity = {
   telephone?: string | null;
 };
 
-const createPdfBuffer = async (docDefinition: PdfDocumentDefinition): Promise<Buffer> => {
+export const generatePdfBufferFromDefinition = async (docDefinition: PdfDocumentDefinition): Promise<Buffer> => {
   const pdfMakeModule = await import("pdfmake/build/pdfmake");
   const pdfFontsModule = await import("pdfmake/build/vfs_fonts");
 
@@ -78,6 +78,6 @@ export abstract class Document<TPayload = unknown> {
     };
 
     const contentDefinition = await this.content(baseDefinition);
-    return createPdfBuffer(contentDefinition);
+    return generatePdfBufferFromDefinition(contentDefinition);
   }
 }

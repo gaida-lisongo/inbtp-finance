@@ -1,5 +1,5 @@
 import { Document, type PdfDocumentDefinition, type ReferenceItem, type StudentDocumentIdentity } from "@/lib/documents/Document";
-import { getSchoolPdfBrandingAssets } from "@/lib/assets/asset-images";
+import { getSchoolPdfBrandingAssets } from "@/lib/assets/asset-images.server";
 
 export type DocumentLaboratoirePayload = {
   laboratoryTitle: string;
