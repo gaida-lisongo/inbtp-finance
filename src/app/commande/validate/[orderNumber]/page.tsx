@@ -1,8 +1,6 @@
 import Link from "next/link";
 
-import { PaymentService } from "@/lib/services/PaymentService";
-import { createAdminClient } from "@/lib/utils/supabase/admin";
-import { getCommandePath, getProductPath, type CommandeCategory } from "@/lib/utils/supabase/commandes";
+import { validateCommandePaymentByOrderNumber } from "@/lib/utils/supabase/commandes";
 
 type ValidationPageProps = {
   params: Promise<{
@@ -146,40 +144,6 @@ const PaymentStatusDetails = ({
   );
 };
 
-const updateCommandeStatus = async (orderNumber: string, status: string) => {
-  const admin = createAdminClient();
-  const { data: commande, error: commandeError } = await admin
-    .from("commande")
-    .select("*")
-    .eq("orderNumber", orderNumber)
-    .maybeSingle();
-
-  if (commandeError) {
-    throw new Error(commandeError.message);
-  }
-
-  if (!commande) {
-    throw new Error("commande_not_found");
-  }
-
-  if (commande.status === status) {
-    return commande;
-  }
-
-  const { data, error } = await admin
-    .from("commande")
-    .update({ status })
-    .eq("id", commande.id)
-    .select("*")
-    .single();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data;
-};
-
 export default async function ValidateCommandePage({ params }: ValidationPageProps) {
   const { orderNumber } = await params;
 
@@ -188,49 +152,30 @@ export default async function ValidateCommandePage({ params }: ValidationPagePro
     message: string;
     commandeStatus?: string;
     paymentResponse?: unknown;
-    category?: CommandeCategory;
-    productId?: string;
+    productPath?: string;
+    commandePath?: string;
   } | null = null;
 
   try {
-    const paymentService = PaymentService.getInstance();
-    const paymentResponse = await paymentService.check(orderNumber);
-    const success = Boolean(paymentResponse.success);
-    const desiredStatus = success ? "success" : "no";
+    const validation = await validateCommandePaymentByOrderNumber(orderNumber);
 
-    const updatedCommande = await updateCommandeStatus(orderNumber, desiredStatus);
     result = {
-      success,
-      message: success
-        ? "Le paiement a ete confirme par FlexPay."
-        : "La transaction n'a pas pu etre confirmee. Le statut de la commande passe en « no ».",
-      commandeStatus: updatedCommande.status ?? "unknown",
-      paymentResponse,
-      category: updatedCommande.categorie as CommandeCategory,
-      productId: updatedCommande.product ?? undefined,
+      success: validation.success,
+      message: validation.message,
+      commandeStatus: validation.commande.status ?? "unknown",
+      paymentResponse: validation.paymentResponse,
+      productPath: validation.productPath,
+      commandePath: validation.commandePath,
     };
-
-    console.log(`Commande ${orderNumber} validation: ${success ? "success" : "no"}`, result.paymentResponse);
   } catch (error) {
     console.error("Validation commande error", orderNumber, error);
-    const message = error instanceof Error ? error.message : "Erreur serveur";
     result = {
       success: false,
-      message,
+      message: error instanceof Error ? error.message : "Erreur serveur",
       commandeStatus: "error",
       paymentResponse: null,
     };
   }
-
-  const resourcePath =
-    result?.category && result.productId
-      ? getProductPath(result.category, result.productId)
-      : null;
-
-  const commandePath =
-    result?.category && result.productId
-      ? getCommandePath(result.category, result.productId)
-      : null;
 
   return (
     <main className="min-h-screen bg-gray-50 px-4 py-10 dark:bg-gray-950 sm:px-6 lg:px-8">
@@ -239,7 +184,7 @@ export default async function ValidateCommandePage({ params }: ValidationPagePro
           <p className="text-xs uppercase tracking-[0.4em] text-gray-400 dark:text-gray-500">Validation de commande</p>
           <h1 className="text-3xl font-semibold text-gray-900 dark:text-white/90">Order {orderNumber}</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Vérification réalisée via le proxy FlexPay. Résultat enregistré dans l’historique des commandes.
+            Verification realisee via le proxy FlexPay. Resultat enregistre dans l&apos;historique des commandes.
           </p>
         </header>
 
@@ -255,16 +200,16 @@ export default async function ValidateCommandePage({ params }: ValidationPagePro
         </div>
 
         <div className="flex flex-wrap gap-3">
-          {result?.success && resourcePath ? (
+          {result?.success && result.productPath ? (
             <Link
-              href={resourcePath}
+              href={result.productPath}
               className="flex-1 min-w-[160px] rounded-lg bg-brand-500 px-4 py-3 text-center text-sm font-medium text-white transition hover:bg-brand-600"
             >
               Acceder a la ressource
             </Link>
-          ) : commandePath ? (
+          ) : result?.commandePath ? (
             <Link
-              href={commandePath}
+              href={result.commandePath}
               className="flex-1 min-w-[160px] rounded-lg bg-brand-500 px-4 py-3 text-center text-sm font-medium text-white transition hover:bg-brand-600"
             >
               Retour a la commande

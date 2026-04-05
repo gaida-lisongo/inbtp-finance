@@ -5,13 +5,7 @@ import StudentResourcesWorkspace from "@/components/student/StudentResourcesWork
 import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 import { getStudentDashboardSnapshot } from "@/lib/utils/supabase/student-dashboard";
 
-type StudentResourcesByTypePageProps = {
-  params: Promise<{
-    types: string;
-  }>;
-};
-
-export default async function StudentResourcesByTypePage({ params }: StudentResourcesByTypePageProps) {
+export default async function StudentResourcesPage() {
   const user = await getAuthenticatedUser();
 
   if (!user) {
@@ -22,13 +16,12 @@ export default async function StudentResourcesByTypePage({ params }: StudentReso
     redirect("/");
   }
 
-  const { types } = await params;
   const snapshot = await getStudentDashboardSnapshot({ includeAllCommandes: true });
 
   return (
     <div className="space-y-6">
       <PageBreadcrumb pageTitle="Mes ressources" />
-      <StudentResourcesWorkspace snapshot={snapshot} initialType={types} />
+      <StudentResourcesWorkspace snapshot={snapshot} />
     </div>
   );
 }

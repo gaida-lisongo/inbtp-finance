@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import OrderCheckoutFlow from "@/components/commande/OrderCheckoutFlow";
@@ -5,6 +6,7 @@ import {
   getCommandeCategoryLabel,
   getCommandeCheckoutPageData,
   getCommandeStudentDisplayName,
+  getProductPath,
   type CommandeCategory,
 } from "@/lib/utils/supabase/commandes";
 
@@ -66,7 +68,13 @@ export default async function CommandePage({ category, resourceId }: CommandePag
         <div className="rounded-3xl border border-gray-200 bg-white p-8 shadow-theme-sm dark:border-gray-800 dark:bg-white/[0.03]">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <div className="text-sm font-medium uppercase tracking-[0.2em] text-brand-500">Commande etudiante</div>
+              <Link
+                href="/ressources"
+                className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/[0.04]"
+              >
+                Retour a mes ressources
+              </Link>
+              <div className="mt-4 text-sm font-medium uppercase tracking-[0.2em] text-brand-500">Commande etudiante</div>
               <h1 className="mt-3 text-3xl font-semibold text-gray-900 dark:text-white/90">
                 Paiement de {resourceLabel.toLowerCase()}
               </h1>
@@ -90,8 +98,7 @@ export default async function CommandePage({ category, resourceId }: CommandePag
               </div>
               <h2 className="mt-5 text-2xl font-semibold text-gray-900 dark:text-white/90">Votre commande est deja marquee comme payee</h2>
               <p className="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">
-                Verifiez votre boite mail pour consulter la notification associee a cette ressource. Si besoin, communiquez ce numero
-                de commande a l&apos;administration.
+                La ressource est disponible directement dans l&apos;application. Vous pouvez l&apos;ouvrir sans passer par une validation email.
               </p>
               <div className="mt-6 grid gap-4 rounded-2xl border border-gray-200 bg-gray-50 p-5 text-sm dark:border-gray-800 dark:bg-gray-900 md:grid-cols-2">
                 <div>
@@ -106,6 +113,14 @@ export default async function CommandePage({ category, resourceId }: CommandePag
                     {new Date(data.existingSuccessCommande.created_at).toLocaleString("fr-FR")}
                   </div>
                 </div>
+              </div>
+              <div className="mt-6">
+                <Link
+                  href={getProductPath(category, resourceId)}
+                  className="inline-flex items-center justify-center rounded-lg bg-brand-500 px-5 py-3 text-sm font-medium text-white transition hover:bg-brand-600"
+                >
+                  Acceder a la ressource
+                </Link>
               </div>
             </div>
           </div>

@@ -76,6 +76,17 @@ type ConfirmCommandeResult = {
   rawData: unknown;
 };
 
+type PaymentValidationResult = {
+  success: boolean;
+  message: string;
+  commande: CommandeRecord;
+  paymentResponse: unknown;
+  category: CommandeCategory;
+  productId: string;
+  productPath: string;
+  commandePath: string;
+};
+
 const resourceConfig: Record<
   CommandeCategory,
   {
@@ -375,6 +386,57 @@ const extractOrderNumber = (payload: unknown): string | null => {
   return null;
 };
 
+const getNestedRecord = (value: unknown): Record<string, unknown> | null => {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  return value as Record<string, unknown>;
+};
+
+const extractTransactionStatus = (payload: unknown): string | null => {
+  const root = getNestedRecord(payload);
+
+  if (!root) {
+    return null;
+  }
+
+  const candidates: unknown[] = [
+    root.status,
+    root.transactionStatus,
+    getNestedRecord(root.data)?.status,
+    getNestedRecord(getNestedRecord(root.data)?.data)?.status,
+    getNestedRecord(getNestedRecord(getNestedRecord(root.data)?.data)?.transaction)?.status,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim().length > 0) {
+      return candidate.trim().toLowerCase();
+    }
+  }
+
+  return null;
+};
+
+const isPaymentResponseSuccessful = (paymentResponse: { success?: boolean; data?: unknown; message?: string }) => {
+  const transactionStatus = extractTransactionStatus(paymentResponse.data);
+
+  if (transactionStatus) {
+    const successStatuses = new Set(["0", "success", "succeeded", "paid", "completed", "complete"]);
+    const failedStatuses = new Set(["1", "failed", "failure", "cancelled", "canceled", "declined", "error", "no"]);
+
+    if (successStatuses.has(transactionStatus)) {
+      return true;
+    }
+
+    if (failedStatuses.has(transactionStatus)) {
+      return false;
+    }
+  }
+
+  return Boolean(paymentResponse.success);
+};
+
 const assertPositiveAmount = (amount: number | null) => {
   if (typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0) {
     throw new Error("resource_amount_invalid");
@@ -576,6 +638,127 @@ export const confirmCommandePayment = async (input: ConfirmCommandePaymentInput)
     provider: paymentResponse.provider ?? null,
     orderNumber: resolvedOrderNumber,
     rawData: paymentResponse.data,
+  };
+};
+
+export const validateStudentCommandePayment = async (input: {
+  commandeId: string;
+  category: CommandeCategory;
+  resourceId: string;
+}): Promise<PaymentValidationResult> => {
+  const student = await resolveCurrentStudent();
+  const resource = await getResourceSummary(input.category, input.resourceId);
+
+  await assertStudentCanAccessResource(student.id, resource.programmeId);
+
+  const admin = createAdminClient();
+  const { data: commandeData, error: commandeError } = await admin
+    .from("commande")
+    .select("*")
+    .eq("id", input.commandeId)
+    .eq("student_id", student.id)
+    .eq("categorie", input.category)
+    .eq("product", input.resourceId)
+    .maybeSingle();
+
+  if (commandeError) {
+    throw new Error(commandeError.message);
+  }
+
+  if (!commandeData) {
+    throw new Error("commande_not_found");
+  }
+
+  const commande = commandeData as CommandeRecord;
+  const orderNumber = normalizeText(commande.orderNumber) ?? commande.id;
+  const paymentService = PaymentService.getInstance();
+  const paymentResponse = await paymentService.check(orderNumber);
+  const isSuccess = isPaymentResponseSuccessful(paymentResponse);
+  const desiredStatus = isSuccess ? "success" : "no";
+
+  const { data: updatedCommande, error: updateError } = await admin
+    .from("commande")
+    .update({ status: desiredStatus })
+    .eq("id", commande.id)
+    .select("*")
+    .single();
+
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+
+  return {
+    success: isSuccess,
+    message: isSuccess
+      ? "Paiement confirme. La ressource est maintenant accessible."
+      : "Paiement non confirme pour le moment. Vous pouvez relancer la verification.",
+    commande: updatedCommande as CommandeRecord,
+    paymentResponse: paymentResponse.data ?? null,
+    category: input.category,
+    productId: input.resourceId,
+    productPath: getProductPath(input.category, input.resourceId),
+    commandePath: getCommandePath(input.category, input.resourceId),
+  };
+};
+
+export const validateCommandePaymentByOrderNumber = async (orderNumber: string): Promise<PaymentValidationResult> => {
+  const normalizedOrderNumber = normalizeText(orderNumber);
+
+  if (!normalizedOrderNumber) {
+    throw new Error("order_number_required");
+  }
+
+  const admin = createAdminClient();
+  const { data: commandeData, error: commandeError } = await admin
+    .from("commande")
+    .select("*")
+    .eq("orderNumber", normalizedOrderNumber)
+    .maybeSingle();
+
+  if (commandeError) {
+    throw new Error(commandeError.message);
+  }
+
+  if (!commandeData) {
+    throw new Error("commande_not_found");
+  }
+
+  const commande = commandeData as CommandeRecord;
+  const rawCategory = normalizeText(commande.categorie);
+  const productId = normalizeText(commande.product);
+
+  if (!rawCategory || !(rawCategory in resourceConfig) || !productId) {
+    throw new Error("commande_resource_invalid");
+  }
+
+  const category = rawCategory as CommandeCategory;
+  const paymentService = PaymentService.getInstance();
+  const paymentResponse = await paymentService.check(normalizedOrderNumber);
+  const isSuccess = isPaymentResponseSuccessful(paymentResponse);
+  const desiredStatus = isSuccess ? "success" : "no";
+
+  const { data: updatedCommande, error: updateError } = await admin
+    .from("commande")
+    .update({ status: desiredStatus })
+    .eq("id", commande.id)
+    .select("*")
+    .single();
+
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+
+  return {
+    success: isSuccess,
+    message: isSuccess
+      ? "Le paiement a ete confirme par FlexPay."
+      : "La transaction n'a pas pu etre confirmee. Le statut de la commande passe en « no ».",
+    commande: updatedCommande as CommandeRecord,
+    paymentResponse,
+    category,
+    productId,
+    productPath: getProductPath(category, productId),
+    commandePath: getCommandePath(category, productId),
   };
 };
 

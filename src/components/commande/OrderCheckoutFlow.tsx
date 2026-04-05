@@ -1,8 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { type FormEvent, useState, useTransition } from "react";
 
-import { confirmCommandePaymentAction, createCommandeDraftAction } from "@/app/commande/actions";
+import {
+  confirmCommandePaymentAction,
+  createCommandeDraftAction,
+  validateCommandePaymentAccessAction,
+} from "@/app/commande/actions";
 import Button from "@/components/ui/button/Button";
 import type { CommandeCategory, CommandeRecord, CommandeResourceSummary, PaymentChannel } from "@/lib/utils/supabase/commandes";
 
@@ -53,6 +58,8 @@ const getErrorMessage = (error: unknown) => {
       return "Vous devez etre connecte pour poursuivre cette commande.";
     case "resource_access_denied":
       return "Cette ressource n'est pas accessible avec votre compte etudiant.";
+    case "commande_not_found":
+      return "La commande est introuvable pour votre compte.";
     default:
       return error.message;
   }
@@ -66,20 +73,16 @@ export default function OrderCheckoutFlow({ category, resource, student }: Order
   const [commande, setCommande] = useState<CommandeRecord | null>(null);
   const [serverMessage, setServerMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [confirmationOrderNumber, setConfirmationOrderNumber] = useState<string | null>(null);
+  const [accessPath, setAccessPath] = useState<string | null>(null);
   const [invoiceData, setInvoiceData] = useState<{
     reference: string;
     amount: number;
     currency: string;
     channel: PaymentChannel;
-    studentName: string;
     resourceLabel: string;
     orderNumber: string;
-    message: string | null;
   } | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [isSendingEmail, setIsSendingEmail] = useState(false);
-  const [emailFeedback, setEmailFeedback] = useState<string | null>(null);
 
   const handlePaymentTypeSelection = (selectedChannel: PaymentChannel) => {
     if (isPending) {
@@ -135,18 +138,41 @@ export default function OrderCheckoutFlow({ category, resource, student }: Order
         });
 
         setCommande(result.commande);
-        setConfirmationOrderNumber(result.orderNumber);
         setServerMessage(result.message);
+        setAccessPath(null);
         setInvoiceData({
           reference: result.commande.id,
           amount: result.commande.total ?? 0,
           currency: "USD",
           channel,
-          studentName: getStudentDisplayName(student),
           resourceLabel: resource.title,
           orderNumber: result.orderNumber,
-          message: result.message ?? null,
         });
+      } catch (error) {
+        setErrorMessage(getErrorMessage(error));
+      }
+    });
+  };
+
+  const handleValidatePaymentAccess = () => {
+    if (!commande) {
+      return;
+    }
+
+    setErrorMessage(null);
+    setServerMessage(null);
+
+    startTransition(async () => {
+      try {
+        const result = await validateCommandePaymentAccessAction({
+          commandeId: commande.id,
+          category,
+          resourceId: resource.id,
+        });
+
+        setCommande(result.commande);
+        setServerMessage(result.message);
+        setAccessPath(result.success ? result.productPath : null);
       } catch (error) {
         setErrorMessage(getErrorMessage(error));
       }
@@ -326,68 +352,23 @@ export default function OrderCheckoutFlow({ category, resource, student }: Order
                 ) : null}
               </div>
 
-          {serverMessage ? (
-            <div className="mt-5 rounded-xl border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400">
-              {serverMessage}
-              {confirmationOrderNumber ? ` Numero de commande: ${confirmationOrderNumber}.` : ""}
-            </div>
-          ) : null}
+              {serverMessage ? (
+                <div className="mt-5 rounded-xl border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400">
+                  {serverMessage}
+                </div>
+              ) : null}
 
-          {emailFeedback ? (
-            <div className="text-xs text-gray-500 dark:text-gray-400">{emailFeedback}</div>
-          ) : null}
-
-          {invoiceData ? (
-            <div className="mt-5 space-y-3 rounded-xl border border-gray-200 bg-white/70 p-4 text-sm dark:border-gray-800 dark:bg-white/[0.03]">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-gray-800 dark:text-white/90">Résumé</span>
-                <button
-                  type="button"
-                  className="text-xs font-medium text-brand-500 hover:text-brand-600"
-                  disabled={!student.email || isSendingEmail}
-                  onClick={async () => {
-                    if (!invoiceData || !student.email) {
-                      return;
-                    }
-
-                    setIsSendingEmail(true);
-                    setEmailFeedback(null);
-                    const response = await fetch("/commande/api/send-validation", {
-                      method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                      },
-                      body: JSON.stringify({
-                        studentEmail: student.email,
-                        studentName: getStudentDisplayName(student),
-                        resourceLabel: invoiceData.resourceLabel,
-                        channel: invoiceData.channel,
-                        amount: invoiceData.amount,
-                        currency: invoiceData.currency,
-                        orderNumber: invoiceData.orderNumber,
-                      }),
-                    });
-
-                    if (!response.ok) {
-                      const payload = await response.json();
-                      setEmailFeedback(payload?.message ?? "Impossible d'envoyer l'email.");
-                    } else {
-                      setEmailFeedback("Email de validation envoyé.");
-                    }
-
-                    setIsSendingEmail(false);
-                  }}
-                >
-                  {isSendingEmail ? "Envoi..." : "Envoyer l'email de validation"}
-                </button>
-              </div>
-              <div className="grid gap-2 text-gray-700 dark:text-gray-200">
-                <div>Montant : {formatCurrency(invoiceData.amount)}</div>
-                <div>Canal : {paymentLabels[invoiceData.channel]}</div>
-                <div>OrderNumber : {invoiceData.orderNumber}</div>
-              </div>
-            </div>
-          ) : null}
+              {invoiceData ? (
+                <div className="mt-5 space-y-3 rounded-xl border border-gray-200 bg-white/70 p-4 text-sm dark:border-gray-800 dark:bg-white/[0.03]">
+                  <div className="font-semibold text-gray-800 dark:text-white/90">Résumé</div>
+                  <div className="grid gap-2 text-gray-700 dark:text-gray-200">
+                    <div>Montant : {formatCurrency(invoiceData.amount)}</div>
+                    <div>Canal : {paymentLabels[invoiceData.channel]}</div>
+                    <div>OrderNumber : {invoiceData.orderNumber}</div>
+                    <div>Ressource : {invoiceData.resourceLabel}</div>
+                  </div>
+                </div>
+              ) : null}
 
               {errorMessage ? (
                 <div className="mt-5 rounded-xl border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400">
@@ -400,8 +381,23 @@ export default function OrderCheckoutFlow({ category, resource, student }: Order
                   <Button onClick={handleConfirm} disabled={isPending || !commande}>
                     {isPending ? "Confirmation..." : "Confirmer la commande"}
                   </Button>
+                ) : !accessPath ? (
+                  <Button onClick={handleValidatePaymentAccess} disabled={isPending || !commande}>
+                    {isPending ? "Verification..." : "Verifier le paiement dans l'application"}
+                  </Button>
                 ) : null}
               </div>
+
+              {accessPath ? (
+                <div className="mt-4 flex justify-end">
+                  <Link
+                    href={accessPath}
+                    className="inline-flex items-center justify-center rounded-lg bg-brand-500 px-5 py-3 text-sm font-medium text-white transition hover:bg-brand-600"
+                  >
+                    Acceder a la ressource
+                  </Link>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>

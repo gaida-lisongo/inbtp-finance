@@ -256,6 +256,34 @@ export default function UserDropdown({ user }: UserDropdownProps) {
             </li>
           ) : null}
 
+          {user.activePersona === "student" ? (
+            <li>
+              <DropdownItem
+                onItemClick={closeDropdown}
+                tag="a"
+                href="/ressources"
+                className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+              >
+                <svg
+                  className="fill-gray-500 group-hover:fill-gray-700 dark:fill-gray-400 dark:group-hover:fill-gray-300"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M4 5.5C4 4.67157 4.67157 4 5.5 4H18.5C19.3284 4 20 4.67157 20 5.5V18.5C20 19.3284 19.3284 20 18.5 20H5.5C4.67157 20 4 19.3284 4 18.5V5.5ZM5.5 5.5H18.5V8.5H5.5V5.5ZM5.5 10V18.5H18.5V10H5.5ZM7.5 12.25C7.08579 12.25 6.75 12.5858 6.75 13C6.75 13.4142 7.08579 13.75 7.5 13.75H16.5C16.9142 13.75 17.25 13.4142 17.25 13C17.25 12.5858 16.9142 12.25 16.5 12.25H7.5ZM7.5 15.25C7.08579 15.25 6.75 15.5858 6.75 16C6.75 16.4142 7.08579 16.75 7.5 16.75H12.5C12.9142 16.75 13.25 16.4142 13.25 16C13.25 15.5858 12.9142 15.25 12.5 15.25H7.5Z"
+                    fill=""
+                  />
+                </svg>
+                Mes ressources
+              </DropdownItem>
+            </li>
+          ) : null}
+
           <li>
             <DropdownItem
               onItemClick={closeDropdown}

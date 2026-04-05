@@ -557,7 +557,11 @@ const getProgrammeIdsByResource = async (commandes: CommandeRecord[]) => {
   return programmeByResourceKey;
 };
 
-export const getStudentDashboardSnapshot = async (): Promise<StudentDashboardSnapshot> => {
+export const getStudentDashboardSnapshot = async (
+  options?: {
+    includeAllCommandes?: boolean;
+  },
+): Promise<StudentDashboardSnapshot> => {
   const admin = createAdminClient();
   const student = await getCurrentAuthenticatedStudent();
 
@@ -581,10 +585,12 @@ export const getStudentDashboardSnapshot = async (): Promise<StudentDashboardSna
       ? `${formatDateLabel(activeAnnee.date_debut)} - ${formatDateLabel(activeAnnee.date_fin)}`
       : null;
 
+  const includeAllCommandes = options?.includeAllCommandes === true;
+
   const [{ data: parcoursData, error: parcoursError }, { data: commandesData, error: commandesError }, { data: filieresData, error: filieresError }] =
     await Promise.all([
       admin.from("parcours").select("id, created_at, student_id, status, reference, programme_id").eq("student_id", student.id).order("created_at", { ascending: false }),
-      hasRange
+      hasRange && !includeAllCommandes
         ? admin
             .from("commande")
             .select('id, created_at, product, categorie, student_id, "orderNumber", total, status, description')

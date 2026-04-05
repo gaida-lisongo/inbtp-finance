@@ -276,7 +276,13 @@ export default async function ProductPage({ type, productId }: ProductPageProps)
         <section className="rounded-3xl border border-gray-200 bg-white p-8 shadow-theme-sm dark:border-gray-800 dark:bg-white/[0.03]">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <div className="text-sm font-medium uppercase tracking-[0.2em] text-brand-500">Produit academique</div>
+              <Link
+                href="/ressources"
+                className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/[0.04]"
+              >
+                Retour a mes ressources
+              </Link>
+              <div className="mt-4 text-sm font-medium uppercase tracking-[0.2em] text-brand-500">Produit academique</div>
               <h1 className="mt-3 text-3xl font-semibold text-gray-900 dark:text-white/90">{data.resource.title}</h1>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-500 dark:text-gray-400">
                 Type: <span className="font-medium text-gray-700 dark:text-gray-200">{categoryLabel}</span>

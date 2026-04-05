@@ -103,6 +103,12 @@ export const getAdminSidebarMenu = async (user: AuthenticatedUser): Promise<Side
     });
 
     items.push({
+      name: "Mes ressources",
+      path: "/ressources",
+      iconKey: "folder",
+    });
+
+    items.push({
       name: "Enseignement",
       iconKey: "folder",
       subItems: annees
