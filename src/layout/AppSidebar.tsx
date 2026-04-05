@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useCallback, useMemo, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import AssetImage from "@/components/common/AssetImage";
 import type { SidebarMenuItem, SidebarMenuSubItem } from "@/lib/navigation/admin-sidebar";
 import { useSidebar } from "@/context/SidebarContext";
 import { ChevronDownIcon, DocsIcon, GridIcon, GroupIcon, HorizontaLDots, UserCircleIcon } from "@/icons";
@@ -170,18 +170,9 @@ export default function AppSidebar({ menuItems }: AppSidebarProps) {
       <div className={`flex py-8 ${!isExpanded && !isHovered ? "lg:justify-center" : "justify-start"}`}>
         <Link href="/">
           {isExpanded || isHovered || isMobileOpen ? (
-            <>
-              <Image className="dark:hidden" src="/images/logo/logo.svg" alt="Logo" width={150} height={40} />
-              <Image
-                className="hidden dark:block"
-                src="/images/logo/logo-dark.svg"
-                alt="Logo"
-                width={150}
-                height={40}
-              />
-            </>
+            <AssetImage src="appLogo" alt="Logo application" width={150} height={40} />
           ) : (
-            <Image src="/images/logo/logo-icon.svg" alt="Logo" width={32} height={32} />
+            <AssetImage src="minLogo" alt="Mini logo application" width={32} height={32} />
           )}
         </Link>
       </div>

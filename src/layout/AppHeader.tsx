@@ -1,11 +1,11 @@
 "use client";
 import { ThemeToggleButton } from "@/components/common/ThemeToggleButton";
+import AssetImage from "@/components/common/AssetImage";
 import NotificationDropdown from "@/components/header/NotificationDropdown";
 import UserDropdown from "@/components/header/UserDropdown";
 import { useSidebar } from "@/context/SidebarContext";
 import type { AuthenticatedUser } from "@/lib/utils/supabase/session";
 import type { TeacherRecoursNotificationItem } from "@/lib/utils/supabase/teacher-notifications";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useRef, useState } from "react";
@@ -109,20 +109,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ user, teacherNotifications }) => 
           </button>
 
           <Link href="/" className="lg:hidden">
-            <Image
-              width={154}
-              height={32}
-              className="dark:hidden"
-              src="./images/logo/logo.svg"
-              alt="Logo"
-            />
-            <Image
-              width={154}
-              height={32}
-              className="hidden dark:block"
-              src="./images/logo/logo-dark.svg"
-              alt="Logo"
-            />
+            <AssetImage src="appLogo" alt="Logo application" width={154} height={32} />
           </Link>
 
           <button

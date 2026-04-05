@@ -1,4 +1,5 @@
 import { Document, type PdfDocumentDefinition, type ReferenceItem, type StudentDocumentIdentity } from "@/lib/documents/Document";
+import { getSchoolPdfBrandingAssets } from "@/lib/assets/asset-images";
 
 export type DocumentLaboratoirePayload = {
   laboratoryTitle: string;
@@ -44,8 +45,9 @@ export class DocumentLaboratoire extends Document<DocumentLaboratoirePayload> {
     };
   }
 
-  content(docDefinition: PdfDocumentDefinition) {
+  async content(docDefinition: PdfDocumentDefinition) {
     const today = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(new Date());
+    const { schoolLogo, drcFlag } = await getSchoolPdfBrandingAssets();
 
     docDefinition.content = [
       {
@@ -53,6 +55,7 @@ export class DocumentLaboratoire extends Document<DocumentLaboratoirePayload> {
           {
             width: "*",
             stack: [
+              { image: schoolLogo, fit: [120, 60], margin: [0, 0, 0, 6] },
               { text: "UNIVERSITE", bold: true, fontSize: 14 },
               { text: "Service des laboratoires", margin: [0, 6, 0, 0] },
             ],
@@ -60,6 +63,7 @@ export class DocumentLaboratoire extends Document<DocumentLaboratoirePayload> {
           {
             width: 180,
             stack: [
+              { image: drcFlag, fit: [52, 34], alignment: "right", margin: [0, 0, 0, 8] },
               { text: "FACTURE / ATTESTATION", alignment: "right", bold: true, fontSize: 12 },
               { text: today, alignment: "right", margin: [0, 8, 0, 0] },
             ],

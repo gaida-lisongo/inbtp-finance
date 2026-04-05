@@ -50,7 +50,7 @@ export abstract class Document<TPayload = unknown> {
 
   abstract student(): unknown;
 
-  abstract content(docDefinition: PdfDocumentDefinition): PdfDocumentDefinition;
+  abstract content(docDefinition: PdfDocumentDefinition): PdfDocumentDefinition | Promise<PdfDocumentDefinition>;
 
   async generateBuffer(): Promise<Buffer> {
     const baseDefinition: PdfDocumentDefinition = {
@@ -77,6 +77,7 @@ export abstract class Document<TPayload = unknown> {
       content: [],
     };
 
-    return createPdfBuffer(this.content(baseDefinition));
+    const contentDefinition = await this.content(baseDefinition);
+    return createPdfBuffer(contentDefinition);
   }
 }

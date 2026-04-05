@@ -1,4 +1,5 @@
 import { Document, type PdfDocumentDefinition, type ReferenceItem, type StudentDocumentIdentity } from "@/lib/documents/Document";
+import { getSchoolPdfBrandingAssets } from "@/lib/assets/asset-images";
 
 type StageRecipientSex = "M" | "F";
 
@@ -57,9 +58,10 @@ export class DocumentStage extends Document<DocumentStagePayload> {
     };
   }
 
-  content(docDefinition: PdfDocumentDefinition) {
+  async content(docDefinition: PdfDocumentDefinition) {
     const today = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(new Date());
     const recipientTitle = getRecipientTitle(this.payload.recipientSex);
+    const { schoolLogo, drcFlag } = await getSchoolPdfBrandingAssets();
 
     docDefinition.content = [
       {
@@ -67,6 +69,7 @@ export class DocumentStage extends Document<DocumentStagePayload> {
           {
             width: "*",
             stack: [
+              { image: schoolLogo, fit: [120, 60], margin: [0, 0, 0, 6] },
               { text: "UNIVERSITE", bold: true, fontSize: 14 },
               { text: "Direction des affaires academiques", margin: [0, 6, 0, 0] },
             ],
@@ -74,6 +77,7 @@ export class DocumentStage extends Document<DocumentStagePayload> {
           {
             width: 220,
             stack: [
+              { image: drcFlag, fit: [52, 34], alignment: "right", margin: [0, 0, 0, 8] },
               { text: `${recipientTitle} ${this.payload.recipientName}`, alignment: "right", bold: true },
               { text: this.payload.recipientQuality, alignment: "right", margin: [0, 4, 0, 0] },
               { text: today, alignment: "right", margin: [0, 12, 0, 0] },

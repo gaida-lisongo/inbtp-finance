@@ -24,6 +24,7 @@ type ResourceCommandeRow = StudentDashboardSnapshot["commandes"][number] & {
   resourceDescription: string | null;
   productPath: string | null;
   commandePath: string | null;
+  normalizedStatus: "success" | "pending" | "no" | null;
 };
 
 const normalizeText = (value: string | null | undefined) => {
@@ -66,7 +67,25 @@ const mapCommandeCategory = (value: string | null): CommandeCategory | null => {
   }
 };
 
-const getStatusLabel = (status: string | null) => {
+const normalizeStatus = (value: string | null): "success" | "pending" | "no" | null => {
+  const normalized = normalizeText(value);
+
+  if (["success", "ok", "paid", "delivered", "complete", "completed"].includes(normalized)) {
+    return "success";
+  }
+
+  if (["pending", "processing", "inprogress", "in progress"].includes(normalized)) {
+    return "pending";
+  }
+
+  if (["no", "failed", "failure", "error", "cancelled", "canceled", "rejected", "refused"].includes(normalized)) {
+    return "no";
+  }
+
+  return null;
+};
+
+const getStatusLabel = (status: "success" | "pending" | "no" | null) => {
   switch (status) {
     case "success":
       return "Validee";
@@ -79,7 +98,7 @@ const getStatusLabel = (status: string | null) => {
   }
 };
 
-const getStatusClassName = (status: string | null) => {
+const getStatusClassName = (status: "success" | "pending" | "no" | null) => {
   switch (status) {
     case "success":
       return "bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-300";
@@ -142,7 +161,8 @@ export default function StudentResourcesWorkspace({ snapshot, initialType }: Stu
 
       return {
         ...commande,
-        status: statusOverrides[commande.id] ?? commande.status,
+        status: normalizeStatus(statusOverrides[commande.id] ?? commande.status),
+        normalizedStatus: normalizeStatus(statusOverrides[commande.id] ?? commande.status),
         canonicalCategory,
         resourceTitle: resource?.title ?? commande.description ?? "Ressource academique",
         resourceDescription: resource?.description ?? commande.description ?? null,
@@ -168,7 +188,7 @@ export default function StudentResourcesWorkspace({ snapshot, initialType }: Stu
     const normalizedQuery = normalizeText(searchTerm);
 
     return allRows.filter((row) => {
-      const statusValue = row.status ?? "";
+      const statusValue = row.normalizedStatus;
       const categoryValue = normalizeText(row.categoryKey);
 
       if (categoryFilter !== "all" && categoryValue !== normalizeText(categoryFilter)) {
@@ -187,7 +207,7 @@ export default function StudentResourcesWorkspace({ snapshot, initialType }: Stu
         return false;
       }
 
-      if (statusFilter === "other" && ["success", "pending", "no"].includes(statusValue)) {
+      if (statusFilter === "other" && statusValue !== null) {
         return false;
       }
 
@@ -201,7 +221,7 @@ export default function StudentResourcesWorkspace({ snapshot, initialType }: Stu
         row.resourceTitle,
         row.resourceDescription,
         row.categoryLabel,
-        row.status,
+        row.normalizedStatus,
       ]
         .map((item) => normalizeText(item))
         .join(" ");
@@ -229,8 +249,8 @@ export default function StudentResourcesWorkspace({ snapshot, initialType }: Stu
   }, [allRows, selectedCommande]);
 
   const metrics = useMemo(() => {
-    const successRows = filteredRows.filter((row) => row.status === "success");
-    const pendingRows = filteredRows.filter((row) => row.status === "pending");
+    const successRows = filteredRows.filter((row) => row.normalizedStatus === "success");
+    const pendingRows = filteredRows.filter((row) => row.normalizedStatus === "pending");
     const totalRevenue = successRows.reduce((sum, row) => sum + (row.total ?? 0), 0);
     const pendingRevenue = pendingRows.reduce((sum, row) => sum + (row.total ?? 0), 0);
 
@@ -252,11 +272,11 @@ export default function StudentResourcesWorkspace({ snapshot, initialType }: Stu
       const label = new Intl.DateTimeFormat("fr-FR", { month: "short", year: "numeric" }).format(createdAt);
       const current = bucket.get(key) ?? { key, label, success: 0, pending: 0 };
 
-      if (row.status === "success") {
+      if (row.normalizedStatus === "success") {
         current.success += 1;
       }
 
-      if (row.status === "pending") {
+      if (row.normalizedStatus === "pending") {
         current.pending += 1;
       }
 
@@ -267,7 +287,7 @@ export default function StudentResourcesWorkspace({ snapshot, initialType }: Stu
   }, [filteredRows]);
 
   const resolvedAccessPath = selectedCommande
-    ? accessPathByCommande[selectedCommande.id] ?? (selectedCommande.status === "success" ? selectedCommande.productPath : null)
+    ? accessPathByCommande[selectedCommande.id] ?? (selectedCommande.normalizedStatus === "success" ? selectedCommande.productPath : null)
     : null;
 
   const handleVerifySelectedCommande = () => {
@@ -321,8 +341,8 @@ export default function StudentResourcesWorkspace({ snapshot, initialType }: Stu
             >
               Retour a la liste
             </Button>
-            <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${getStatusClassName(selectedCommande.status)}`}>
-              {getStatusLabel(selectedCommande.status)}
+            <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${getStatusClassName(selectedCommande.normalizedStatus)}`}>
+              {getStatusLabel(selectedCommande.normalizedStatus)}
             </span>
           </div>
 
@@ -395,8 +415,8 @@ export default function StudentResourcesWorkspace({ snapshot, initialType }: Stu
                       <TableCell className="px-4 py-3 text-sm text-gray-800 dark:text-white/90">{row.orderNumber ?? row.id}</TableCell>
                       <TableCell className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{formatDateTime(row.created_at)}</TableCell>
                       <TableCell className="px-4 py-3 text-sm">
-                        <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${getStatusClassName(row.status)}`}>
-                          {getStatusLabel(row.status)}
+                        <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${getStatusClassName(row.normalizedStatus)}`}>
+                          {getStatusLabel(row.normalizedStatus)}
                         </span>
                       </TableCell>
                       <TableCell className="px-4 py-3 text-sm text-gray-800 dark:text-white/90">{formatAmount(row.total ?? null)}</TableCell>
@@ -516,19 +536,15 @@ export default function StudentResourcesWorkspace({ snapshot, initialType }: Stu
                     <span className="rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-medium text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
                       {row.categoryLabel}
                     </span>
-                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${getStatusClassName(row.status)}`}>
-                      {getStatusLabel(row.status)}
+                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${getStatusClassName(row.normalizedStatus)}`}>
+                      {getStatusLabel(row.normalizedStatus)}
                     </span>
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white/90">{row.resourceTitle}</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">{row.resourceDescription || "Aucune description."}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">OrderNumber: {row.orderNumber ?? row.id}</p>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:min-w-[560px]">
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-800 dark:bg-gray-900">
-                    <div className="text-gray-500 dark:text-gray-400">OrderNumber</div>
-                    <div className="mt-1 font-medium text-gray-800 dark:text-white/90">{row.orderNumber ?? row.id}</div>
-                  </div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:min-w-[480px]">
                   <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-800 dark:bg-gray-900">
                     <div className="text-gray-500 dark:text-gray-400">Montant</div>
                     <div className="mt-1 font-medium text-gray-800 dark:text-white/90">{formatAmount(row.total ?? null)}</div>
