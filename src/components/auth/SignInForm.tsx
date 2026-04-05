@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { signInStudentAction, signInTeacherAction, signInWithAzureAction } from "@/app/actions/auth";
+import { signInAdminAction, signInStudentAction, signInTeacherAction } from "@/app/actions/auth";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
@@ -76,6 +76,12 @@ const getErrorMessage = (error?: string) => {
       return "Plusieurs agents portent le meme email. Corrigez d'abord les donnees.";
     case "teacher_already_registered":
       return "Cet enseignant possede deja un compte. Utilisez plutot la connexion.";
+    case "admin_not_found":
+      return "Aucun compte administrateur/gestionnaire correspondant a cet email n'a ete trouve.";
+    case "admin_already_linked":
+      return "Ce compte administrateur est deja rattache a un autre utilisateur.";
+    case "admin_already_registered":
+      return "Cet administrateur possede deja un compte. Utilisez plutot la connexion.";
     case "faculty_sso_restricted":
       return "La connexion SSO est reservee aux administrateurs et gestionnaires de la faculte.";
     case "Invalid login credentials":
@@ -97,6 +103,8 @@ const getMessage = (message?: string) => {
       return "Votre email etudiant a ete confirme. Vous pouvez maintenant vous connecter.";
     case "teacher_email_confirmed":
       return "Votre email enseignant a ete confirme. Vous pouvez maintenant vous connecter.";
+    case "admin_email_confirmed":
+      return "Votre email administrateur a ete confirme. Vous pouvez maintenant vous connecter.";
     default:
       return message;
   }
@@ -117,8 +125,13 @@ const tabClassName = (isActive: boolean) =>
 
 export default function SignInForm({ error, message, nextPath, selectedTab }: SignInFormProps) {
   const signUpHref = selectedTab === "teacher" ? getSignUpHref("teacher", nextPath) : getSignUpHref("student", nextPath);
-  const isPasswordTab = selectedTab === "student" || selectedTab === "teacher";
-  const formAction = selectedTab === "teacher" ? signInTeacherAction : signInStudentAction;
+  const isPasswordTab = true;
+  const formAction =
+    selectedTab === "teacher"
+      ? signInTeacherAction
+      : selectedTab === "admin"
+        ? signInAdminAction
+        : signInStudentAction;
   const heading =
     selectedTab === "teacher"
       ? "Connexion enseignant"
@@ -129,7 +142,7 @@ export default function SignInForm({ error, message, nextPath, selectedTab }: Si
     selectedTab === "teacher"
       ? "Utilisez votre email enregistre dans la table agents et votre mot de passe Supabase."
       : selectedTab === "admin"
-        ? "Les administrateurs et gestionnaires de section continuent a utiliser l'authentification SSO Microsoft."
+        ? "Utilisez votre email administrateur (organisateur ou gestionnaire) et votre mot de passe."
         : "Utilisez votre email institutionnel enregistre dans la base et votre mot de passe Supabase.";
 
   return (
@@ -177,49 +190,42 @@ export default function SignInForm({ error, message, nextPath, selectedTab }: Si
             </div>
           ) : null}
 
-          {isPasswordTab ? (
-            <form action={formAction} className="space-y-5">
-              <input type="hidden" name="next" value={nextPath} />
+          <form action={formAction} className="space-y-5">
+            <input type="hidden" name="next" value={nextPath} />
 
-              <div>
-                <Label htmlFor={`${selectedTab}-email`}>
-                  Email<span className="text-error-500">*</span>
-                </Label>
-                <Input id={`${selectedTab}-email`} name="email" type="email" placeholder="prenom.nom@exemple.com" />
-              </div>
+            <div>
+              <Label htmlFor={`${selectedTab}-email`}>
+                Email<span className="text-error-500">*</span>
+              </Label>
+              <Input id={`${selectedTab}-email`} name="email" type="email" placeholder="prenom.nom@exemple.com" />
+            </div>
 
-              <div>
-                <Label htmlFor={`${selectedTab}-password`}>
-                  Mot de passe<span className="text-error-500">*</span>
-                </Label>
-                <Input id={`${selectedTab}-password`} name="password" type="password" placeholder="Votre mot de passe" />
-              </div>
+            <div>
+              <Label htmlFor={`${selectedTab}-password`}>
+                Mot de passe<span className="text-error-500">*</span>
+              </Label>
+              <Input id={`${selectedTab}-password`} name="password" type="password" placeholder="Votre mot de passe" />
+            </div>
 
-              <Button type="submit" className="w-full justify-center">
-                {selectedTab === "teacher" ? "Se connecter comme enseignant" : "Se connecter comme etudiant"}
-              </Button>
-            </form>
-          ) : (
-            <form action={signInWithAzureAction}>
-              <input type="hidden" name="next" value={nextPath} />
-              <Button type="submit" variant="outline" className="w-full justify-center">
-                Se connecter avec Azure SSO
-              </Button>
-            </form>
-          )}
+            <Button type="submit" className="w-full justify-center">
+              {selectedTab === "teacher"
+                ? "Se connecter comme enseignant"
+                : selectedTab === "admin"
+                  ? "Se connecter comme administrateur"
+                  : "Se connecter comme etudiant"}
+            </Button>
+          </form>
 
-          {isPasswordTab ? (
-            <p className="mt-6 text-sm text-gray-600 dark:text-gray-300">
-              Vous n&apos;avez pas encore de mot de passe ?{" "}
-              <Link href={signUpHref} className="font-medium text-brand-500 hover:text-brand-600 dark:text-brand-400">
-                {selectedTab === "teacher" ? "Creer mon acces enseignant" : "Creer mon acces etudiant"}
-              </Link>
-            </p>
-          ) : (
-            <p className="mt-6 text-sm text-gray-600 dark:text-gray-300">
-              Les enseignants et les etudiants utilisent des identifiants Supabase distincts du SSO administratif.
-            </p>
-          )}
+          <p className="mt-6 text-sm text-gray-600 dark:text-gray-300">
+            Vous n&apos;avez pas encore de mot de passe ?{" "}
+            <Link href={signUpHref} className="font-medium text-brand-500 hover:text-brand-600 dark:text-brand-400">
+              {selectedTab === "teacher"
+                ? "Creer mon acces enseignant"
+                : selectedTab === "admin"
+                  ? "Creer mon acces administrateur"
+                  : "Creer mon acces etudiant"}
+            </Link>
+          </p>
         </div>
       </div>
     </div>

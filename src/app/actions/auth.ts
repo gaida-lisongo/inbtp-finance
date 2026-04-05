@@ -11,7 +11,12 @@ import {
   setLoginModeCookie,
   type LoginMode,
 } from "@/lib/utils/supabase/auth";
-import { assertTeacherCanAuthenticate, attachTeacherUserByEmail } from "@/lib/utils/supabase/agents";
+import {
+  assertAdminCanAuthenticate,
+  assertTeacherCanAuthenticate,
+  attachAdminUserByEmail,
+  attachTeacherUserByEmail,
+} from "@/lib/utils/supabase/agents";
 import type { AgentRecord } from "@/lib/utils/supabase/agents-shared";
 import { createClient as createServerSupabaseClient } from "@/lib/utils/supabase/server";
 import { assertStudentCanAuthenticate, attachStudentUserByEmail } from "@/lib/utils/supabase/students";
@@ -81,6 +86,23 @@ const getTeacherAuthErrorMessage = (error: unknown) => {
       return "teacher_already_linked";
     case "teacher_email_conflict":
       return "teacher_email_conflict";
+    default:
+      return error.message;
+  }
+};
+
+const getAdminAuthErrorMessage = (error: unknown) => {
+  if (!(error instanceof Error)) {
+    return "auth_failed";
+  }
+
+  switch (error.message) {
+    case "admin_not_found":
+      return "admin_not_found";
+    case "admin_already_linked":
+      return "admin_already_linked";
+    case "admin_email_required":
+      return "missing_credentials";
     default:
       return error.message;
   }
@@ -187,6 +209,35 @@ export async function signInTeacherAction(formData: FormData) {
     });
   } catch (error) {
     redirect(buildAuthRedirectPath("/signin", nextPath, "teacher", getTeacherAuthErrorMessage(error)));
+  }
+
+  redirect(nextPath);
+}
+
+export async function signInAdminAction(formData: FormData) {
+  const nextPath = getSafeNextPath(getFormValue(formData, "next") || null);
+  const email = getFormValue(formData, "email").toLowerCase();
+  const password = getFormValue(formData, "password");
+
+  if (!email || !password) {
+    redirect(buildAuthRedirectPath("/signin", nextPath, "admin", "missing_credentials"));
+  }
+
+  try {
+    await assertAdminCanAuthenticate(email);
+  } catch (error) {
+    redirect(buildAuthRedirectPath("/signin", nextPath, "admin", getAdminAuthErrorMessage(error)));
+  }
+
+  try {
+    await signInWithPasswordAndSync({
+      email,
+      password,
+      loginMode: "admin_password",
+      attachUser: attachAdminUserByEmail,
+    });
+  } catch (error) {
+    redirect(buildAuthRedirectPath("/signin", nextPath, "admin", getAdminAuthErrorMessage(error)));
   }
 
   redirect(nextPath);
@@ -306,6 +357,64 @@ export async function signUpTeacherAction(formData: FormData) {
   }
 
   redirect(buildAuthRedirectPath("/signin", nextPath, "teacher", undefined, "signup_confirmation_sent"));
+}
+
+export async function signUpAdminAction(formData: FormData) {
+  const nextPath = getSafeNextPath(getFormValue(formData, "next") || null);
+  const email = getFormValue(formData, "email").toLowerCase();
+  const password = getFormValue(formData, "password");
+  const confirmPassword = getFormValue(formData, "confirm_password");
+
+  if (!email || !password || !confirmPassword) {
+    redirect(buildAuthRedirectPath("/signup", nextPath, "admin", "missing_signup_fields"));
+  }
+
+  if (password.length < 6) {
+    redirect(buildAuthRedirectPath("/signup", nextPath, "admin", "password_too_short"));
+  }
+
+  if (password !== confirmPassword) {
+    redirect(buildAuthRedirectPath("/signup", nextPath, "admin", "password_mismatch"));
+  }
+
+  let adminAgent: AgentRecord;
+
+  try {
+    adminAgent = await assertAdminCanAuthenticate(email);
+  } catch (error) {
+    redirect(buildAuthRedirectPath("/signup", nextPath, "admin", getAdminAuthErrorMessage(error)));
+  }
+
+  if (adminAgent.user_id) {
+    redirect(buildAuthRedirectPath("/signin", nextPath, "admin", "admin_already_registered"));
+  }
+
+  await setLoginModeCookie("admin_password");
+  const cookieStore = await cookies();
+  const supabase = createServerSupabaseClient(cookieStore);
+  const confirmationPath = `/signin?message=${encodeURIComponent("admin_email_confirmed")}&tab=admin${
+    nextPath !== "/" ? `&next=${encodeURIComponent(nextPath)}` : ""
+  }`;
+  const { callbackUrl } = await getAuthCallbackUrl(confirmationPath, "admin_password");
+
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: callbackUrl,
+    },
+  });
+
+  if (error) {
+    redirect(buildAuthRedirectPath("/signup", nextPath, "admin", error.message));
+  }
+
+  if (data.session) {
+    await syncAuthenticatedUser();
+    redirect(nextPath);
+  }
+
+  redirect(buildAuthRedirectPath("/signin", nextPath, "admin", undefined, "signup_confirmation_sent"));
 }
 
 export async function signOutAction() {

@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { type User } from "@supabase/supabase-js";
 
 import {
+  attachAdminUserByEmail,
   attachTeacherUserByEmail,
   findAgentRecordForUser,
   isAdminAgentRole,
@@ -134,6 +135,10 @@ const resolveActivePersona = ({
     return "teacher";
   }
 
+  if (loginMode === "admin_password") {
+    return "admin";
+  }
+
   if (loginMode === "faculty_sso") {
     return isAdminAgentRole(role) ? "admin" : hasAgent ? "teacher" : "student";
   }
@@ -187,6 +192,7 @@ export const getAuthenticatedUser = async (): Promise<AuthenticatedUser | null> 
   const cookieStore = await cookies();
   const supabase = createServerSupabaseClient(cookieStore);
   const { data: userData } = await supabase.auth.getUser();
+  console.log("Supabase user data:", userData);
   const user = userData.user;
   const loginMode = await getCurrentLoginMode();
 
@@ -214,6 +220,8 @@ export const syncAuthenticatedUser = async (): Promise<AuthenticatedUser | null>
   if (user.email) {
     if (loginMode === "teacher_password") {
       await attachTeacherUserByEmail(user.email, user.id);
+    } else if (loginMode === "admin_password") {
+      await attachAdminUserByEmail(user.email, user.id);
     } else if (loginMode === "student_password") {
       await attachStudentUserByEmail(user.email, user.id);
     } else if (!agentRecord && loginMode === null) {

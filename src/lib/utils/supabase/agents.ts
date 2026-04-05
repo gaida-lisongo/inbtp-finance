@@ -256,6 +256,22 @@ export const assertTeacherCanAuthenticate = async (email: string) => {
   return agent;
 };
 
+export const assertAdminCanAuthenticate = async (email: string) => {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  if (!normalizedEmail) {
+    throw new Error("admin_email_required");
+  }
+
+  const agent = await getAgentByNormalizedEmail(normalizedEmail);
+
+  if (!agent || !isAdminAgentRole(normalizeAgentRole(agent.role))) {
+    throw new Error("admin_not_found");
+  }
+
+  return agent;
+};
+
 export const attachTeacherUserByEmail = async (email: string, userId: string) => {
   const normalizedEmail = email.trim().toLowerCase();
 
@@ -292,6 +308,42 @@ export const attachTeacherUserByEmail = async (email: string, userId: string) =>
   return data as AgentRecord;
 };
 
+export const attachAdminUserByEmail = async (email: string, userId: string) => {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  if (!normalizedEmail) {
+    throw new Error("admin_email_required");
+  }
+
+  const agent = await getAgentByNormalizedEmail(normalizedEmail);
+
+  if (!agent || !isAdminAgentRole(normalizeAgentRole(agent.role))) {
+    throw new Error("admin_not_found");
+  }
+
+  if (agent.user_id && agent.user_id !== userId) {
+    throw new Error("admin_already_linked");
+  }
+
+  if (agent.user_id === userId) {
+    return agent;
+  }
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("agents")
+    .update({ user_id: userId })
+    .eq("id", agent.id)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as AgentRecord;
+};
+
 export const getCurrentAccountType = async (): Promise<AccountType> => {
   const user = await getCurrentAuthUser();
   const agent = await findAgentRecordForUser(user);
@@ -303,7 +355,11 @@ export const getCurrentAgentAccess = async (): Promise<AgentAccess> => {
   const agent = await findAgentRecordForUser(user);
   const role = normalizeAgentRole(agent?.role);
   const loginMode = await getCurrentLoginMode();
-  const canAccessAdmin = Boolean(agent && isAdminAgentRole(role) && (loginMode === "faculty_sso" || loginMode === null));
+  const canAccessAdmin = Boolean(
+    agent &&
+      isAdminAgentRole(role) &&
+      (loginMode === "faculty_sso" || loginMode === "admin_password" || loginMode === null),
+  );
   const isOrganizer = role === "organisateur";
   const isGestionnaire = role === "gestionnaire";
   const isTitulaire = role === "titulaire";

@@ -18,8 +18,8 @@ type SignUpPageProps = {
   }>;
 };
 
-const getSelectedTab = (value?: string): "student" | "teacher" => {
-  if (value === "teacher") {
+const getSelectedTab = (value?: string): "student" | "teacher" | "admin" => {
+  if (value === "teacher" || value === "admin") {
     return value;
   }
 

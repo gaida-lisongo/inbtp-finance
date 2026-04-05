@@ -1,12 +1,12 @@
 import Link from "next/link";
 
-import { signUpStudentAction, signUpTeacherAction } from "@/app/actions/auth";
+import { signUpAdminAction, signUpStudentAction, signUpTeacherAction } from "@/app/actions/auth";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
 import { ChevronLeftIcon } from "@/icons";
 
-type SignUpTab = "student" | "teacher";
+type SignUpTab = "student" | "teacher" | "admin";
 
 type SignUpFormProps = {
   error?: string;
@@ -38,6 +38,12 @@ const getErrorMessage = (error?: string) => {
       return "Ce profil enseignant est deja rattache a un autre compte.";
     case "teacher_email_conflict":
       return "Plusieurs agents portent le meme email. Corrigez d'abord les donnees.";
+    case "admin_not_found":
+      return "Cet email ne correspond a aucun administrateur/gestionnaire pre-enregistre.";
+    case "admin_already_registered":
+      return "Cet administrateur possede deja un compte. Utilisez plutot la connexion.";
+    case "admin_already_linked":
+      return "Ce profil administrateur est deja rattache a un autre compte.";
     case "User already registered":
       return "Un compte Supabase existe deja pour cet email.";
     default:
@@ -57,12 +63,24 @@ const getTabHref = (tab: SignUpTab, nextPath: string) =>
 
 export default function SignUpForm({ error, nextPath, selectedTab }: SignUpFormProps) {
   const signInHref = `/signin?tab=${selectedTab}${nextPath !== "/" ? `&next=${encodeURIComponent(nextPath)}` : ""}`;
-  const formAction = selectedTab === "teacher" ? signUpTeacherAction : signUpStudentAction;
-  const title = selectedTab === "teacher" ? "Creer mon acces enseignant" : "Creer mon acces etudiant";
+  const formAction =
+    selectedTab === "teacher"
+      ? signUpTeacherAction
+      : selectedTab === "admin"
+        ? signUpAdminAction
+        : signUpStudentAction;
+  const title =
+    selectedTab === "teacher"
+      ? "Creer mon acces enseignant"
+      : selectedTab === "admin"
+        ? "Creer mon acces administrateur"
+        : "Creer mon acces etudiant";
   const description =
     selectedTab === "teacher"
       ? "Le compte est autorise si votre email existe deja dans la table agents avec le role titulaire."
-      : "Le compte est autorise si votre email existe deja dans la table students.";
+      : selectedTab === "admin"
+        ? "Le compte est autorise si votre email existe deja dans la table agents avec le role organisateur ou gestionnaire."
+        : "Le compte est autorise si votre email existe deja dans la table students.";
 
   return (
     <div className="flex w-full flex-1 flex-col lg:w-1/2">
@@ -91,6 +109,9 @@ export default function SignUpForm({ error, nextPath, selectedTab }: SignUpFormP
             </Link>
             <Link href={getTabHref("teacher", nextPath)} className={tabClassName(selectedTab === "teacher")}>
               Enseignant
+            </Link>
+            <Link href={getTabHref("admin", nextPath)} className={tabClassName(selectedTab === "admin")}>
+              Admin
             </Link>
           </div>
 
@@ -130,7 +151,11 @@ export default function SignUpForm({ error, nextPath, selectedTab }: SignUpFormP
             </div>
 
             <Button type="submit" className="w-full justify-center">
-              {selectedTab === "teacher" ? "Creer mon compte enseignant" : "Creer mon compte etudiant"}
+              {selectedTab === "teacher"
+                ? "Creer mon compte enseignant"
+                : selectedTab === "admin"
+                  ? "Creer mon compte administrateur"
+                  : "Creer mon compte etudiant"}
             </Button>
           </form>
 

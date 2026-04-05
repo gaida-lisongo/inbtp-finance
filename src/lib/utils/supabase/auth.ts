@@ -8,9 +8,9 @@ const configuredDelegatedScopes = process.env.ENTRA_DELEGATED_SCOPES;
 const defaultDelegatedScopes = "openid profile email offline_access User.Read";
 const loginModeCookieName = "campus-login-mode";
 
-export type LoginMode = "faculty_sso" | "student_password" | "teacher_password";
+export type LoginMode = "faculty_sso" | "student_password" | "teacher_password" | "admin_password";
 
-const validLoginModes = new Set<LoginMode>(["faculty_sso", "student_password", "teacher_password"]);
+const validLoginModes = new Set<LoginMode>(["faculty_sso", "student_password", "teacher_password", "admin_password"]);
 
 const buildCookieOptions = () => ({
   httpOnly: true,

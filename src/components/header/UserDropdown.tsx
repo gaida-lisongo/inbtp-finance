@@ -200,7 +200,7 @@ export default function UserDropdown({ user }: UserDropdownProps) {
             </li>
           ) : null}
 
-          {user.role === "gestionnaire" ? (
+          {user.role === "organisateur" ? (
             <li>
               <DropdownItem
                 onItemClick={closeDropdown}
