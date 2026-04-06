@@ -288,7 +288,7 @@ export const getFacultyDashboardSnapshot = async (): Promise<FacultyDashboardSna
       ? `${formatDateLabel(activeAnnee.date_debut)} - ${formatDateLabel(activeAnnee.date_fin)}`
       : null;
 
-  const { data: commandesData, error: commandesError } = hasRange
+  const { data: rangedCommandesData, error: commandesError } = hasRange
     ? await admin
         .from("commande")
         .select('id, created_at, product, categorie, student_id, "orderNumber", total, status, description')
@@ -301,9 +301,25 @@ export const getFacultyDashboardSnapshot = async (): Promise<FacultyDashboardSna
     throw new Error(commandesError.message);
   }
 
-  const studentIds = Array.from(
-    new Set(((commandesData ?? []) as CommandeRecord[]).map((commande) => commande.student_id).filter(Boolean)),
-  ) as string[];
+  let commandesData = (rangedCommandesData ?? []) as CommandeRecord[];
+
+  // Fallback: si la periode active est mal renseignee ou ne couvre pas les transactions,
+  // on charge un historique recent pour ne pas afficher un dashboard vide.
+  if (commandesData.length === 0) {
+    const { data: fallbackCommandesData, error: fallbackCommandesError } = await admin
+      .from("commande")
+      .select('id, created_at, product, categorie, student_id, "orderNumber", total, status, description')
+      .order("created_at", { ascending: false })
+      .limit(500);
+
+    if (fallbackCommandesError) {
+      throw new Error(fallbackCommandesError.message);
+    }
+
+    commandesData = (fallbackCommandesData ?? []) as CommandeRecord[];
+  }
+
+  const studentIds = Array.from(new Set(commandesData.map((commande) => commande.student_id).filter(Boolean))) as string[];
 
   let studentsById = new Map<string, Pick<StudentRecord, "id" | "nom" | "post_nom" | "prenom" | "email" | "grade">>();
   let programmeByStudentId = new Map<string, { programmeId: string | null; programmeDesignation: string | null }>();
@@ -346,7 +362,7 @@ export const getFacultyDashboardSnapshot = async (): Promise<FacultyDashboardSna
     );
   }
 
-  const commandes = ((commandesData ?? []) as CommandeRecord[]).map((commande) => {
+  const commandes = commandesData.map((commande) => {
     const student = commande.student_id ? studentsById.get(commande.student_id) ?? null : null;
     const programme = commande.student_id ? programmeByStudentId.get(commande.student_id) : null;
 

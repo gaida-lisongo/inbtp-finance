@@ -1,7 +1,5 @@
 import { Document, type PdfDocumentDefinition, type ReferenceItem, type StudentDocumentIdentity } from "@/lib/documents/Document";
-import { getSchoolPdfBrandingAssets } from "@/lib/assets/asset-images.server";
-import { text } from "stream/consumers";
-import { table, timeStamp } from "console";
+import { buildOfficialDocumentHeader } from "@/lib/documents/layout";
 
 type StageRecipientSex = "M" | "F" | "N";
 
@@ -16,19 +14,6 @@ export type DocumentStagePayload = {
   documentReference?: string | null;
 };
 
-const getRecipientTitle = (sex: StageRecipientSex) => {
-  if (sex === "F") {
-    return "Madame";
-  }
-
-  if (sex === "M") {
-    return "Monsieur";
-  }
-
-  return "";
-};
-
-const getSchoolName = () => process.env.NEXT_PUBLIC_SCHOOL_NAME?.trim() || "INSTITUT SUPERIEUR";
 const getInstitutSigle = () => process.env.NEXT_PUBLIC_INSTITUT?.trim() || "INBTP";
 const getChefSignatory = () => process.env.NEXT_PUBLIC_CHEF?.trim() || "Chef de section";
 
@@ -45,98 +30,12 @@ const buildQrPayload = (payload: DocumentStagePayload, issuedAt: string) =>
 
 export const buildStageLetterContent = async (payload: DocumentStagePayload) => {
   const today = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(new Date());
-  const recipientTitle = getRecipientTitle(payload.recipientSex);
-  const recipientLine =
-    recipientTitle.length > 0 ? `${recipientTitle} ${payload.recipientName}` : payload.recipientName;
-  const { schoolLogo, drcFlag } = await getSchoolPdfBrandingAssets();
-  const schoolName = getSchoolName();
-  const institutSigle = getInstitutSigle();
   const chefSignatory = getChefSignatory();
   const qrPayload = buildQrPayload(payload, today);
+  const header = await buildOfficialDocumentHeader({ dateLabel: today });
 
   return [
-    {
-      columns: [
-        {
-          width: 50,
-          image: schoolLogo,
-          fit: [130, 60],
-          alignment: "left",
-          margin: [0, 0, 0, 6],
-        },
-        {
-          width: "*",
-          stack: [
-            {text: "République Démocratique du Congo", alignment: "center", fontSize: 8, color: "#6B7280"},
-            {text: "Ministère de l'Enseignement Supérieur, Universitaire, Recherche Scientifique et Innovations", margin: [0, 2, 4, 0], fontSize: 9, alignment: "center"},
-            { text: schoolName.toUpperCase(), bold: true, fontSize: 10, alignment: "center" },
-            { text: `${institutSigle}`, fontSize: 10, alignment: "center" },
-            { text: "B.P. 4731 - KINSHASA/NGALIEMA", fontSize: 10, alignment: "center" },
-          ],
-          margin: [0, 0, 3, 6],
-        },
-        {
-          width: 50,
-          image: drcFlag,
-          fit: [70, 60],
-          alignment: "right",
-          margin: [0, 0, 0, 6],
-        }
-      ]
-    },
-    {
-      table: {
-        widths: ["*", "*"],
-        body: [
-          [
-            {text: `Section : ${process.env.NEXT_PUBLIC_SECTION || "Non renseignee"}`, color: "#29a4fb", fontSize: 10, bold: true, margin: [0, 0, 0, 6]},
-            ''
-          ],
-          [
-            {
-              text: 'N/Réf: ' + (process.env.NEXT_PUBLIC_SECTION_REF ?? "INBTP/SBTP/") + `${(new Date().getTime()).toString().slice(-6)}/` + `${new Date().getFullYear()}`,
-              fontSize: 10,
-              bold: true,
-              margin: [0, 20, 0, 6],
-            },
-            {
-              text: 'Kinshasa, le ' + today.toUpperCase(),
-              alignment: "right",
-              margin: [0, 20, 0, 6],
-              fontSize: 10,
-              color: "#6B7280",
-            }
-          ]
-        ]
-      },
-      layout: {
-        hLineWidth: (i: number) => (i === 0 ? 1 : 0),
-        vLineWidth: () => 0,
-      },
-      margin: [0, 0, 0, 32],
-    },
-  /*   {
-      columns: [
-        {
-          width: "*",
-          stack: [
-            { image: schoolLogo, fit: [120, 60], margin: [0, 0, 0, 6] },
-            { text: schoolName.toUpperCase(), bold: true, fontSize: 12 },
-            { text: `Sigle: ${institutSigle}`, margin: [0, 4, 0, 0], bold: true },
-            { text: "Direction des affaires academiques", margin: [0, 6, 0, 0] },
-          ],
-        },
-        {
-          width: 220,
-          stack: [
-            { image: drcFlag, fit: [52, 34], alignment: "right", margin: [0, 0, 0, 8] },
-            { text: recipientLine, alignment: "right", bold: true },
-            { text: payload.recipientQuality, alignment: "right", margin: [0, 4, 0, 0] },
-            { text: today, alignment: "right", margin: [0, 12, 0, 0] },
-          ],
-        },
-      ],
-    }, */
+    ...header,
     {
       table: {
         widths: [220, "*", 220],
@@ -167,28 +66,31 @@ export const buildStageLetterContent = async (payload: DocumentStagePayload) => 
         hLineWidth: () => 0,
         vLineWidth: () => 0,
       },
-      margin: [0, 0, 0, 12],
     },
     {
       stack: [
         {
           text: [
-            "Par la presente, nous vous recommandons l'etudiant ",
+            "Nous avons l'honneur de vous recommander l'etudiant ",
             { text: payload.student.fullName, bold: true },
-            " pour un stage academique dans le cadre de la section ",
+            " pour un ",
             { text: payload.stageTitle, bold: true },
-            ".",
+            "d'un (1) mois au sein de votre entreprise. Nous sommes convaincus que votre cadre lui permettra d'appliquer les connaissances acquises afin d'affiner plus efficacement le noble metiers d'ingenieur.",
           ],
-          margin: [0, 28, 0, 12],
-          alignment: "justify",
-        },
-        {
-          text: "Nous vous serions reconnaissants de bien vouloir lui accorder un accueil favorable afin de lui permettre de completer sa formation pratique dans les meilleures conditions.",
           margin: [0, 0, 0, 12],
           alignment: "justify",
         },
         {
-          text: "Cette lettre est certifiee par un QR code de verification interne permettant de confirmer l'authenticite du document.",
+          text: "Nous aimerons obtenir, au terme de ce stage et sous pli fermé, les notes qui lui seront attribuées suivant le modèle de fiche qui vous sera envoyé ultérieurement.",
+          margin: [0, 0, 0, 12],
+          alignment: "justify",
+        },
+        {
+          text: [
+            "Tout en vous remerciant d'avance de votre franche collaboration, nous vous prions d'agréer, ",
+            payload.recipientSex === "F" ? 'Madame le ' : 'Monsieur le',
+            ` ${payload.recipientQuality}, l'expression de nos salutations distinguées.`,
+          ],
           margin: [0, 0, 0, 28],
           alignment: "justify",
         },
@@ -197,11 +99,7 @@ export const buildStageLetterContent = async (payload: DocumentStagePayload) => 
     {
       columns: [
         { width: 220, 
-          stack: [
-            { qr: qrPayload, fit: 150, alignment: "center" },
-            { text: "Scan de verification", fontSize: 8, alignment: "center", margin: [0, 4, 0, 0], color: "#6B7280" },
-          ],
-
+          stack: [''],
         },
         {
           width: "*",
@@ -213,6 +111,12 @@ export const buildStageLetterContent = async (payload: DocumentStagePayload) => 
       ],
       margin: [0, 30, 0, 0],
     },
+    {
+      stack: [
+        { qr: qrPayload, fit: 150, alignment: "left" },
+        { text: "Scan de verification", fontSize: 8, alignment: "left", margin: [10, 4, 0, 0], color: "#6B7280" },
+      ], 
+    }
   ];
 };
 

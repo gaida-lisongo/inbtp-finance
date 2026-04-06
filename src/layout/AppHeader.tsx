@@ -4,6 +4,7 @@ import AssetImage from "@/components/common/AssetImage";
 import NotificationDropdown from "@/components/header/NotificationDropdown";
 import UserDropdown from "@/components/header/UserDropdown";
 import { useSidebar } from "@/context/SidebarContext";
+import type { AdminDashboardNotificationItem } from "@/lib/utils/supabase/admin-notifications";
 import type { AuthenticatedUser } from "@/lib/utils/supabase/session";
 import type { TeacherRecoursNotificationItem } from "@/lib/utils/supabase/teacher-notifications";
 import Link from "next/link";
@@ -16,9 +17,13 @@ type AppHeaderProps = {
     items: TeacherRecoursNotificationItem[];
     pendingCount: number;
   };
+  adminNotifications?: {
+    items: AdminDashboardNotificationItem[];
+    pendingCount: number;
+  };
 };
 
-const AppHeader: React.FC<AppHeaderProps> = ({ user, teacherNotifications }) => {
+const AppHeader: React.FC<AppHeaderProps> = ({ user, teacherNotifications, adminNotifications }) => {
   const [isApplicationMenuOpen, setApplicationMenuOpen] = useState(false);
   const [orderNumberQuery, setOrderNumberQuery] = useState("");
 
@@ -184,8 +189,9 @@ const AppHeader: React.FC<AppHeaderProps> = ({ user, teacherNotifications }) => 
 
            <NotificationDropdown
              user={user}
-             items={teacherNotifications?.items ?? []}
-             pendingCount={teacherNotifications?.pendingCount ?? 0}
+             teacherItems={teacherNotifications?.items ?? []}
+             adminItems={adminNotifications?.items ?? []}
+             pendingCount={user.activePersona === "admin" ? (adminNotifications?.pendingCount ?? 0) : (teacherNotifications?.pendingCount ?? 0)}
            />
             {/* <!-- Notification Menu Area --> */}
           </div>

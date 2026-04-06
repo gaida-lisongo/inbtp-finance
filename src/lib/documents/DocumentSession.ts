@@ -1,4 +1,5 @@
 import { Document, type PdfDocumentDefinition, type ReferenceItem } from "@/lib/documents/Document";
+import { buildOfficialDocumentHeader } from "@/lib/documents/layout";
 
 export class DocumentSession extends Document<Record<string, unknown>> {
   info() {
@@ -16,8 +17,11 @@ export class DocumentSession extends Document<Record<string, unknown>> {
     return null;
   }
 
-  content(docDefinition: PdfDocumentDefinition) {
-    docDefinition.content = [{ text: "DocumentSession sera implemente dans une prochaine passe." }];
+  async content(docDefinition: PdfDocumentDefinition) {
+    const today = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(new Date());
+    const header = await buildOfficialDocumentHeader({ dateLabel: today });
+
+    docDefinition.content = [...header, { text: "DocumentSession sera implemente dans une prochaine passe." }];
     return docDefinition;
   }
 }

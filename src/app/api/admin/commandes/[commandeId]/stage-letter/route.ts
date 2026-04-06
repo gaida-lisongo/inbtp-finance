@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { createStageLetterRequestNotification } from "@/lib/utils/supabase/stage-notifications";
+import { generateStageLetterForFaculty } from "@/lib/utils/supabase/faculty-commandes";
 
 const sanitizeText = (value: FormDataEntryValue | null) => {
   if (typeof value !== "string") {
@@ -11,9 +11,9 @@ const sanitizeText = (value: FormDataEntryValue | null) => {
   return trimmedValue.length > 0 ? trimmedValue : null;
 };
 
-export async function POST(request: Request, context: { params: Promise<{ product_id: string }> }) {
+export async function POST(request: Request, context: { params: Promise<{ commandeId: string }> }) {
   try {
-    const { product_id: productId } = await context.params;
+    const { commandeId } = await context.params;
     const formData = await request.formData();
 
     const recipientName = sanitizeText(formData.get("recipient_name"));
@@ -22,12 +22,18 @@ export async function POST(request: Request, context: { params: Promise<{ produc
     const companyName = sanitizeText(formData.get("company_name"));
     const companyLocation = sanitizeText(formData.get("company_location"));
 
-    if (!recipientName || !recipientQuality || !companyName || !companyLocation || (recipientSex !== "M" && recipientSex !== "F")) {
+    if (
+      !recipientName ||
+      !recipientQuality ||
+      !companyName ||
+      !companyLocation ||
+      (recipientSex !== "M" && recipientSex !== "F")
+    ) {
       return new NextResponse("Informations de generation invalides.", { status: 400 });
     }
 
-    await createStageLetterRequestNotification({
-      productId,
+    const result = await generateStageLetterForFaculty({
+      commandeId,
       recipientName,
       recipientQuality,
       recipientSex,
@@ -35,22 +41,27 @@ export async function POST(request: Request, context: { params: Promise<{ produc
       companyLocation,
     });
 
-    return new NextResponse("Demande de lettre de stage enregistree. L'administration va traiter votre requete.", {
+    return new NextResponse(result.buffer, {
       status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `inline; filename="${result.filename}"`,
+        "Cache-Control": "no-store",
+      },
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erreur lors de la generation du document.";
 
-    if (message === "auth_required") {
-      return new NextResponse("Authentification requise.", { status: 401 });
+    if (message === "access_denied") {
+      return new NextResponse("Acces refuse.", { status: 403 });
     }
 
-    if (message === "resource_access_denied") {
-      return new NextResponse("Acces refuse a cette ressource.", { status: 403 });
+    if (message === "invalid_stage_commande") {
+      return new NextResponse("Cette commande n'est pas de type stage.", { status: 400 });
     }
 
     if (message === "stage_commande_not_paid") {
-      return new NextResponse("Le paiement success est requis avant de soumettre la demande.", { status: 403 });
+      return new NextResponse("Le statut success est requis pour la generation.", { status: 400 });
     }
 
     return new NextResponse(message, { status: 500 });

@@ -391,6 +391,20 @@ const notifyOrganizersWhenCommandeSuccess = async (commande: CommandeRecord) => 
 
   const orderRef = normalizeText(commande.orderNumber) ?? commande.id;
   const categoryLabel = normalizeText(commande.categorie) ?? "commande";
+  const notificationPayload = {
+    student_id: commande.student_id,
+    object: `Commande ${orderRef} confirmee`,
+    description: `La commande ${orderRef} est passee au statut success (${categoryLabel}).`,
+    categorie: "commande_success",
+    status: false,
+    path: `/commande/order/${encodeURIComponent(orderRef)}`,
+  };
+
+  const { error: notificationInsertError } = await admin.from("notifications").insert(notificationPayload);
+
+  if (notificationInsertError) {
+    console.error("notification insert failed", notificationInsertError);
+  }
 
   await sendMicrosoft365Mail({
     to: recipients,

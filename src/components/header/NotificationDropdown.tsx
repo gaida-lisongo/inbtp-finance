@@ -2,8 +2,10 @@
 
 import React, { useState } from "react";
 
+import AdminNotificationsRealtimeSync from "@/components/header/AdminNotificationsRealtimeSync";
 import TeacherNotificationsRealtimeSync from "@/components/header/TeacherNotificationsRealtimeSync";
 import type { AuthenticatedUser } from "@/lib/utils/supabase/session";
+import type { AdminDashboardNotificationItem } from "@/lib/utils/supabase/admin-notifications";
 import type { TeacherRecoursNotificationItem } from "@/lib/utils/supabase/teacher-notifications";
 
 import { Dropdown } from "../ui/dropdown/Dropdown";
@@ -11,7 +13,8 @@ import { DropdownItem } from "../ui/dropdown/DropdownItem";
 
 type NotificationDropdownProps = {
   user: AuthenticatedUser;
-  items: TeacherRecoursNotificationItem[];
+  teacherItems: TeacherRecoursNotificationItem[];
+  adminItems: AdminDashboardNotificationItem[];
   pendingCount: number;
 };
 
@@ -43,7 +46,7 @@ const formatRelativeTime = (value: string) => {
 
 const getStatusLabel = (value: boolean | null) => (value === true ? "Traite" : "En attente");
 
-export default function NotificationDropdown({ user, items, pendingCount }: NotificationDropdownProps) {
+export default function NotificationDropdown({ user, teacherItems, adminItems, pendingCount }: NotificationDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   function toggleDropdown() {
@@ -55,11 +58,13 @@ export default function NotificationDropdown({ user, items, pendingCount }: Noti
   }
 
   const isTeacher = user.activePersona === "teacher";
+  const isAdmin = user.activePersona === "admin";
   const hasPendingItems = pendingCount > 0;
 
   return (
     <div className="relative">
       {isTeacher ? <TeacherNotificationsRealtimeSync /> : null}
+      {isAdmin ? <AdminNotificationsRealtimeSync /> : null}
       <button
         className="relative dropdown-toggle flex items-center justify-center text-gray-500 transition-colors bg-white border border-gray-200 rounded-full hover:text-gray-700 h-11 w-11 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
         onClick={toggleDropdown}
@@ -103,12 +108,12 @@ export default function NotificationDropdown({ user, items, pendingCount }: Noti
             <li className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
               Aucune notification disponible pour ce profil.
             </li>
-          ) : items.length === 0 ? (
+          ) : isTeacher && teacherItems.length === 0 ? (
             <li className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
               Aucun recours recu pour le moment.
             </li>
-          ) : (
-            items.map((item) => (
+          ) : isTeacher ? (
+            teacherItems.map((item) => (
               <li key={item.id}>
                 <DropdownItem
                   tag="a"
@@ -135,6 +140,37 @@ export default function NotificationDropdown({ user, items, pendingCount }: Noti
 
                     <span className="mt-2 flex items-center gap-2 text-gray-500 text-theme-xs dark:text-gray-400">
                       <span>{getStatusLabel(item.recoursStatus)}</span>
+                      <span className="h-1 w-1 rounded-full bg-gray-400"></span>
+                      <span>{formatRelativeTime(item.createdAt)}</span>
+                    </span>
+                  </span>
+                </DropdownItem>
+              </li>
+            ))
+          ) : adminItems.length === 0 ? (
+            <li className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+              Aucune notification administrateur disponible.
+            </li>
+          ) : (
+            adminItems.map((item) => (
+              <li key={item.id}>
+                <DropdownItem
+                  tag="a"
+                  href={item.path || "/"}
+                  onItemClick={closeDropdown}
+                  className="flex rounded-lg border-b border-gray-100 p-3 px-4.5 py-3 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-white/5"
+                >
+                  <span className="block">
+                    <span className="mb-1.5 block text-theme-sm text-gray-500 dark:text-gray-400">
+                      <span className="font-medium text-gray-800 dark:text-white/90">{item.object || "Notification"}</span>
+                    </span>
+
+                    {item.description ? (
+                      <span className="line-clamp-2 block text-theme-xs text-gray-500 dark:text-gray-400">{item.description}</span>
+                    ) : null}
+
+                    <span className="mt-2 flex items-center gap-2 text-gray-500 text-theme-xs dark:text-gray-400">
+                      <span>{getStatusLabel(item.status)}</span>
                       <span className="h-1 w-1 rounded-full bg-gray-400"></span>
                       <span>{formatRelativeTime(item.createdAt)}</span>
                     </span>

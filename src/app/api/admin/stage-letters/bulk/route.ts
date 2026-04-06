@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { buildStageLetterContent } from "@/lib/documents/DocumentStage";
 import { type PdfDocumentDefinition, generatePdfBufferFromDefinition } from "@/lib/documents/Document";
+import { buildDocumentFooter } from "@/lib/documents/layout";
 import { getActiveAutorisationCodesForAgent } from "@/lib/utils/supabase/autorisations";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
@@ -180,6 +181,7 @@ export async function POST(request: Request) {
         },
       },
       content,
+      footer: buildDocumentFooter(),
     };
 
     const pdfBuffer = await generatePdfBufferFromDefinition(docDefinition);

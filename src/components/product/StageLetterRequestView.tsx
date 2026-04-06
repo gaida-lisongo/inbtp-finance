@@ -18,8 +18,7 @@ export default function StageLetterRequestView({
       </div>
       <h2 className="mt-5 text-2xl font-semibold text-gray-900 dark:text-white/90">{title}</h2>
       <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">
-        Renseignez le destinataire de la lettre. A la validation, une lettre de recommandation de stage sera generee au format PDF pour
-        l&apos;etudiant.
+        Renseignez le destinataire de la lettre. A la validation, une demande sera envoyee aux organisateurs pour generation officielle.
       </p>
 
       <div className="mt-6 grid gap-4 rounded-2xl border border-gray-200 bg-gray-50 p-5 text-sm dark:border-gray-800 dark:bg-gray-900 sm:grid-cols-2">
@@ -42,7 +41,6 @@ export default function StageLetterRequestView({
       <form
         action={`/product/stages/${productId}/letter`}
         method="post"
-        target="_blank"
         className="mt-6 grid gap-5 rounded-2xl border border-gray-200 bg-white p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.03]"
       >
         <div>
@@ -118,7 +116,7 @@ export default function StageLetterRequestView({
             type="submit"
             className="inline-flex items-center justify-center rounded-lg bg-brand-500 px-5 py-3 text-sm font-medium text-white transition hover:bg-brand-600"
           >
-            Generer la lettre de stage
+            Soumettre la demande de lettre
           </button>
         </div>
       </form>

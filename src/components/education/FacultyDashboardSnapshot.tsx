@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import type {
   FacultyDashboardCategory,
   FacultyDashboardSnapshot as FacultyDashboardSnapshotData,
 } from "@/lib/utils/supabase/faculte-dashboard";
 
-import CategoryModal from "@/components/education/faculty-dashboard/CategoryModal";
 import LatestTransactions from "@/components/education/faculty-dashboard/LatestTransactions";
 import MetricTile from "@/components/education/faculty-dashboard/MetricTile";
 import PerformanceChart from "@/components/education/faculty-dashboard/PerformanceChart";
@@ -21,13 +21,9 @@ type FacultyDashboardSnapshotProps = {
 
 export default function FacultyDashboardSnapshot({ snapshot }: FacultyDashboardSnapshotProps) {
   const { activeAnnee, commandes, dateWindow, latestTransactions, monthlySeries, programmes, summary } = snapshot;
-  const [selectedCategory, setSelectedCategory] = useState<FacultyDashboardCategory | null>(null);
   const [transactionsCategoryFilter, setTransactionsCategoryFilter] = useState("all");
   const [selectedProgrammeId, setSelectedProgrammeId] = useState<string | null>(programmes[0]?.id ?? null);
-
-  useEffect(() => {
-    setSelectedProgrammeId(programmes[0]?.id ?? null);
-  }, [programmes]);
+  const router = useRouter();
 
   const selectedProgramme = useMemo(
     () => programmes.find((programme) => programme.id === selectedProgrammeId) ?? programmes[0] ?? null,
@@ -72,10 +68,6 @@ export default function FacultyDashboardSnapshot({ snapshot }: FacultyDashboardS
     return Array.from(counts.values());
   }, [selectedProgrammeCommandes]);
 
-  const categoryRows = useMemo(
-    () => selectedProgrammeCommandes.filter((commande) => commande.categoryKey === selectedCategory?.key),
-    [selectedProgrammeCommandes, selectedCategory],
-  );
   const activeAnneeLabel = activeAnnee?.designation || "Aucune année active";
   const activeRangeLabel = dateWindow.label || "Période non renseignée";
 
@@ -123,7 +115,10 @@ export default function FacultyDashboardSnapshot({ snapshot }: FacultyDashboardS
         <ProductResourceCards
           title={selectedProgramme?.designation || "Aucune promotion active"}
           categories={selectedProgrammeCategories}
-          onOpenDetails={setSelectedCategory}
+          onOpenDetails={(category) => {
+            const programmeQuery = selectedProgramme?.id ? `?programme=${encodeURIComponent(selectedProgramme.id)}` : "";
+            router.push(`/commandes/categories/${encodeURIComponent(category.key)}${programmeQuery}`);
+          }}
           onPrintReport={(category) => {
             const rows = selectedProgrammeCommandes.filter((commande) => commande.categoryKey === category.key);
             printCategoryReport(`${category.label} - ${selectedProgramme?.designation || "Promotion active"}`, rows);
@@ -140,13 +135,7 @@ export default function FacultyDashboardSnapshot({ snapshot }: FacultyDashboardS
         categoryFilter={transactionsCategoryFilter}
         onCategoryFilterChange={setTransactionsCategoryFilter}
         allowStageLettersBulkDownload
-      />
-
-      <CategoryModal
-        category={selectedCategory}
-        commandes={categoryRows}
-        isOpen={selectedCategory !== null}
-        onClose={() => setSelectedCategory(null)}
+        detailPathBase="/commandes"
       />
     </div>
   );

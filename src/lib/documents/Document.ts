@@ -1,3 +1,5 @@
+import { buildDocumentFooter } from "@/lib/documents/layout";
+
 type PdfDocumentInfo = {
   title: string;
   author?: string;
@@ -75,6 +77,7 @@ export abstract class Document<TPayload = unknown> {
         },
       },
       content: [],
+      footer: buildDocumentFooter(),
     };
 
     const contentDefinition = await this.content(baseDefinition);

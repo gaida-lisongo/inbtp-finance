@@ -1,6 +1,7 @@
 "use client";
 
 import { useDeferredValue, useMemo, useState } from "react";
+import Link from "next/link";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import Button from "@/components/ui/button/Button";
@@ -17,6 +18,7 @@ type LatestTransactionsProps = {
   categoryFilter: string;
   onCategoryFilterChange: (value: string) => void;
   allowStageLettersBulkDownload?: boolean;
+  detailPathBase?: string;
 };
 
 export default function LatestTransactions({
@@ -26,6 +28,7 @@ export default function LatestTransactions({
   categoryFilter,
   onCategoryFilterChange,
   allowStageLettersBulkDownload = false,
+  detailPathBase,
 }: LatestTransactionsProps) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -173,27 +176,48 @@ export default function LatestTransactions({
           {paginatedRows.length === 0 ? (
             <div className="py-8 text-sm text-gray-500 dark:text-gray-400">Aucune transaction à afficher.</div>
           ) : (
-            paginatedRows.map((row) => (
-              <button
-                key={row.id}
-                type="button"
-                onClick={() => setSelectedTransaction(row)}
-                className="flex w-full items-center gap-4 py-4 text-left transition hover:bg-gray-50/80 dark:hover:bg-white/[0.02]"
-              >
-                <AvatarText name={row.studentName} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{row.studentName}</p>
-                  <p className="truncate text-xs text-gray-500 dark:text-gray-400">{row.categoryLabel}</p>
-                </div>
-                <div className="hidden min-w-[150px] text-sm text-gray-500 dark:text-gray-400 md:block">{formatDate(row.created_at)}</div>
-                <div className="min-w-[110px] text-sm font-medium text-gray-900 dark:text-white">{formatAmount(row.total)}</div>
-                <div className="min-w-[100px]">
-                  <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 dark:bg-white/5 dark:text-gray-300">
-                    {row.status || "Sans statut"}
-                  </span>
-                </div>
-              </button>
-            ))
+            paginatedRows.map((row) =>
+              detailPathBase ? (
+                <Link
+                  key={row.id}
+                  href={`${detailPathBase}/${row.id}`}
+                  className="flex w-full items-center gap-4 py-4 text-left transition hover:bg-gray-50/80 dark:hover:bg-white/[0.02]"
+                >
+                  <AvatarText name={row.studentName} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{row.studentName}</p>
+                    <p className="truncate text-xs text-gray-500 dark:text-gray-400">{row.categoryLabel}</p>
+                  </div>
+                  <div className="hidden min-w-[150px] text-sm text-gray-500 dark:text-gray-400 md:block">{formatDate(row.created_at)}</div>
+                  <div className="min-w-[110px] text-sm font-medium text-gray-900 dark:text-white">{formatAmount(row.total)}</div>
+                  <div className="min-w-[100px]">
+                    <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 dark:bg-white/5 dark:text-gray-300">
+                      {row.status || "Sans statut"}
+                    </span>
+                  </div>
+                </Link>
+              ) : (
+                <button
+                  key={row.id}
+                  type="button"
+                  onClick={() => setSelectedTransaction(row)}
+                  className="flex w-full items-center gap-4 py-4 text-left transition hover:bg-gray-50/80 dark:hover:bg-white/[0.02]"
+                >
+                  <AvatarText name={row.studentName} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{row.studentName}</p>
+                    <p className="truncate text-xs text-gray-500 dark:text-gray-400">{row.categoryLabel}</p>
+                  </div>
+                  <div className="hidden min-w-[150px] text-sm text-gray-500 dark:text-gray-400 md:block">{formatDate(row.created_at)}</div>
+                  <div className="min-w-[110px] text-sm font-medium text-gray-900 dark:text-white">{formatAmount(row.total)}</div>
+                  <div className="min-w-[100px]">
+                    <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 dark:bg-white/5 dark:text-gray-300">
+                      {row.status || "Sans statut"}
+                    </span>
+                  </div>
+                </button>
+              ),
+            )
           )}
         </div>
 
@@ -210,11 +234,13 @@ export default function LatestTransactions({
         </div>
       </ComponentCard>
 
-      <TransactionDetailModal
-        transaction={selectedTransaction}
-        isOpen={selectedTransaction !== null}
-        onClose={() => setSelectedTransaction(null)}
-      />
+      {!detailPathBase ? (
+        <TransactionDetailModal
+          transaction={selectedTransaction}
+          isOpen={selectedTransaction !== null}
+          onClose={() => setSelectedTransaction(null)}
+        />
+      ) : null}
     </>
   );
 }
