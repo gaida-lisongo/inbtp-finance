@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 
 import StageLetterRequestView from "@/components/product/StageLetterRequestView";
 import SubjectResearchRequestView from "@/components/product/SubjectResearchRequestView";
+import LaboratoryInvoiceView from "@/components/product/LaboratoryInvoiceView";
 import { getDocumentTypeLabel } from "@/lib/utils/supabase/documents-shared";
 import {
   getCommandeCategoryLabel,
@@ -104,7 +105,7 @@ const ReleveProductView = ({ title, description }: { title: string; description:
     <div className="rounded-2xl border border-success-200 bg-success-50/70 p-5 dark:border-success-500/30 dark:bg-success-500/10">
       <p className="text-sm font-medium text-success-800 dark:text-success-200">Type detecte: Releve des cotes</p>
       <p className="mt-2 text-sm leading-6 text-success-700 dark:text-success-300">
-        Le conteneur de restitution est pret pour afficher le releve genere ou proposer son telechargement.
+        Votre paiement est valide. Veuillez passer a la direction de section pour recuperer le document officiel.
       </p>
     </div>
     {description ? (
@@ -115,7 +116,7 @@ const ReleveProductView = ({ title, description }: { title: string; description:
   </ProductShell>
 );
 
-const ValidationSheetProductView = ({ title, description }: { title: string; description: string | null }) => (
+const ValidationSheetProductView = ({ title, description, productId }: { title: string; description: string | null; productId: string }) => (
   <ProductShell
     badge="Document academique"
     badgeClassName="bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300"
@@ -125,8 +126,18 @@ const ValidationSheetProductView = ({ title, description }: { title: string; des
     <div className="rounded-2xl border border-brand-200 bg-brand-50/70 p-5 dark:border-brand-500/30 dark:bg-brand-500/10">
       <p className="text-sm font-medium text-brand-800 dark:text-brand-200">Type detecte: Fiche de validation</p>
       <p className="mt-2 text-sm leading-6 text-brand-700 dark:text-brand-300">
-        Le composant de lecture est pret pour recevoir la fiche et ses controles associes.
+        Votre paiement est valide. Vous pouvez generer directement la fiche de validation des credits.
       </p>
+    </div>
+    <div className="mt-4 flex flex-wrap gap-3">
+      <a
+        href={`/product/documents/${productId}/validation`}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center justify-center rounded-lg bg-brand-500 px-5 py-3 text-sm font-medium text-white transition hover:bg-brand-600"
+      >
+        Generer la fiche de validation (PDF)
+      </a>
     </div>
     {description ? (
       <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-5 text-sm text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
@@ -149,7 +160,7 @@ const GenericDocumentProductView = ({
     badge="Document academique"
     badgeClassName="bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-300"
     title={title}
-    description="Le paiement valide donne acces a un document. Cette zone reste disponible pour les autres categories documentaires."
+    description="Le paiement valide donne acces a un document. Le retrait se fait a la direction de section."
   >
     <div className="grid gap-4 rounded-2xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-800 dark:bg-gray-900 sm:grid-cols-2">
       <div>
@@ -158,7 +169,7 @@ const GenericDocumentProductView = ({
       </div>
       <div>
         <div className="text-sm text-gray-500 dark:text-gray-400">Etat</div>
-        <div className="mt-1 font-medium text-gray-800 dark:text-white/90">Pret pour le rendu du document</div>
+        <div className="mt-1 font-medium text-gray-800 dark:text-white/90">Retrait a la direction de section</div>
       </div>
       {description ? (
         <div className="sm:col-span-2">
@@ -240,10 +251,14 @@ const ProductViewSwitch = ({
     }
 
     if (normalizedCategory === "fiche de validation") {
-      return <ValidationSheetProductView title={title} description={description} />;
+      return <ValidationSheetProductView title={title} description={description} productId={productId} />;
     }
 
     return <GenericDocumentProductView title={title} description={description} documentCategory={documentCategory} />;
+  }
+
+  if (category === "laboratoire") {
+    return <LaboratoryInvoiceView productId={productId} title={title} studentName={studentName} description={description} />;
   }
 
   if (category === "stages") {

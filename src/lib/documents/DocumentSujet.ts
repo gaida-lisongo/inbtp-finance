@@ -6,6 +6,10 @@ export type DocumentSujetPayload = {
   director: string;
   coDirector?: string | null;
   student: StudentDocumentIdentity;
+  jury?: Array<{
+    membre: string;
+    enseignant: string;
+  }> | null;
 };
 
 export class DocumentSujet extends Document<DocumentSujetPayload> {
@@ -30,6 +34,13 @@ export class DocumentSujet extends Document<DocumentSujetPayload> {
     const today = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(new Date());
     const header = await buildOfficialDocumentHeader({ dateLabel: today });
     const coDirector = this.payload.coDirector?.trim();
+    const juryRows =
+      this.payload.jury
+        ?.map((row) => ({
+          membre: row.membre?.trim() ?? "",
+          enseignant: row.enseignant?.trim() ?? "",
+        }))
+        .filter((row) => row.membre.length > 0 && row.enseignant.length > 0) ?? [];
 
     docDefinition.content = [
       ...header,
@@ -53,6 +64,21 @@ export class DocumentSujet extends Document<DocumentSujetPayload> {
         },
         layout: "lightHorizontalLines",
       },
+      ...(juryRows.length > 0
+        ? [
+            { text: "Jury", style: "title", margin: [0, 26, 0, 10], fontSize: 13 },
+            {
+              table: {
+                widths: [170, "*"],
+                body: [
+                  ["Membre", "Enseignant"],
+                  ...juryRows.map((row) => [row.membre, row.enseignant]),
+                ],
+              },
+              layout: "lightHorizontalLines",
+            },
+          ]
+        : []),
       {
         text: "Document genere automatiquement via le workflow de soumission du sujet de recherche.",
         margin: [0, 24, 0, 0],

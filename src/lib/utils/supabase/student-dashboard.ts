@@ -111,6 +111,7 @@ export type StudentDashboardSnapshot = {
     {
       stageDelivered: "pending" | "success" | "no" | null;
       subjectDelivered: boolean | null;
+      subjectNotificationId: string | null;
     }
   >;
 };
@@ -447,6 +448,7 @@ const buildResourceNotificationByCommandeId = async (
       {
         stageDelivered: "pending" | "success" | "no" | null;
         subjectDelivered: boolean | null;
+        subjectNotificationId: string | null;
       }
     >;
   }
@@ -527,6 +529,34 @@ const buildResourceNotificationByCommandeId = async (
   }
 
   const subjectDeliveredByReference = new Map<string, boolean>();
+  const subjectNotificationIdByReference = new Map<string, string | null>();
+
+  const subjectNotificationParentIds = notificationRows
+    .filter((row) => row.categorie === "sujets")
+    .map((row) => row.id);
+  const subjectNotificationIdByParent = new Map<string, string>();
+
+  if (subjectNotificationParentIds.length > 0) {
+    const { data: subjectRowsData, error: subjectRowsError } = await admin
+      .from("notifications_sujet")
+      .select("id, notification_id, created_at")
+      .in("notification_id", subjectNotificationParentIds)
+      .order("created_at", { ascending: false });
+
+    if (subjectRowsError) {
+      throw new Error(subjectRowsError.message);
+    }
+
+    for (const row of (subjectRowsData ?? []) as Array<{ id: string; notification_id: string | null; created_at: string }>) {
+      if (typeof row.notification_id !== "string" || row.notification_id.length === 0) {
+        continue;
+      }
+
+      if (!subjectNotificationIdByParent.has(row.notification_id)) {
+        subjectNotificationIdByParent.set(row.notification_id, row.id);
+      }
+    }
+  }
 
   for (const notification of notificationRows) {
     if (notification.categorie !== "sujets") {
@@ -540,6 +570,7 @@ const buildResourceNotificationByCommandeId = async (
     }
 
     subjectDeliveredByReference.set(reference, notification.status === true);
+    subjectNotificationIdByReference.set(reference, subjectNotificationIdByParent.get(notification.id) ?? null);
   }
 
   const result: Record<
@@ -547,6 +578,7 @@ const buildResourceNotificationByCommandeId = async (
     {
       stageDelivered: "pending" | "success" | "no" | null;
       subjectDelivered: boolean | null;
+      subjectNotificationId: string | null;
     }
   > = {};
 
@@ -554,6 +586,7 @@ const buildResourceNotificationByCommandeId = async (
     result[commandeId] = {
       stageDelivered: stageDeliveredByReference.get(reference) ?? null,
       subjectDelivered: null,
+      subjectNotificationId: null,
     };
   }
 
@@ -561,11 +594,13 @@ const buildResourceNotificationByCommandeId = async (
     const current = result[commandeId] ?? {
       stageDelivered: null,
       subjectDelivered: null,
+      subjectNotificationId: null,
     };
 
     result[commandeId] = {
       ...current,
       subjectDelivered: subjectDeliveredByReference.get(reference) ?? null,
+      subjectNotificationId: subjectNotificationIdByReference.get(reference) ?? null,
     };
   }
 

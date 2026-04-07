@@ -22,6 +22,7 @@ type ResourceCommandeRow = StudentDashboardSnapshot["commandes"][number] & {
   canonicalCategory: CommandeCategory | null;
   resourceTitle: string;
   resourceDescription: string | null;
+  documentCategory: string | null;
   productPath: string | null;
   commandePath: string | null;
   normalizedStatus: "success" | "pending" | "no" | null;
@@ -83,6 +84,20 @@ const normalizeStatus = (value: string | null): "success" | "pending" | "no" | n
   }
 
   return null;
+};
+
+const normalizeDocumentCategoryKey = (value: string | null) => {
+  const normalized = normalizeText(value);
+
+  if (normalized === "releve" || normalized === "releves") {
+    return "releve";
+  }
+
+  if (normalized === "fiche de validation") {
+    return "validation";
+  }
+
+  return normalized;
 };
 
 const getStatusLabel = (status: "success" | "pending" | "no" | null) => {
@@ -164,6 +179,7 @@ export default function StudentResourcesWorkspace({ snapshot, initialType }: Stu
         canonicalCategory,
         resourceTitle: resource?.title ?? commande.description ?? "Ressource academique",
         resourceDescription: resource?.description ?? commande.description ?? null,
+        documentCategory: resource?.documentCategory ?? null,
         productPath: resource?.productPath ?? null,
         commandePath: resource?.commandePath ?? null,
       };
@@ -284,20 +300,48 @@ export default function StudentResourcesWorkspace({ snapshot, initialType }: Stu
     return Array.from(bucket.values()).sort((left, right) => left.key.localeCompare(right.key));
   }, [filteredRows]);
 
-  const resolvedAccessPath = selectedCommande
-    ? accessPathByCommande[selectedCommande.id] ?? (selectedCommande.normalizedStatus === "success" ? selectedCommande.productPath : null)
-    : null;
   const selectedCommandeNotificationState = selectedCommande
     ? snapshot.resourceNotificationByCommandeId[selectedCommande.id]
     : undefined;
   const selectedStageDelivered = selectedCommandeNotificationState?.stageDelivered ?? null;
   const selectedSubjectDelivered = selectedCommandeNotificationState?.subjectDelivered ?? null;
+  const selectedSubjectNotificationId = selectedCommandeNotificationState?.subjectNotificationId ?? null;
+  const selectedIsStage = selectedCommande?.canonicalCategory === "stages";
+  const selectedIsSubject = selectedCommande?.canonicalCategory === "sujets";
+  const selectedIsLaboratoire = selectedCommande?.canonicalCategory === "laboratoire";
+  const selectedIsReleve =
+    selectedCommande?.canonicalCategory === "documents" &&
+    normalizeDocumentCategoryKey(selectedCommande.documentCategory) === "releve";
   const selectedRequestLocked =
-    selectedCommande?.categoryKey === "stages"
+    selectedIsStage
       ? selectedStageDelivered === "success"
-      : selectedCommande?.categoryKey === "sujets"
+      : selectedIsSubject
         ? selectedSubjectDelivered === true
         : false;
+  const selectedSubjectCoverPath = selectedSubjectNotificationId
+    ? `/api/notifications/sujets/${encodeURIComponent(selectedSubjectNotificationId)}/cover`
+    : null;
+  const selectedLaboratoireInvoicePath =
+    selectedIsLaboratoire && selectedCommande?.product
+      ? `/product/laboratoire/${selectedCommande.product}/invoice`
+      : null;
+  const resolvedAccessPath = selectedCommande
+    ? accessPathByCommande[selectedCommande.id] ?? (selectedCommande.normalizedStatus === "success" ? selectedCommande.productPath : null)
+    : null;
+  const resolvedProductPath =
+    selectedCommande?.normalizedStatus === "success"
+      ? selectedIsStage || selectedIsReleve
+        ? null
+        : selectedIsSubject
+          ? selectedSubjectCoverPath
+          : selectedLaboratoireInvoicePath ?? resolvedAccessPath
+      : resolvedAccessPath;
+  const resolvedProductLabel =
+    selectedCommande?.normalizedStatus === "success" && selectedIsSubject
+      ? "Generer la page de garde (PDF)"
+      : selectedCommande?.normalizedStatus === "success" && selectedIsLaboratoire
+        ? "Generer l'invoice laboratoire (PDF)"
+        : "Acceder a la ressource";
 
   const handleVerifySelectedCommande = () => {
     if (!selectedCommande || !selectedCommande.canonicalCategory || !selectedCommande.product) {
@@ -372,13 +416,19 @@ export default function StudentResourcesWorkspace({ snapshot, initialType }: Stu
                   Ouvrir la commande
                 </Link>
               ) : null}
-              {resolvedAccessPath ? (
+              {resolvedProductPath ? (
                 <Link
-                  href={resolvedAccessPath}
+                  href={resolvedProductPath}
+                  target={selectedCommande.normalizedStatus === "success" ? "_blank" : undefined}
+                  rel={selectedCommande.normalizedStatus === "success" ? "noreferrer" : undefined}
                   className="inline-flex items-center justify-center rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-600"
                 >
-                  Acceder a la ressource
+                  {resolvedProductLabel}
                 </Link>
+              ) : selectedCommande.normalizedStatus === "success" ? (
+                <span className="inline-flex items-center rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">
+                  Ressource a retirer a l&apos;administration
+                </span>
               ) : (
                 <Button onClick={handleVerifySelectedCommande} disabled={isPending}>
                   {isPending ? "Verification..." : "Verifier le paiement"}
@@ -401,9 +451,23 @@ export default function StudentResourcesWorkspace({ snapshot, initialType }: Stu
 
           {selectedRequestLocked ? (
             <div className="mt-4 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300">
-              {selectedCommande?.categoryKey === "stages"
+              {selectedIsStage
                 ? "Lettre de stage deja delivree. Nouvelle soumission bloquee."
                 : "Ressource sujet deja delivree. Nouvelle soumission bloquee."}
+            </div>
+          ) : null}
+
+          {selectedCommande.normalizedStatus === "success" && (selectedIsStage || selectedIsReleve) ? (
+            <div className="mt-4 rounded-xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
+              {selectedIsStage
+                ? "Paiement valide: passez a l'administration pour recuperer la lettre de stage."
+                : "Paiement valide: passez a l'administration pour recuperer votre releve."}
+            </div>
+          ) : null}
+
+          {selectedCommande.normalizedStatus === "success" && selectedIsSubject && !selectedSubjectCoverPath ? (
+            <div className="mt-4 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300">
+              Paiement valide. Soumettez le formulaire du sujet pour activer la generation de la page de garde.
             </div>
           ) : null}
 
@@ -556,12 +620,12 @@ export default function StudentResourcesWorkspace({ snapshot, initialType }: Stu
                     <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${getStatusClassName(row.normalizedStatus)}`}>
                       {getStatusLabel(row.normalizedStatus)}
                     </span>
-                    {row.categoryKey === "stages" ? (
+                    {row.canonicalCategory === "stages" ? (
                       <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-700 dark:bg-white/5 dark:text-gray-300">
                         Lettre: {snapshot.resourceNotificationByCommandeId[row.id]?.stageDelivered ?? "pending"}
                       </span>
                     ) : null}
-                    {row.categoryKey === "sujets" ? (
+                    {row.canonicalCategory === "sujets" ? (
                       <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-700 dark:bg-white/5 dark:text-gray-300">
                         Sujet: {snapshot.resourceNotificationByCommandeId[row.id]?.subjectDelivered ? "delivre" : "pending"}
                       </span>

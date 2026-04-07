@@ -42,6 +42,57 @@ const parseDescriptionValue = (value: string | null) => {
   }
 };
 
+const parseSujetJuryValue = (value: FormDataEntryValue | null) => {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(normalized);
+  } catch {
+    throw new Error("jury_invalid");
+  }
+
+  if (!Array.isArray(parsed)) {
+    throw new Error("jury_invalid");
+  }
+
+  const jury = parsed
+    .map((item) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+
+      const record = item as Record<string, unknown>;
+      const membre = typeof record.membre === "string" ? record.membre.trim() : "";
+      const enseignant = typeof record.enseignant === "string" ? record.enseignant.trim() : "";
+
+      if (!membre && !enseignant) {
+        return null;
+      }
+
+      if (!membre || !enseignant) {
+        throw new Error("jury_invalid");
+      }
+
+      return {
+        membre,
+        enseignant,
+      };
+    })
+    .filter((item): item is { membre: string; enseignant: string } => item !== null);
+
+  return jury.length > 0 ? jury : null;
+};
+
 const assertCanManageResearch = async () => {
   const user = await getAuthenticatedUser();
 
@@ -95,11 +146,18 @@ export const saveResearchRecord = async (tableName: ResearchTableName, formData:
     entra_id: emptyToNull(formData.get("entra_id")),
     is_active: emptyToNull(formData.get("is_active")),
   };
+  const payloadWithJury =
+    tableName === "sujets"
+      ? {
+          ...payload,
+          jury: parseSujetJuryValue(formData.get("jury_json")),
+        }
+      : payload;
 
   const admin = createAdminClient();
 
   if (id) {
-    const { error } = await admin.from(tableName).update(payload).eq("id", id);
+    const { error } = await admin.from(tableName).update(payloadWithJury).eq("id", id);
 
     if (error) {
       throw new Error(error.message);
@@ -108,7 +166,7 @@ export const saveResearchRecord = async (tableName: ResearchTableName, formData:
     return;
   }
 
-  const { error } = await admin.from(tableName).insert(payload);
+  const { error } = await admin.from(tableName).insert(payloadWithJury);
 
   if (error) {
     throw new Error(error.message);

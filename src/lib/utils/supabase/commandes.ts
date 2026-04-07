@@ -145,6 +145,47 @@ const resourceConfig: Record<
   },
 };
 
+const getCommandeCategoryAliases = (category: CommandeCategory) => {
+  switch (category) {
+    case "documents":
+      return ["documents", "document"];
+    case "session":
+      return ["session", "sessions"];
+    case "stages":
+      return ["stages", "stage"];
+    case "sujets":
+      return ["sujets", "sujet"];
+    case "laboratoire":
+      return ["laboratoire", "laboratoires"];
+    default:
+      return [category];
+  }
+};
+
+const normalizeCommandeCategoryValue = (value: string | null | undefined): CommandeCategory | null => {
+  const normalized = normalizeText(value)?.toLowerCase();
+
+  switch (normalized) {
+    case "documents":
+    case "document":
+      return "documents";
+    case "session":
+    case "sessions":
+      return "session";
+    case "stages":
+    case "stage":
+      return "stages";
+    case "sujets":
+    case "sujet":
+      return "sujets";
+    case "laboratoire":
+    case "laboratoires":
+      return "laboratoire";
+    default:
+      return null;
+  }
+};
+
 const normalizeText = (value: string | null | undefined) => {
   if (typeof value !== "string") {
     return null;
@@ -337,12 +378,13 @@ const assertStudentCanAccessResource = async (studentId: string, programmeId: st
 };
 
 const getExistingSuccessCommande = async (studentId: string, category: CommandeCategory, resourceId: string) => {
+  const categoryAliases = getCommandeCategoryAliases(category);
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("commande")
     .select("*")
     .eq("student_id", studentId)
-    .eq("categorie", category)
+    .in("categorie", categoryAliases)
     .eq("product", resourceId)
     .eq("status", "success")
     .order("created_at", { ascending: false })
@@ -356,12 +398,13 @@ const getExistingSuccessCommande = async (studentId: string, category: CommandeC
 };
 
 const getLatestPendingCommande = async (studentId: string, category: CommandeCategory, resourceId: string) => {
+  const categoryAliases = getCommandeCategoryAliases(category);
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("commande")
     .select("*")
     .eq("student_id", studentId)
-    .eq("categorie", category)
+    .in("categorie", categoryAliases)
     .eq("product", resourceId)
     .neq("status", "success")
     .order("created_at", { ascending: false })
@@ -375,12 +418,13 @@ const getLatestPendingCommande = async (studentId: string, category: CommandeCat
 };
 
 const getLatestPendingPaiement = async (studentId: string, category: CommandeCategory, resourceId: string) => {
+  const categoryAliases = getCommandeCategoryAliases(category);
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("paiements")
     .select('*')
     .eq("student_id", studentId)
-    .eq("categorie", category)
+    .in("categorie", categoryAliases)
     .eq("produc_id", resourceId)
     .neq("status", "success")
     .order("created_at", { ascending: false })
@@ -741,13 +785,14 @@ export const confirmCommandePayment = async (input: ConfirmCommandePaymentInput)
 
   await assertStudentCanAccessResource(student.id, resource.programmeId);
 
+  const categoryAliases = getCommandeCategoryAliases(input.category);
   const admin = createAdminClient();
   const { data: commandeData, error: commandeError } = await admin
     .from("commande")
     .select("*")
     .eq("id", input.commandeId)
     .eq("student_id", student.id)
-    .eq("categorie", input.category)
+    .in("categorie", categoryAliases)
     .eq("product", input.resourceId)
     .maybeSingle();
 
@@ -906,13 +951,14 @@ export const validateStudentCommandePayment = async (input: {
 
   await assertStudentCanAccessResource(student.id, resource.programmeId);
 
+  const categoryAliases = getCommandeCategoryAliases(input.category);
   const admin = createAdminClient();
   const { data: commandeData, error: commandeError } = await admin
     .from("commande")
     .select("*")
     .eq("id", input.commandeId)
     .eq("student_id", student.id)
-    .eq("categorie", input.category)
+    .in("categorie", categoryAliases)
     .eq("product", input.resourceId)
     .maybeSingle();
 
@@ -992,14 +1038,14 @@ export const validateCommandePaymentByOrderNumber = async (orderNumber: string):
 
   const commande = commandeData as CommandeRecord;
   const previousStatus = commande.status;
-  const rawCategory = normalizeText(commande.categorie);
+  const rawCategory = normalizeCommandeCategoryValue(commande.categorie);
   const productId = normalizeText(commande.product);
 
-  if (!rawCategory || !(rawCategory in resourceConfig) || !productId) {
+  if (!rawCategory || !productId) {
     throw new Error("commande_resource_invalid");
   }
 
-  const category = rawCategory as CommandeCategory;
+  const category = rawCategory;
   const paymentService = PaymentService.getInstance();
   const paymentResponse = await paymentService.check(normalizedOrderNumber);
   const isSuccess = isPaymentResponseSuccessful(paymentResponse);

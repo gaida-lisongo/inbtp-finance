@@ -45,6 +45,11 @@ type StudentRow = {
   telephone: string | null;
 };
 
+type SujetJuryMember = {
+  membre: string;
+  enseignant: string;
+};
+
 const normalizeText = (value: string | null | undefined) => {
   if (typeof value !== "string") {
     return null;
@@ -103,6 +108,30 @@ const parseStructuredSections = (value: unknown): SubjectSection[] => {
     .filter((item): item is SubjectSection => Boolean(item));
 };
 
+const parseSujetJury = (value: unknown): SujetJuryMember[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+
+      const record = item as Record<string, unknown>;
+      const membre = typeof record.membre === "string" ? normalizeText(record.membre) : null;
+      const enseignant = typeof record.enseignant === "string" ? normalizeText(record.enseignant) : null;
+
+      if (!membre || !enseignant) {
+        return null;
+      }
+
+      return { membre, enseignant };
+    })
+    .filter((item): item is SujetJuryMember => item !== null);
+};
+
 const extractOrderReferenceFromObject = (value: string | null | undefined) => {
   const normalized = normalizeText(value);
 
@@ -112,6 +141,55 @@ const extractOrderReferenceFromObject = (value: string | null | undefined) => {
 
   const chunks = normalized.split(/\s+/).filter(Boolean);
   return chunks.length > 0 ? chunks[chunks.length - 1] ?? null : null;
+};
+
+const findSujetJuryByNotificationReference = async (input: {
+  studentId: string;
+  notificationObject: string | null | undefined;
+}) => {
+  const reference = extractOrderReferenceFromObject(input.notificationObject);
+
+  if (!reference) {
+    return [] as SujetJuryMember[];
+  }
+
+  const admin = createAdminClient();
+  const commandeQuery = admin
+    .from("commande")
+    .select("id, product")
+    .eq("student_id", input.studentId)
+    .eq("categorie", "sujets")
+    .limit(1);
+  const { data: commandeData, error: commandeError } =
+    reference.includes("-") || reference.length > 20
+      ? await commandeQuery.eq("orderNumber", reference).maybeSingle()
+      : await commandeQuery.eq("id", reference).maybeSingle();
+
+  if (commandeError) {
+    throw new Error(commandeError.message);
+  }
+
+  const commande = commandeData as { id: string; product: string | null } | null;
+
+  if (!commande?.product) {
+    return [];
+  }
+
+  const { data: sujetData, error: sujetError } = await admin
+    .from("sujets")
+    .select("jury")
+    .eq("id", commande.product)
+    .maybeSingle();
+
+  if (sujetError) {
+    throw new Error(sujetError.message);
+  }
+
+  if (!sujetData) {
+    return [];
+  }
+
+  return parseSujetJury((sujetData as { jury?: unknown }).jury);
 };
 
 const getLatestSubjectDeliveryForReference = async (studentId: string, reference: string): Promise<boolean | null> => {
@@ -178,7 +256,7 @@ const getSujetRowWithParent = async (notificationSujetId: string) => {
 
   const { data: parentData, error: parentError } = await admin
     .from("notifications")
-    .select("id, student_id, categorie, status, is_read")
+    .select("id, object, student_id, categorie, status, is_read")
     .eq("id", sujetRow.notification_id)
     .maybeSingle();
 
@@ -220,10 +298,15 @@ const getSujetRowWithParent = async (notificationSujetId: string) => {
 const buildSubjectCoverBuffer = async (notificationSujetId: string) => {
   const data = await getSujetRowWithParent(notificationSujetId);
   const studentName = getCommandeStudentDisplayName(data.student);
+  const jury = await findSujetJuryByNotificationReference({
+    studentId: data.student.id,
+    notificationObject: data.parent.object,
+  });
   const document = new DocumentSujet({
     title: normalizeText(data.sujetRow.titre) ?? "Sujet de recherche",
     director: normalizeText(data.sujetRow.directeur) ?? "Directeur non renseigne",
     coDirector: normalizeText(data.sujetRow.co_directeur),
+    jury,
     student: {
       fullName: studentName,
       email: data.student.email,
