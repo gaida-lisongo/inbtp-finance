@@ -15,6 +15,7 @@ type SubjectResearchRequestViewProps = {
   requestStatus?: string;
   requestError?: string;
   notificationSujetId?: string;
+  requestLocked?: boolean;
 };
 
 const createEmptySection = (): SectionRow => ({ section: "", content: "" });
@@ -158,6 +159,7 @@ export default function SubjectResearchRequestView({
   requestStatus,
   requestError,
   notificationSujetId,
+  requestLocked = false,
 }: SubjectResearchRequestViewProps) {
   const [thematique, setThematique] = useState<string[]>([""]);
   const [justification, setJustification] = useState<string[]>([""]);
@@ -196,6 +198,12 @@ export default function SubjectResearchRequestView({
       {requestError ? (
         <div className="mt-4 rounded-xl border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300">
           {requestError}
+        </div>
+      ) : null}
+
+      {requestLocked ? (
+        <div className="mt-4 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300">
+          Cette soumission est deja traitee. Une nouvelle payload n&apos;est plus autorisee.
         </div>
       ) : null}
 
@@ -299,6 +307,7 @@ export default function SubjectResearchRequestView({
           ) : null}
           <button
             type="submit"
+            disabled={requestLocked}
             className="inline-flex items-center justify-center rounded-lg bg-brand-500 px-5 py-3 text-sm font-medium text-white transition hover:bg-brand-600"
           >
             Soumettre le projet

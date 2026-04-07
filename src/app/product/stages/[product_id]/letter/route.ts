@@ -57,6 +57,11 @@ export async function POST(request: Request, context: { params: Promise<{ produc
       return NextResponse.redirect(redirectBase);
     }
 
+    if (message === "stage_request_already_delivered") {
+      redirectBase.searchParams.set("stage_error", "Lettre deja delivree. Nouvelle soumission bloquee.");
+      return NextResponse.redirect(redirectBase);
+    }
+
     redirectBase.searchParams.set("stage_error", message);
     return NextResponse.redirect(redirectBase);
   }

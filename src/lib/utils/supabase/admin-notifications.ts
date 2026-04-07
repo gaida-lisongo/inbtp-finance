@@ -63,7 +63,7 @@ export const getAdminNotifications = async ({
   const { data, error } = await admin
     .from("notifications")
     .select("id, created_at, object, description, categorie, status, path")
-    .in("categorie", ["commande_success", "commande", "stages"])
+    .in("categorie", ["commande_success", "commande", "stages", "sujets"])
     .order("created_at", { ascending: false })
     .limit(limit);
 

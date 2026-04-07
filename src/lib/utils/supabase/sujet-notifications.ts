@@ -28,6 +28,8 @@ type SubjectNotificationRow = {
 
 type NotificationRow = {
   id: string;
+  created_at?: string;
+  object?: string | null;
   student_id: string;
   categorie: string;
   status: boolean | null;
@@ -99,6 +101,41 @@ const parseStructuredSections = (value: unknown): SubjectSection[] => {
       return { section, content };
     })
     .filter((item): item is SubjectSection => Boolean(item));
+};
+
+const extractOrderReferenceFromObject = (value: string | null | undefined) => {
+  const normalized = normalizeText(value);
+
+  if (!normalized) {
+    return null;
+  }
+
+  const chunks = normalized.split(/\s+/).filter(Boolean);
+  return chunks.length > 0 ? chunks[chunks.length - 1] ?? null : null;
+};
+
+const getLatestSubjectDeliveryForReference = async (studentId: string, reference: string): Promise<boolean | null> => {
+  const admin = createAdminClient();
+  const { data: notificationRowsData, error: notificationRowsError } = await admin
+    .from("notifications")
+    .select("id, created_at, object, status")
+    .eq("student_id", studentId)
+    .eq("categorie", "sujets")
+    .order("created_at", { ascending: false });
+
+  if (notificationRowsError) {
+    throw new Error(notificationRowsError.message);
+  }
+
+  const notificationRows = (notificationRowsData ?? []) as Array<{
+    id: string;
+    created_at: string;
+    object: string | null;
+    status: boolean | null;
+  }>;
+
+  const matching = notificationRows.find((row) => extractOrderReferenceFromObject(row.object) === reference);
+  return matching ? matching.status === true : null;
 };
 
 const assertOrganizerAccess = async () => {
@@ -237,6 +274,12 @@ export const createSubjectResearchRequestNotification = async (input: {
 
   const admin = createAdminClient();
   const reference = productData.existingSuccessCommande.orderNumber ?? productData.existingSuccessCommande.id;
+  const latestDelivery = await getLatestSubjectDeliveryForReference(productData.student.id, reference);
+
+  if (latestDelivery === true) {
+    throw new Error("subject_request_already_delivered");
+  }
+
   const { data: notificationData, error: notificationError } = await admin
     .from("notifications")
     .insert({
@@ -346,7 +389,7 @@ export const getSubjectRequestNotifications = async (): Promise<SubjectRequestNo
 
   const { data: notificationRowsData, error: notificationRowsError } = await admin
     .from("notifications")
-    .select("id, student_id, categorie, status, is_read")
+    .select("id, student_id, categorie, status, is_read, object, created_at")
     .in("id", notificationIds)
     .eq("categorie", "sujets");
 
@@ -457,4 +500,27 @@ export const generateSubjectCoverForStudent = async (notificationSujetId: string
   }
 
   return buildSubjectCoverBuffer(notificationSujetId);
+};
+
+export type StudentSubjectRequestState = {
+  reference: string;
+  delivered: boolean | null;
+  locked: boolean;
+};
+
+export const getCurrentStudentSubjectRequestState = async (productId: string): Promise<StudentSubjectRequestState | null> => {
+  const productData = await getProductPageData("sujets", productId);
+
+  if (!productData.hasPaidAccess || !productData.existingSuccessCommande) {
+    return null;
+  }
+
+  const reference = productData.existingSuccessCommande.orderNumber ?? productData.existingSuccessCommande.id;
+  const delivered = await getLatestSubjectDeliveryForReference(productData.student.id, reference);
+
+  return {
+    reference,
+    delivered,
+    locked: delivered === true,
+  };
 };

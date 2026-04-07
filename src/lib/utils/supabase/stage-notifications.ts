@@ -61,6 +61,60 @@ const sanitizeDelivered = (value: string | null | undefined): DeliveredStatus =>
   return "pending";
 };
 
+const extractOrderReferenceFromObject = (value: string | null | undefined) => {
+  const normalized = normalizeText(value);
+
+  if (!normalized) {
+    return null;
+  }
+
+  const chunks = normalized.split(/\s+/).filter(Boolean);
+  return chunks.length > 0 ? chunks[chunks.length - 1] ?? null : null;
+};
+
+const getLatestStageDeliveryForReference = async (studentId: string, reference: string): Promise<DeliveredStatus | null> => {
+  const admin = createAdminClient();
+  const { data: notificationRowsData, error: notificationRowsError } = await admin
+    .from("notifications")
+    .select("id, object, created_at")
+    .eq("student_id", studentId)
+    .eq("categorie", "stages")
+    .order("created_at", { ascending: false });
+
+  if (notificationRowsError) {
+    throw new Error(notificationRowsError.message);
+  }
+
+  const notificationRows = (notificationRowsData ?? []) as Array<{ id: string; object: string | null; created_at: string }>;
+  const notificationIds = notificationRows
+    .filter((row) => extractOrderReferenceFromObject(row.object) === reference)
+    .map((row) => row.id);
+
+  if (notificationIds.length === 0) {
+    return null;
+  }
+
+  const { data: stageRowsData, error: stageRowsError } = await admin
+    .from("notifications_stage")
+    .select("id, created_at, notification_id, delivered")
+    .in("notification_id", notificationIds)
+    .order("created_at", { ascending: false });
+
+  if (stageRowsError) {
+    throw new Error(stageRowsError.message);
+  }
+
+  const stageRows = (stageRowsData ?? []) as Array<{
+    id: number;
+    created_at: string;
+    notification_id: string | null;
+    delivered: string | null;
+  }>;
+
+  const latest = stageRows.find((row) => typeof row.notification_id === "string" && notificationIds.includes(row.notification_id));
+  return latest ? sanitizeDelivered(latest.delivered) : null;
+};
+
 const assertOrganizerAccess = async () => {
   const user = await getAuthenticatedUser();
 
@@ -91,6 +145,12 @@ export const createStageLetterRequestNotification = async (input: {
 
   const admin = createAdminClient();
   const reference = productData.existingSuccessCommande.orderNumber ?? productData.existingSuccessCommande.id;
+  const latestDelivery = await getLatestStageDeliveryForReference(productData.student.id, reference);
+
+  if (latestDelivery === "success") {
+    throw new Error("stage_request_already_delivered");
+  }
+
   const { data: notificationData, error: notificationError } = await admin
     .from("notifications")
     .insert({
@@ -143,6 +203,29 @@ export const createStageLetterRequestNotification = async (input: {
   return {
     notificationId,
     orderReference: reference,
+  };
+};
+
+export type StudentStageRequestState = {
+  reference: string;
+  delivered: DeliveredStatus | null;
+  locked: boolean;
+};
+
+export const getCurrentStudentStageRequestState = async (productId: string): Promise<StudentStageRequestState | null> => {
+  const productData = await getProductPageData("stages", productId);
+
+  if (!productData.hasPaidAccess || !productData.existingSuccessCommande) {
+    return null;
+  }
+
+  const reference = productData.existingSuccessCommande.orderNumber ?? productData.existingSuccessCommande.id;
+  const delivered = await getLatestStageDeliveryForReference(productData.student.id, reference);
+
+  return {
+    reference,
+    delivered,
+    locked: delivered === "success",
   };
 };
 

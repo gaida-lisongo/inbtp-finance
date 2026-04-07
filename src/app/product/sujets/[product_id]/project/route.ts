@@ -125,6 +125,11 @@ export async function POST(request: Request, context: { params: Promise<{ produc
       return NextResponse.redirect(redirectBase);
     }
 
+    if (message === "subject_request_already_delivered") {
+      redirectBase.searchParams.set("sujet_error", "Ressource deja delivree. Nouvelle soumission bloquee.");
+      return NextResponse.redirect(redirectBase);
+    }
+
     redirectBase.searchParams.set("sujet_error", message);
     return NextResponse.redirect(redirectBase);
   }

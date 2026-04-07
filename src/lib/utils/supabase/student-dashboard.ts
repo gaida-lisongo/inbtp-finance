@@ -106,6 +106,13 @@ export type StudentDashboardSnapshot = {
     }
   >;
   availableResources: StudentDashboardResource[];
+  resourceNotificationByCommandeId: Record<
+    string,
+    {
+      stageDelivered: "pending" | "success" | "no" | null;
+      subjectDelivered: boolean | null;
+    }
+  >;
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -388,6 +395,181 @@ const buildResourceOrderMap = (commandes: FacultyDashboardCommande[]) => {
   }
 
   return latestByResource;
+};
+
+const extractOrderReferenceFromNotificationObject = (value: string | null | undefined) => {
+  const normalized = normalizeText(value);
+
+  if (!normalized) {
+    return null;
+  }
+
+  const chunks = normalized.split(/\s+/).filter(Boolean);
+  return chunks.length > 0 ? chunks[chunks.length - 1] ?? null : null;
+};
+
+const normalizeDeliveredStatus = (value: string | null | undefined): "pending" | "success" | "no" | null => {
+  const normalized = normalizeText(value)?.toLowerCase();
+
+  if (normalized === "success" || normalized === "pending" || normalized === "no") {
+    return normalized;
+  }
+
+  return null;
+};
+
+const buildResourceNotificationByCommandeId = async (
+  studentId: string,
+  commandes: FacultyDashboardCommande[],
+) => {
+  const stageReferencesByCommandeId = new Map<string, string>();
+  const subjectReferencesByCommandeId = new Map<string, string>();
+
+  for (const commande of commandes) {
+    const orderReference = normalizeText(commande.orderNumber) ?? commande.id;
+
+    if (commande.categoryKey === "stages") {
+      stageReferencesByCommandeId.set(commande.id, orderReference);
+      continue;
+    }
+
+    if (commande.categoryKey === "sujets") {
+      subjectReferencesByCommandeId.set(commande.id, orderReference);
+    }
+  }
+
+  const stageRefs = new Set(stageReferencesByCommandeId.values());
+  const subjectRefs = new Set(subjectReferencesByCommandeId.values());
+
+  if (stageRefs.size === 0 && subjectRefs.size === 0) {
+    return {} as Record<
+      string,
+      {
+        stageDelivered: "pending" | "success" | "no" | null;
+        subjectDelivered: boolean | null;
+      }
+    >;
+  }
+
+  const admin = createAdminClient();
+  const categories: string[] = [];
+
+  if (stageRefs.size > 0) {
+    categories.push("stages");
+  }
+
+  if (subjectRefs.size > 0) {
+    categories.push("sujets");
+  }
+
+  const { data: notificationRowsData, error: notificationRowsError } = await admin
+    .from("notifications")
+    .select("id, created_at, categorie, object, status")
+    .eq("student_id", studentId)
+    .in("categorie", categories)
+    .order("created_at", { ascending: false });
+
+  if (notificationRowsError) {
+    throw new Error(notificationRowsError.message);
+  }
+
+  const notificationRows = (notificationRowsData ?? []) as Array<{
+    id: string;
+    created_at: string;
+    categorie: string | null;
+    object: string | null;
+    status: boolean | null;
+  }>;
+
+  const stageNotificationIds = notificationRows
+    .filter((row) => row.categorie === "stages")
+    .map((row) => row.id);
+
+  const stageDeliveredByReference = new Map<string, "pending" | "success" | "no" | null>();
+
+  if (stageNotificationIds.length > 0) {
+    const { data: stageRowsData, error: stageRowsError } = await admin
+      .from("notifications_stage")
+      .select("id, created_at, notification_id, delivered")
+      .in("notification_id", stageNotificationIds)
+      .order("created_at", { ascending: false });
+
+    if (stageRowsError) {
+      throw new Error(stageRowsError.message);
+    }
+
+    const stageRows = (stageRowsData ?? []) as Array<{
+      id: number;
+      created_at: string;
+      notification_id: string | null;
+      delivered: string | null;
+    }>;
+    const stageRowsByNotificationId = new Map(
+      stageRows
+        .filter((row) => typeof row.notification_id === "string" && row.notification_id.length > 0)
+        .map((row) => [row.notification_id as string, row] as const),
+    );
+
+    for (const notification of notificationRows) {
+      if (notification.categorie !== "stages" || !stageRowsByNotificationId.has(notification.id)) {
+        continue;
+      }
+
+      const reference = extractOrderReferenceFromNotificationObject(notification.object);
+
+      if (!reference || !stageRefs.has(reference) || stageDeliveredByReference.has(reference)) {
+        continue;
+      }
+
+      const stageRow = stageRowsByNotificationId.get(notification.id);
+      stageDeliveredByReference.set(reference, normalizeDeliveredStatus(stageRow?.delivered ?? null));
+    }
+  }
+
+  const subjectDeliveredByReference = new Map<string, boolean>();
+
+  for (const notification of notificationRows) {
+    if (notification.categorie !== "sujets") {
+      continue;
+    }
+
+    const reference = extractOrderReferenceFromNotificationObject(notification.object);
+
+    if (!reference || !subjectRefs.has(reference) || subjectDeliveredByReference.has(reference)) {
+      continue;
+    }
+
+    subjectDeliveredByReference.set(reference, notification.status === true);
+  }
+
+  const result: Record<
+    string,
+    {
+      stageDelivered: "pending" | "success" | "no" | null;
+      subjectDelivered: boolean | null;
+    }
+  > = {};
+
+  for (const [commandeId, reference] of stageReferencesByCommandeId.entries()) {
+    result[commandeId] = {
+      stageDelivered: stageDeliveredByReference.get(reference) ?? null,
+      subjectDelivered: null,
+    };
+  }
+
+  for (const [commandeId, reference] of subjectReferencesByCommandeId.entries()) {
+    const current = result[commandeId] ?? {
+      stageDelivered: null,
+      subjectDelivered: null,
+    };
+
+    result[commandeId] = {
+      ...current,
+      subjectDelivered: subjectDeliveredByReference.get(reference) ?? null,
+    };
+  }
+
+  return result;
 };
 
 const getStudentAvailableResources = async (
@@ -691,6 +873,7 @@ export const getStudentDashboardSnapshot = async (
 
   const orderByResource = buildResourceOrderMap(commandes);
   const availableResources = await getStudentAvailableResources(programmeIds, programmeDesignationById, orderByResource);
+  const resourceNotificationByCommandeId = await buildResourceNotificationByCommandeId(student.id, commandes);
 
   return {
     activeAnnee,
@@ -712,5 +895,6 @@ export const getStudentDashboardSnapshot = async (
     },
     parcours,
     availableResources,
+    resourceNotificationByCommandeId,
   };
 };

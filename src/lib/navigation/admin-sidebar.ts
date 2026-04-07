@@ -187,26 +187,5 @@ export const getAdminSidebarMenu = async (user: AuthenticatedUser): Promise<Side
     items.push(renderMenu(autorisationLabels[code], code));
   }
 
-  if (autorisationCodes.includes("CS")) {
-    items.push({
-      name: "Notifications",
-      iconKey: "folder",
-      subItems: [
-        {
-          name: "Toutes les notifications",
-          path: "/notifications",
-        },
-        {
-          name: "Demandes de stage",
-          path: "/notifications/stages",
-        },
-        {
-          name: "Demandes de sujet",
-          path: "/notifications/sujets",
-        },
-      ],
-    });
-  }
-
   return items;
 };

@@ -11,6 +11,8 @@ import {
   getProductPageData,
   type CommandeCategory,
 } from "@/lib/utils/supabase/commandes";
+import { getCurrentStudentStageRequestState } from "@/lib/utils/supabase/stage-notifications";
+import { getCurrentStudentSubjectRequestState } from "@/lib/utils/supabase/sujet-notifications";
 
 type ProductPageProps = {
   type: string;
@@ -209,6 +211,8 @@ const ProductViewSwitch = ({
   subjectRequestStatus,
   subjectRequestError,
   subjectNotificationId,
+  stageRequestLocked,
+  subjectRequestLocked,
 }: {
   category: CommandeCategory;
   title: string;
@@ -221,6 +225,8 @@ const ProductViewSwitch = ({
   subjectRequestStatus?: string;
   subjectRequestError?: string;
   subjectNotificationId?: string;
+  stageRequestLocked?: boolean;
+  subjectRequestLocked?: boolean;
 }) => {
   if (category === "session") {
     return <SessionProductView title={title} description={description} />;
@@ -249,6 +255,7 @@ const ProductViewSwitch = ({
         description={description}
         requestStatus={stageRequestStatus}
         requestError={stageRequestError}
+        requestLocked={stageRequestLocked}
       />
     );
   }
@@ -263,6 +270,7 @@ const ProductViewSwitch = ({
         requestStatus={subjectRequestStatus}
         requestError={subjectRequestError}
         notificationSujetId={subjectNotificationId}
+        requestLocked={subjectRequestLocked}
       />
     );
   }
@@ -303,6 +311,18 @@ export default async function ProductPage({ type, productId, query }: ProductPag
 
   const categoryLabel = getCommandeCategoryLabel(category);
   const studentName = getCommandeStudentDisplayName(data.student);
+  let stageRequestLocked = false;
+  let subjectRequestLocked = false;
+
+  if (data.hasPaidAccess && category === "stages") {
+    const stageRequestState = await getCurrentStudentStageRequestState(productId);
+    stageRequestLocked = stageRequestState?.locked === true;
+  }
+
+  if (data.hasPaidAccess && category === "sujets") {
+    const subjectRequestState = await getCurrentStudentSubjectRequestState(productId);
+    subjectRequestLocked = subjectRequestState?.locked === true;
+  }
 
   return (
     <main className="min-h-screen bg-gray-50 px-4 py-10 dark:bg-gray-950 sm:px-6 lg:px-8">
@@ -378,6 +398,8 @@ export default async function ProductPage({ type, productId, query }: ProductPag
             subjectRequestStatus={query?.sujet_request}
             subjectRequestError={query?.sujet_error}
             subjectNotificationId={query?.sujet_notification}
+            stageRequestLocked={stageRequestLocked}
+            subjectRequestLocked={subjectRequestLocked}
           />
         )}
       </div>

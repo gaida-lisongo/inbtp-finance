@@ -71,10 +71,10 @@ export default async function StageNotificationDetailPage({
             </button>
           </form>
           <Link
-            href={`/commande/order/${encodeURIComponent(item.documentReference ?? item.notificationId)}`}
+            href="/commandes/categories/stages"
             className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 dark:border-gray-700 dark:text-gray-200"
           >
-            Voir commande
+            Voir details produits
           </Link>
           <Link
             href="/notifications/stages"

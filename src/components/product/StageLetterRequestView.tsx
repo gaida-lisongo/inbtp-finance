@@ -5,6 +5,7 @@ type StageLetterRequestViewProps = {
   description: string | null;
   requestStatus?: string;
   requestError?: string;
+  requestLocked?: boolean;
 };
 
 export default function StageLetterRequestView({
@@ -14,6 +15,7 @@ export default function StageLetterRequestView({
   description,
   requestStatus,
   requestError,
+  requestLocked = false,
 }: StageLetterRequestViewProps) {
   return (
     <section className="rounded-3xl border border-gray-200 bg-white p-8 shadow-theme-sm dark:border-gray-800 dark:bg-white/[0.03]">
@@ -34,6 +36,12 @@ export default function StageLetterRequestView({
       {requestError ? (
         <div className="mt-4 rounded-xl border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300">
           {requestError}
+        </div>
+      ) : null}
+
+      {requestLocked ? (
+        <div className="mt-4 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300">
+          Cette demande a deja ete traitee et delivree. Une nouvelle soumission n&apos;est plus autorisee.
         </div>
       ) : null}
 
@@ -130,6 +138,7 @@ export default function StageLetterRequestView({
         <div className="flex justify-end">
           <button
             type="submit"
+            disabled={requestLocked}
             className="inline-flex items-center justify-center rounded-lg bg-brand-500 px-5 py-3 text-sm font-medium text-white transition hover:bg-brand-600"
           >
             Soumettre la demande de lettre

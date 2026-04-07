@@ -146,8 +146,6 @@ export default function StudentResourcesWorkspace({ snapshot, initialType }: Stu
 
   const initialTypeKey = normalizeText(initialType ?? "");
 
-  console.log("Snapshot:", snapshot);
-
   const resourceByKey = useMemo(() => {
     const entries = snapshot.availableResources.map((resource) => [`${resource.category}:${resource.id}`, resource] as const);
     return new Map(entries);
@@ -289,6 +287,17 @@ export default function StudentResourcesWorkspace({ snapshot, initialType }: Stu
   const resolvedAccessPath = selectedCommande
     ? accessPathByCommande[selectedCommande.id] ?? (selectedCommande.normalizedStatus === "success" ? selectedCommande.productPath : null)
     : null;
+  const selectedCommandeNotificationState = selectedCommande
+    ? snapshot.resourceNotificationByCommandeId[selectedCommande.id]
+    : undefined;
+  const selectedStageDelivered = selectedCommandeNotificationState?.stageDelivered ?? null;
+  const selectedSubjectDelivered = selectedCommandeNotificationState?.subjectDelivered ?? null;
+  const selectedRequestLocked =
+    selectedCommande?.categoryKey === "stages"
+      ? selectedStageDelivered === "success"
+      : selectedCommande?.categoryKey === "sujets"
+        ? selectedSubjectDelivered === true
+        : false;
 
   const handleVerifySelectedCommande = () => {
     if (!selectedCommande || !selectedCommande.canonicalCategory || !selectedCommande.product) {
@@ -387,6 +396,14 @@ export default function StudentResourcesWorkspace({ snapshot, initialType }: Stu
           {verificationError ? (
             <div className="mt-4 rounded-xl border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300">
               {verificationError}
+            </div>
+          ) : null}
+
+          {selectedRequestLocked ? (
+            <div className="mt-4 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300">
+              {selectedCommande?.categoryKey === "stages"
+                ? "Lettre de stage deja delivree. Nouvelle soumission bloquee."
+                : "Ressource sujet deja delivree. Nouvelle soumission bloquee."}
             </div>
           ) : null}
 
@@ -539,6 +556,16 @@ export default function StudentResourcesWorkspace({ snapshot, initialType }: Stu
                     <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${getStatusClassName(row.normalizedStatus)}`}>
                       {getStatusLabel(row.normalizedStatus)}
                     </span>
+                    {row.categoryKey === "stages" ? (
+                      <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-700 dark:bg-white/5 dark:text-gray-300">
+                        Lettre: {snapshot.resourceNotificationByCommandeId[row.id]?.stageDelivered ?? "pending"}
+                      </span>
+                    ) : null}
+                    {row.categoryKey === "sujets" ? (
+                      <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-700 dark:bg-white/5 dark:text-gray-300">
+                        Sujet: {snapshot.resourceNotificationByCommandeId[row.id]?.subjectDelivered ? "delivre" : "pending"}
+                      </span>
+                    ) : null}
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white/90">{row.resourceTitle}</h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400">OrderNumber: {row.orderNumber ?? row.id}</p>
