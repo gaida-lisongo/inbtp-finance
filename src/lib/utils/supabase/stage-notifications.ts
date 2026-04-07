@@ -110,20 +110,34 @@ export const createStageLetterRequestNotification = async (input: {
   }
 
   const notificationId = (notificationData as { id: string }).id;
-  const { error: stageNotificationError } = await admin.from("notifications_stage").insert({
-    stageTitle: productData.resource.title,
-    recipientName: input.recipientName,
-    recipientQuality: input.recipientQuality,
-    recipientSex: input.recipientSex,
-    companyName: input.companyName,
-    companyLocation: input.companyLocation,
-    documentReference: reference,
-    notification_id: notificationId,
-    delivered: "pending",
-  });
+  const { data: stageNotificationData, error: stageNotificationError } = await admin
+    .from("notifications_stage")
+    .insert({
+      stageTitle: productData.resource.title,
+      recipientName: input.recipientName,
+      recipientQuality: input.recipientQuality,
+      recipientSex: input.recipientSex,
+      companyName: input.companyName,
+      companyLocation: input.companyLocation,
+      documentReference: reference,
+      notification_id: notificationId,
+      delivered: "pending",
+    })
+    .select("id")
+    .single();
 
   if (stageNotificationError) {
     throw new Error(stageNotificationError.message);
+  }
+
+  const stageNotificationId = (stageNotificationData as { id: number }).id;
+  const { error: updateNotificationPathError } = await admin
+    .from("notifications")
+    .update({ path: `/notifications/stages/${stageNotificationId}` })
+    .eq("id", notificationId);
+
+  if (updateNotificationPathError) {
+    throw new Error(updateNotificationPathError.message);
   }
 
   return {
@@ -236,6 +250,11 @@ export const getStageRequestNotifications = async (): Promise<StageRequestNotifi
       } satisfies StageRequestNotificationItem,
     ];
   });
+};
+
+export const getStageRequestNotificationById = async (notificationStageId: number): Promise<StageRequestNotificationItem | null> => {
+  const items = await getStageRequestNotifications();
+  return items.find((item) => item.id === notificationStageId) ?? null;
 };
 
 export const generateStageLetterFromNotification = async (notificationStageId: number) => {

@@ -3,6 +3,8 @@ type StageLetterRequestViewProps = {
   title: string;
   studentName: string;
   description: string | null;
+  requestStatus?: string;
+  requestError?: string;
 };
 
 export default function StageLetterRequestView({
@@ -10,6 +12,8 @@ export default function StageLetterRequestView({
   title,
   studentName,
   description,
+  requestStatus,
+  requestError,
 }: StageLetterRequestViewProps) {
   return (
     <section className="rounded-3xl border border-gray-200 bg-white p-8 shadow-theme-sm dark:border-gray-800 dark:bg-white/[0.03]">
@@ -20,6 +24,18 @@ export default function StageLetterRequestView({
       <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">
         Renseignez le destinataire de la lettre. A la validation, une demande sera envoyee aux organisateurs pour generation officielle.
       </p>
+
+      {requestStatus === "success" ? (
+        <div className="mt-4 rounded-xl border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-300">
+          Demande enregistree. L&apos;administration traitera votre lettre de stage puis vous notifiera.
+        </div>
+      ) : null}
+
+      {requestError ? (
+        <div className="mt-4 rounded-xl border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300">
+          {requestError}
+        </div>
+      ) : null}
 
       <div className="mt-6 grid gap-4 rounded-2xl border border-gray-200 bg-gray-50 p-5 text-sm dark:border-gray-800 dark:bg-gray-900 sm:grid-cols-2">
         <div>

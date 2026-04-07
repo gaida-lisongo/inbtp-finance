@@ -104,11 +104,7 @@ export default function NotificationDropdown({ user, teacherItems, adminItems, p
         </div>
 
         <ul className="flex h-auto flex-col overflow-y-auto custom-scrollbar">
-          {!isTeacher ? (
-            <li className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-              Aucune notification disponible pour ce profil.
-            </li>
-          ) : isTeacher && teacherItems.length === 0 ? (
+          {isTeacher && teacherItems.length === 0 ? (
             <li className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
               Aucun recours recu pour le moment.
             </li>
@@ -147,11 +143,11 @@ export default function NotificationDropdown({ user, teacherItems, adminItems, p
                 </DropdownItem>
               </li>
             ))
-          ) : adminItems.length === 0 ? (
+          ) : isAdmin && adminItems.length === 0 ? (
             <li className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
               Aucune notification administrateur disponible.
             </li>
-          ) : (
+          ) : isAdmin ? (
             adminItems.map((item) => (
               <li key={item.id}>
                 <DropdownItem
@@ -178,8 +174,24 @@ export default function NotificationDropdown({ user, teacherItems, adminItems, p
                 </DropdownItem>
               </li>
             ))
+          ) : (
+            <li className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+              Aucune notification disponible pour ce profil.
+            </li>
           )}
         </ul>
+
+        {isAdmin ? (
+          <div className="mt-3 border-t border-gray-100 pt-3 dark:border-gray-800">
+            <a
+              href="/notifications"
+              onClick={closeDropdown}
+              className="block rounded-lg px-3 py-2 text-center text-sm font-medium text-brand-600 transition hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-500/10"
+            >
+              Voir toutes les notifications
+            </a>
+          </div>
+        ) : null}
       </Dropdown>
     </div>
   );

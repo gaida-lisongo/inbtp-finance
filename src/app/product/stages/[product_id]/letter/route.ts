@@ -12,8 +12,10 @@ const sanitizeText = (value: FormDataEntryValue | null) => {
 };
 
 export async function POST(request: Request, context: { params: Promise<{ product_id: string }> }) {
+  const { product_id: productId } = await context.params;
+  const redirectBase = new URL(`/product/stages/${encodeURIComponent(productId)}`, request.url);
+
   try {
-    const { product_id: productId } = await context.params;
     const formData = await request.formData();
 
     const recipientName = sanitizeText(formData.get("recipient_name"));
@@ -23,7 +25,8 @@ export async function POST(request: Request, context: { params: Promise<{ produc
     const companyLocation = sanitizeText(formData.get("company_location"));
 
     if (!recipientName || !recipientQuality || !companyName || !companyLocation || (recipientSex !== "M" && recipientSex !== "F")) {
-      return new NextResponse("Informations de generation invalides.", { status: 400 });
+      redirectBase.searchParams.set("stage_error", "Informations invalides");
+      return NextResponse.redirect(redirectBase);
     }
 
     await createStageLetterRequestNotification({
@@ -35,24 +38,26 @@ export async function POST(request: Request, context: { params: Promise<{ produc
       companyLocation,
     });
 
-    return new NextResponse("Demande de lettre de stage enregistree. L'administration va traiter votre requete.", {
-      status: 200,
-    });
+    redirectBase.searchParams.set("stage_request", "success");
+    return NextResponse.redirect(redirectBase);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erreur lors de la generation du document.";
 
     if (message === "auth_required") {
-      return new NextResponse("Authentification requise.", { status: 401 });
+      return NextResponse.redirect(new URL("/signin?error=auth_required", request.url));
     }
 
     if (message === "resource_access_denied") {
-      return new NextResponse("Acces refuse a cette ressource.", { status: 403 });
+      redirectBase.searchParams.set("stage_error", "Acces refuse");
+      return NextResponse.redirect(redirectBase);
     }
 
     if (message === "stage_commande_not_paid") {
-      return new NextResponse("Le paiement success est requis avant de soumettre la demande.", { status: 403 });
+      redirectBase.searchParams.set("stage_error", "Paiement success requis");
+      return NextResponse.redirect(redirectBase);
     }
 
-    return new NextResponse(message, { status: 500 });
+    redirectBase.searchParams.set("stage_error", message);
+    return NextResponse.redirect(redirectBase);
   }
 }

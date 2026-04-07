@@ -23,6 +23,19 @@ export type CommandeRecord = {
   description: string | null;
 };
 
+export type PaiementRecord = {
+  id: string;
+  created_at: string;
+  product: string | null;
+  produc_id: string | null;
+  student_id: string | null;
+  status: string | null;
+  amount: number | null;
+  orderNumber: string | null;
+  description: string | null;
+  categorie: string | null;
+};
+
 export type CommandeResourceSummary = {
   id: string;
   category: CommandeCategory;
@@ -63,6 +76,12 @@ type ConfirmCommandePaymentInput = CreateCommandeDraftInput & {
   commandeId: string;
 };
 
+type CreateManualPaiementRequestInput = {
+  category: CommandeCategory;
+  resourceId: string;
+  description?: string | null;
+};
+
 type DraftCommandeResult = {
   commande: CommandeRecord;
   resource: CommandeResourceSummary;
@@ -75,6 +94,15 @@ type ConfirmCommandeResult = {
   provider: string | null;
   orderNumber: string;
   rawData: unknown;
+};
+
+type ManualPaiementRequestResult = {
+  commande: CommandeRecord;
+  resource: CommandeResourceSummary;
+  student: Pick<StudentRecord, "id" | "email" | "telephone" | "nom" | "post_nom" | "prenom" | "grade">;
+  orderNumber: string;
+  invoicePath: string;
+  message: string;
 };
 
 type PaymentValidationResult = {
@@ -346,6 +374,25 @@ const getLatestPendingCommande = async (studentId: string, category: CommandeCat
   return (((data ?? []) as CommandeRecord[])[0] ?? null) as CommandeRecord | null;
 };
 
+const getLatestPendingPaiement = async (studentId: string, category: CommandeCategory, resourceId: string) => {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("paiements")
+    .select('*')
+    .eq("student_id", studentId)
+    .eq("categorie", category)
+    .eq("produc_id", resourceId)
+    .neq("status", "success")
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (((data ?? []) as PaiementRecord[])[0] ?? null) as PaiementRecord | null;
+};
+
 const buildCommandeDescription = (resource: CommandeResourceSummary, channel: PaymentChannel, customDescription?: string | null) => {
   const descriptionParts = [
     `Commande ${resourceConfig[resource.category].label.toLowerCase()}`,
@@ -355,6 +402,53 @@ const buildCommandeDescription = (resource: CommandeResourceSummary, channel: Pa
   ].filter(Boolean);
 
   return descriptionParts.join(" - ");
+};
+
+const createOrUpdatePendingPaiement = async (input: {
+  studentId: string;
+  category: CommandeCategory;
+  resource: CommandeResourceSummary;
+  amount: number;
+  orderNumber: string;
+  description: string;
+}) => {
+  const admin = createAdminClient();
+  const payload = {
+    product: input.resource.title,
+    produc_id: input.resource.id,
+    student_id: input.studentId,
+    status: "pending",
+    amount: input.amount,
+    orderNumber: input.orderNumber,
+    description: input.description,
+    categorie: input.category,
+  };
+  const latestPendingPaiement = await getLatestPendingPaiement(input.studentId, input.category, input.resource.id);
+
+  if (latestPendingPaiement) {
+    const { error } = await admin.from("paiements").update(payload).eq("id", latestPendingPaiement.id);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return;
+  }
+
+  const { error } = await admin.from("paiements").insert(payload);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+};
+
+const updatePaiementStatusByOrderNumber = async (orderNumber: string, status: "success" | "no") => {
+  const admin = createAdminClient();
+  const { error } = await admin.from("paiements").update({ status }).eq("orderNumber", orderNumber);
+
+  if (error) {
+    throw new Error(error.message);
+  }
 };
 
 const notifyOrganizersWhenCommandeSuccess = async (commande: CommandeRecord) => {
@@ -461,6 +555,12 @@ const extractOrderNumber = (payload: unknown): string | null => {
   }
 
   return null;
+};
+
+const buildManualOrderNumber = (category: CommandeCategory) => {
+  const stamp = new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0, 14);
+  const random = Math.random().toString(36).slice(2, 7).toUpperCase();
+  return `BC-${category.toUpperCase()}-${stamp}-${random}`;
 };
 
 const getNestedRecord = (value: unknown): Record<string, unknown> | null => {
@@ -693,13 +793,14 @@ export const confirmCommandePayment = async (input: ConfirmCommandePaymentInput)
         });
 
   const resolvedOrderNumber = extractOrderNumber(paymentResponse.data) ?? reference;
+  const description = buildCommandeDescription(resource, input.channel, input.description);
   const { data: updatedCommande, error: updateError } = await admin
     .from("commande")
     .update({
       orderNumber: resolvedOrderNumber,
       status: "pending",
       total: amount,
-      description: buildCommandeDescription(resource, input.channel, input.description),
+      description,
     })
     .eq("id", commande.id)
     .select("*")
@@ -709,12 +810,89 @@ export const confirmCommandePayment = async (input: ConfirmCommandePaymentInput)
     throw new Error(updateError.message);
   }
 
+  await createOrUpdatePendingPaiement({
+    studentId: student.id,
+    category: input.category,
+    resource,
+    amount,
+    orderNumber: resolvedOrderNumber,
+    description,
+  });
+
   return {
     commande: updatedCommande as CommandeRecord,
     message: paymentResponse.message ?? "La commande a ete initiee.",
     provider: paymentResponse.provider ?? null,
     orderNumber: resolvedOrderNumber,
     rawData: paymentResponse.data,
+  };
+};
+
+export const createManualPaiementRequest = async (
+  input: CreateManualPaiementRequestInput,
+): Promise<ManualPaiementRequestResult> => {
+  const student = await resolveCurrentStudent();
+  const resource = await getResourceSummary(input.category, input.resourceId);
+  const amount = assertPositiveAmount(resource.amount);
+
+  await assertStudentCanAccessResource(student.id, resource.programmeId);
+
+  const existingSuccessCommande = await getExistingSuccessCommande(student.id, input.category, input.resourceId);
+
+  if (existingSuccessCommande) {
+    throw new Error("commande_already_paid");
+  }
+
+  const admin = createAdminClient();
+  const latestPendingCommande = await getLatestPendingCommande(student.id, input.category, input.resourceId);
+  const orderNumber = normalizeText(latestPendingCommande?.orderNumber) ?? buildManualOrderNumber(input.category);
+  const description = buildCommandeDescription(resource, "MOBILE_MONEY", input.description ?? "Paiement manuel au bureau");
+  const payload = {
+    product: resource.id,
+    categorie: input.category,
+    student_id: student.id,
+    orderNumber,
+    total: amount,
+    status: "pending",
+    description,
+  };
+
+  let commande: CommandeRecord;
+
+  if (latestPendingCommande) {
+    const { data, error } = await admin.from("commande").update(payload).eq("id", latestPendingCommande.id).select("*").single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    commande = data as CommandeRecord;
+  } else {
+    const { data, error } = await admin.from("commande").insert(payload).select("*").single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    commande = data as CommandeRecord;
+  }
+
+  await createOrUpdatePendingPaiement({
+    studentId: student.id,
+    category: input.category,
+    resource,
+    amount,
+    orderNumber,
+    description,
+  });
+
+  return {
+    commande,
+    resource,
+    student,
+    orderNumber,
+    invoicePath: `/commande/order/${encodeURIComponent(orderNumber)}/invoice`,
+    message: "Bon de commande genere. Presentez-le au bureau pour la validation du paiement manuel.",
   };
 };
 
@@ -764,6 +942,9 @@ export const validateStudentCommandePayment = async (input: {
   if (updateError) {
     throw new Error(updateError.message);
   }
+
+  const orderRef = normalizeText((updatedCommande as CommandeRecord).orderNumber) ?? (updatedCommande as CommandeRecord).id;
+  await updatePaiementStatusByOrderNumber(orderRef, isSuccess ? "success" : "no");
 
   if (isSuccess && previousStatus !== "success") {
     try {
@@ -834,6 +1015,8 @@ export const validateCommandePaymentByOrderNumber = async (orderNumber: string):
   if (updateError) {
     throw new Error(updateError.message);
   }
+
+  await updatePaiementStatusByOrderNumber(normalizedOrderNumber, isSuccess ? "success" : "no");
 
   if (isSuccess && previousStatus !== "success") {
     try {

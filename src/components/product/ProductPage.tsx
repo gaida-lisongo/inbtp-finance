@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import StageLetterRequestView from "@/components/product/StageLetterRequestView";
+import SubjectResearchRequestView from "@/components/product/SubjectResearchRequestView";
 import { getDocumentTypeLabel } from "@/lib/utils/supabase/documents-shared";
 import {
   getCommandeCategoryLabel,
@@ -14,6 +15,13 @@ import {
 type ProductPageProps = {
   type: string;
   productId: string;
+  query?: {
+    stage_request?: string;
+    stage_error?: string;
+    sujet_request?: string;
+    sujet_error?: string;
+    sujet_notification?: string;
+  };
 };
 
 const allowedTypes: CommandeCategory[] = ["documents", "session", "stages", "sujets", "laboratoire"];
@@ -196,6 +204,11 @@ const ProductViewSwitch = ({
   documentCategory,
   productId,
   studentName,
+  stageRequestStatus,
+  stageRequestError,
+  subjectRequestStatus,
+  subjectRequestError,
+  subjectNotificationId,
 }: {
   category: CommandeCategory;
   title: string;
@@ -203,6 +216,11 @@ const ProductViewSwitch = ({
   documentCategory: string | null;
   productId: string;
   studentName: string;
+  stageRequestStatus?: string;
+  stageRequestError?: string;
+  subjectRequestStatus?: string;
+  subjectRequestError?: string;
+  subjectNotificationId?: string;
 }) => {
   if (category === "session") {
     return <SessionProductView title={title} description={description} />;
@@ -229,6 +247,22 @@ const ProductViewSwitch = ({
         title={title}
         studentName={studentName}
         description={description}
+        requestStatus={stageRequestStatus}
+        requestError={stageRequestError}
+      />
+    );
+  }
+
+  if (category === "sujets") {
+    return (
+      <SubjectResearchRequestView
+        productId={productId}
+        title={title}
+        studentName={studentName}
+        description={description}
+        requestStatus={subjectRequestStatus}
+        requestError={subjectRequestError}
+        notificationSujetId={subjectNotificationId}
       />
     );
   }
@@ -236,7 +270,7 @@ const ProductViewSwitch = ({
   return <MessageProductView title={title} description={description} resourceTypeLabel={getCommandeCategoryLabel(category)} />;
 };
 
-export default async function ProductPage({ type, productId }: ProductPageProps) {
+export default async function ProductPage({ type, productId, query }: ProductPageProps) {
   if (!allowedTypes.includes(type as CommandeCategory)) {
     notFound();
   }
@@ -320,6 +354,12 @@ export default async function ProductPage({ type, productId }: ProductPageProps)
               >
                 Ouvrir la commande
               </Link>
+              <Link
+                href={`/paiement/${category}/${productId}`}
+                className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300"
+              >
+                Paiement manuel
+              </Link>
               <span className="inline-flex items-center rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">
                 Produit cible: {data.productPath}
               </span>
@@ -333,6 +373,11 @@ export default async function ProductPage({ type, productId }: ProductPageProps)
             documentCategory={data.resource.documentCategory}
             productId={productId}
             studentName={studentName}
+            stageRequestStatus={query?.stage_request}
+            stageRequestError={query?.stage_error}
+            subjectRequestStatus={query?.sujet_request}
+            subjectRequestError={query?.sujet_error}
+            subjectNotificationId={query?.sujet_notification}
           />
         )}
       </div>

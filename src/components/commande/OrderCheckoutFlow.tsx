@@ -382,9 +382,18 @@ export default function OrderCheckoutFlow({ category, resource, student }: Order
                     {isPending ? "Confirmation..." : "Confirmer la commande"}
                   </Button>
                 ) : !accessPath ? (
-                  <Button onClick={handleValidatePaymentAccess} disabled={isPending || !commande}>
-                    {isPending ? "Verification..." : "Verifier le paiement dans l'application"}
-                  </Button>
+                  <div className="flex flex-wrap justify-end gap-3">
+                    <Link
+                      href={`/commande/order/${encodeURIComponent(invoiceData.orderNumber)}/invoice`}
+                      target="_blank"
+                      className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-5 py-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/[0.04]"
+                    >
+                      Bon de commande (PDF)
+                    </Link>
+                    <Button onClick={handleValidatePaymentAccess} disabled={isPending || !commande}>
+                      {isPending ? "Verification..." : "Verifier le paiement dans l'application"}
+                    </Button>
+                  </div>
                 ) : null}
               </div>
 

@@ -193,8 +193,16 @@ export const getAdminSidebarMenu = async (user: AuthenticatedUser): Promise<Side
       iconKey: "folder",
       subItems: [
         {
+          name: "Toutes les notifications",
+          path: "/notifications",
+        },
+        {
           name: "Demandes de stage",
           path: "/notifications/stages",
+        },
+        {
+          name: "Demandes de sujet",
+          path: "/notifications/sujets",
         },
       ],
     });

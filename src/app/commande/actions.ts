@@ -4,6 +4,7 @@ import { unstable_rethrow } from "next/navigation";
 
 import {
   confirmCommandePayment,
+  createManualPaiementRequest,
   createCommandeDraft,
   validateStudentCommandePayment,
   type CommandeCategory,
@@ -37,6 +38,19 @@ export async function confirmCommandePaymentAction(input: ConfirmCommandeActionI
   } catch (error) {
     unstable_rethrow(error);
     throw error instanceof Error ? error : new Error("commande_confirm_failed");
+  }
+}
+
+export async function createManualPaiementAction(input: {
+  category: CommandeCategory;
+  resourceId: string;
+  description?: string | null;
+}) {
+  try {
+    return await createManualPaiementRequest(input);
+  } catch (error) {
+    unstable_rethrow(error);
+    throw error instanceof Error ? error : new Error("paiement_manual_failed");
   }
 }
 

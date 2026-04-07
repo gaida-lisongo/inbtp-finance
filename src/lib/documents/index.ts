@@ -5,3 +5,4 @@ export { DocumentStage } from "@/lib/documents/DocumentStage";
 export { DocumentSujet } from "@/lib/documents/DocumentSujet";
 export { DocumentReleve } from "@/lib/documents/DocumentReleve";
 export { DocumentValidate } from "@/lib/documents/DocumentValidate";
+export { DocumentCommandeBon } from "@/lib/documents/DocumentCommandeBon";

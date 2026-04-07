@@ -85,6 +85,12 @@ export default async function StageNotificationsPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
+                  <Link
+                    href={`/notifications/stages/${item.id}`}
+                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 dark:border-gray-700 dark:text-gray-200"
+                  >
+                    Ouvrir le detail
+                  </Link>
                   <form action={`/api/admin/notifications/stages/${item.id}/letter`} method="post" target="_blank">
                     <button
                       type="submit"

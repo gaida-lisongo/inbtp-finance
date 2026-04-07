@@ -35,6 +35,11 @@ export type AdminDashboardNotificationSnapshot = {
   totalCount: number;
 };
 
+type GetAdminNotificationsInput = {
+  agentId?: string;
+  limit?: number;
+};
+
 const getAdminAgentId = async (agentId?: string) => {
   if (agentId) {
     return agentId;
@@ -49,16 +54,18 @@ const getAdminAgentId = async (agentId?: string) => {
   return user.agentId;
 };
 
-export const getAdminDashboardNotificationSnapshot = async (agentId?: string): Promise<AdminDashboardNotificationSnapshot> => {
+export const getAdminNotifications = async ({
+  agentId,
+  limit = 30,
+}: GetAdminNotificationsInput = {}): Promise<AdminDashboardNotificationItem[]> => {
   await getAdminAgentId(agentId);
-
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("notifications")
     .select("id, created_at, object, description, categorie, status, path")
     .in("categorie", ["commande_success", "commande", "stages"])
     .order("created_at", { ascending: false })
-    .limit(30);
+    .limit(limit);
 
   if (error) {
     throw new Error(error.message);
@@ -74,6 +81,59 @@ export const getAdminDashboardNotificationSnapshot = async (agentId?: string): P
     path: row.path,
     status: row.status,
   }));
+
+  const stageNotificationIds = items
+    .filter((item) => item.category === "stages")
+    .map((item) => item.id);
+  const subjectNotificationIds = items
+    .filter((item) => item.category === "sujets")
+    .map((item) => item.id);
+
+  if (stageNotificationIds.length > 0) {
+    const { data: stageRows, error: stageRowsError } = await admin
+      .from("notifications_stage")
+      .select("id, notification_id")
+      .in("notification_id", stageNotificationIds);
+
+    if (stageRowsError) {
+      throw new Error(stageRowsError.message);
+    }
+
+    const stageByNotificationId = new Map(
+      ((stageRows ?? []) as Array<{ id: number; notification_id: string | null }>)
+        .filter((row) => typeof row.notification_id === "string" && row.notification_id.length > 0)
+        .map((row) => [row.notification_id as string, row.id] as const),
+    );
+
+    items = items.map((item) =>
+      item.category === "stages" && stageByNotificationId.has(item.id)
+        ? { ...item, path: `/notifications/stages/${stageByNotificationId.get(item.id)}` }
+        : item,
+    );
+  }
+
+  if (subjectNotificationIds.length > 0) {
+    const { data: subjectRows, error: subjectRowsError } = await admin
+      .from("notifications_sujet")
+      .select("id, notification_id")
+      .in("notification_id", subjectNotificationIds);
+
+    if (subjectRowsError) {
+      throw new Error(subjectRowsError.message);
+    }
+
+    const subjectByNotificationId = new Map(
+      ((subjectRows ?? []) as Array<{ id: string; notification_id: string | null }>)
+        .filter((row) => typeof row.notification_id === "string" && row.notification_id.length > 0)
+        .map((row) => [row.notification_id as string, row.id] as const),
+    );
+
+    items = items.map((item) =>
+      item.category === "sujets" && subjectByNotificationId.has(item.id)
+        ? { ...item, path: `/notifications/sujets/${subjectByNotificationId.get(item.id)}` }
+        : item,
+    );
+  }
 
   if (items.length === 0) {
     const { data: commandesData, error: commandesError } = await admin
@@ -104,6 +164,13 @@ export const getAdminDashboardNotificationSnapshot = async (agentId?: string): P
     });
   }
 
+  const pendingCount = items.filter((item) => item.status !== true).length;
+
+  return items;
+};
+
+export const getAdminDashboardNotificationSnapshot = async (agentId?: string): Promise<AdminDashboardNotificationSnapshot> => {
+  const items = await getAdminNotifications({ agentId, limit: 30 });
   const pendingCount = items.filter((item) => item.status !== true).length;
 
   return {

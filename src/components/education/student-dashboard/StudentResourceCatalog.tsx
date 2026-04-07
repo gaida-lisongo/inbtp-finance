@@ -118,7 +118,7 @@ export default function StudentResourceCatalog({
                     {hasPaidAccess ? "Ouvrir" : "Commander"}
                   </Link>
                   <Link
-                    href={resource.commandePath}
+                    href={`/paiement/${resource.category}/${resource.id}`}
                     className="inline-flex items-center justify-center rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/[0.04]"
                   >
                     Paiement

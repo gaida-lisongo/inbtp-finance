@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { createDocumentAction, deleteDocumentAction, getDocumentsAction, notifyDocumentStudentsAction, updateDocumentAction } from "@/app/actions/documents";
+import { getPaiementsAction, validatePaiementAction } from "@/app/actions/paiements";
 import AsyncProgressButton from "@/components/common/AsyncProgressButton";
 import ComponentCard from "@/components/common/ComponentCard";
 import Tab from "@/components/common/Tab";
@@ -11,6 +12,7 @@ import { Modal } from "@/components/ui/modal";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import Button from "@/components/ui/button/Button";
 import { getDocumentCategory, type DocumentRecord } from "@/lib/utils/supabase/documents-shared";
+import type { PaiementManagementItem } from "@/lib/utils/supabase/paiements";
 
 type SecretaireContentProps = {
   programmeId: string;
@@ -63,11 +65,13 @@ const getNotificationErrorMessage = (message: string) => {
 
 export default function SecretaireContent({ programmeId }: SecretaireContentProps) {
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
+  const [paiements, setPaiements] = useState<PaiementManagementItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [documentModalOpen, setDocumentModalOpen] = useState(false);
   const [editingDocument, setEditingDocument] = useState<DocumentRecord | null>(null);
   const [documentForm, setDocumentForm] = useState<DocumentSaveForm>(initialFormState("Fiche de validation"));
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [validatingPaiementId, setValidatingPaiementId] = useState<string | null>(null);
 
   const releves = useMemo(
     () => documents.filter((document) => getDocumentCategory(document).toLowerCase() === "relevés" || getDocumentCategory(document).toLowerCase() === "releves"),
@@ -82,12 +86,13 @@ export default function SecretaireContent({ programmeId }: SecretaireContentProp
     setLoading(true);
 
     try {
-      const documentsData = await getDocumentsAction(programmeId);
+      const [documentsData, paiementsData] = await Promise.all([getDocumentsAction(programmeId), getPaiementsAction(programmeId)]);
       setDocuments(documentsData);
+      setPaiements(paiementsData);
     } catch (error) {
       setFeedback({
         type: "error",
-        message: error instanceof Error ? error.message : "Erreur lors du chargement des documents.",
+        message: error instanceof Error ? error.message : "Erreur lors du chargement des donnees.",
       });
     } finally {
       setLoading(false);
@@ -161,6 +166,144 @@ export default function SecretaireContent({ programmeId }: SecretaireContentProp
       });
     }
   };
+
+  const handleValidatePaiement = async (paiement: PaiementManagementItem) => {
+    if (validatingPaiementId) {
+      return;
+    }
+
+    setValidatingPaiementId(paiement.id);
+
+    try {
+      const result = await validatePaiementAction(programmeId, paiement.id);
+      setFeedback({
+        type: "success",
+        message: `Paiement valide avec succes. OrderNumber: ${result.orderNumber}.`,
+      });
+      await loadData();
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Impossible de valider le paiement.",
+      });
+    } finally {
+      setValidatingPaiementId(null);
+    }
+  };
+
+  const renderPaiementsTable = (items: PaiementManagementItem[]) => (
+    <ComponentCard title="Validation manuelle des paiements">
+      <div className="space-y-5">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="rounded-2xl bg-gray-50 px-4 py-3 dark:bg-white/[0.03]">
+            <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Total paiements</p>
+            <p className="mt-2 text-2xl font-semibold text-gray-800 dark:text-white/90">{items.length}</p>
+          </div>
+          <div className="rounded-2xl bg-gray-50 px-4 py-3 dark:bg-white/[0.03]">
+            <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">En attente</p>
+            <p className="mt-2 text-2xl font-semibold text-warning-600 dark:text-warning-300">
+              {items.filter((item) => item.status !== "success").length}
+            </p>
+          </div>
+          <div className="rounded-2xl bg-gray-50 px-4 py-3 dark:bg-white/[0.03]">
+            <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Montant en attente</p>
+            <p className="mt-2 text-2xl font-semibold text-gray-800 dark:text-white/90">
+              {items
+                .filter((item) => item.status !== "success")
+                .reduce((sum, item) => sum + (item.amount ?? 0), 0)
+                .toLocaleString("fr-FR")}{" "}
+              USD
+            </p>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <Table className="min-w-full">
+            <TableHeader className="border-y border-gray-100 dark:border-gray-800">
+              <TableRow>
+                <TableCell isHeader className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Date
+                </TableCell>
+                <TableCell isHeader className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Etudiant
+                </TableCell>
+                <TableCell isHeader className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Produit
+                </TableCell>
+                <TableCell isHeader className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                  OrderNumber
+                </TableCell>
+                <TableCell isHeader className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Montant
+                </TableCell>
+                <TableCell isHeader className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Statut
+                </TableCell>
+                <TableCell isHeader className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Action
+                </TableCell>
+              </TableRow>
+            </TableHeader>
+            <TableBody className="divide-y divide-gray-100 dark:divide-gray-800">
+              {items.map((paiement) => (
+                <TableRow key={paiement.id}>
+                  <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
+                    {new Date(paiement.createdAt).toLocaleString("fr-FR")}
+                  </TableCell>
+                  <TableCell className="px-5 py-4 text-sm text-gray-800 dark:text-white/90">
+                    {paiement.student?.fullName ?? "Etudiant inconnu"}
+                  </TableCell>
+                  <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
+                    <div className="font-medium text-gray-800 dark:text-white/90">{paiement.product}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">{paiement.categorie ?? "categorie"}</div>
+                  </TableCell>
+                  <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
+                    {paiement.orderNumber ?? paiement.id}
+                  </TableCell>
+                  <TableCell className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">
+                    {typeof paiement.amount === "number" ? `${paiement.amount.toLocaleString("fr-FR")} USD` : "Non renseigne"}
+                  </TableCell>
+                  <TableCell className="px-5 py-4 text-sm">
+                    <span
+                      className={`rounded-full px-2 py-1 text-xs font-medium ${
+                        paiement.status === "success"
+                          ? "bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-300"
+                          : "bg-warning-50 text-warning-700 dark:bg-warning-500/10 dark:text-warning-300"
+                      }`}
+                    >
+                      {paiement.status}
+                    </span>
+                  </TableCell>
+                  <TableCell className="px-5 py-4">
+                    <div className="flex justify-end">
+                      <Button
+                        onClick={() => void handleValidatePaiement(paiement)}
+                        disabled={paiement.status === "success" || validatingPaiementId === paiement.id}
+                      >
+                        {paiement.status === "success"
+                          ? "Valide"
+                          : validatingPaiementId === paiement.id
+                            ? "Validation..."
+                            : "Valider le paiement"}
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+
+              {items.length === 0 ? (
+                <TableRow>
+                  <td colSpan={7} className="px-5 py-8 text-sm text-gray-500 dark:text-gray-400">
+                    Aucun paiement disponible pour cette promotion.
+                  </td>
+                </TableRow>
+              ) : null}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    </ComponentCard>
+  );
 
   const renderDocumentTable = (items: DocumentRecord[], searchPlaceholder: string, addLabel: string, categorie: string) => (
     <ComponentCard title={`Gestion des ${categorie}`}>
@@ -292,6 +435,11 @@ export default function SecretaireContent({ programmeId }: SecretaireContentProp
 
       <Tab
         tabs={[
+          {
+            key: "paiements",
+            label: "Paiements",
+            content: renderPaiementsTable(paiements),
+          },
           {
             key: "releves",
             label: "Relevés",
