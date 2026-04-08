@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import type { ApexOptions } from "apexcharts";
 import type { MonthlyDistribution, MetierCategorie } from "@/types/education";
 import { getAllMetiers, getMetierLabel } from "@/constants/metier";
 import { getCommandeMonthlyDistribution } from "@/lib/utils/supabase/commandes-dashboard";
@@ -44,7 +45,7 @@ export function CommandeDistributionChart({ year }: CommandeDistributionChartPro
     loadData();
   }, [selectedCategory, currentYear]);
 
-  const chartOptions = {
+  const chartOptions: ApexOptions = {
     chart: {
       type: "bar",
       toolbar: { show: false },

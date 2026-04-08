@@ -98,7 +98,7 @@ const getTeacherActivityOptionsByCourseIds = async (courseIds: string[]) => {
     categorie: string | null;
     montant: number | null;
     cours_id: string | null;
-    cours: { id: string; slug: string | null } | null;
+    cours: unknown;
   }>).map((row) => ({
     id: row.id,
     created_at: row.created_at,
@@ -106,7 +106,14 @@ const getTeacherActivityOptionsByCourseIds = async (courseIds: string[]) => {
     categorie: row.categorie,
     montant: row.montant,
     cours_id: row.cours_id,
-    cours_slug: row.cours?.slug ?? null,
+    cours_slug: (() => {
+      const coursSource = Array.isArray(row.cours) ? row.cours[0] : row.cours;
+      const cours =
+        coursSource && typeof coursSource === "object"
+          ? (coursSource as { slug?: string | null })
+          : null;
+      return typeof cours?.slug === "string" ? cours.slug : null;
+    })(),
   }));
 };
 

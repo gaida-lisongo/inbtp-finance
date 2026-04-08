@@ -7,16 +7,16 @@ import { createClient } from "@/lib/utils/supabase/client";
 
 export default function TeacherNotificationsRealtimeSync() {
   const router = useRouter();
-  const refreshTimeoutRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
     const scheduleRefresh = () => {
       if (refreshTimeoutRef.current) {
-        window.clearTimeout(refreshTimeoutRef.current);
+        clearTimeout(refreshTimeoutRef.current);
       }
 
-      refreshTimeoutRef.current = window.setTimeout(() => {
+      refreshTimeoutRef.current = setTimeout(() => {
         router.refresh();
       }, 300);
     };
@@ -28,7 +28,7 @@ export default function TeacherNotificationsRealtimeSync() {
 
     return () => {
       if (refreshTimeoutRef.current) {
-        window.clearTimeout(refreshTimeoutRef.current);
+        clearTimeout(refreshTimeoutRef.current);
       }
 
       void supabase.removeChannel(channel);

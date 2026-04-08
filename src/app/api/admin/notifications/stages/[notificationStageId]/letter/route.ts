@@ -13,7 +13,7 @@ export async function POST(_request: Request, context: { params: Promise<{ notif
 
     const result = await generateStageLetterFromNotification(parsedId);
 
-    return new NextResponse(result.buffer, {
+    return new NextResponse(new Uint8Array(result.buffer), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",

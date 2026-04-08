@@ -1,9 +1,13 @@
-import { DocumentStage } from "@/lib/documents";
+import { DocumentStage, DocumentValidate } from "@/lib/documents";
 import { sendMicrosoft365Mail } from "@/lib/utils/microsoft-graph";
 import { getActiveAutorisationCodesForAgent } from "@/lib/utils/supabase/autorisations";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
+import { getDocumentCategory } from "@/lib/utils/supabase/documents-shared";
+import { getNotesForProgramme } from "@/lib/utils/supabase/jury";
+import { getProgrammeById } from "@/lib/utils/supabase/programmes";
 import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 import { getStudentDisplayName } from "@/lib/utils/supabase/students-shared";
+import { NoteManager } from "@/utils/excel/NoteManager";
 
 type CommandeRow = {
   id: string;
@@ -35,6 +39,7 @@ type ResourceRow = {
   id: string;
   title: string;
   description: string | null;
+  documentCategory: string | null;
 };
 
 type CommandeCategory = "documents" | "session" | "stages" | "sujets" | "laboratoire";
@@ -70,6 +75,8 @@ const normalizeCategory = (value: string | null): CommandeCategory | null => {
 
   return null;
 };
+
+const appBaseUrl = process.env.NEXT_PUBLIC_HOST_URL?.replace(/\/$/, "");
 
 const mapCategoryToTable = (category: CommandeCategory) => {
   switch (category) {
@@ -118,13 +125,15 @@ const resolveResourceRow = async (category: CommandeCategory, productId: string)
   if (category === "documents") {
     const designation = normalizeText((data as { designation?: string | null }).designation) ?? `Document ${productId}`;
     const description = normalizeText((data as { description?: string | null }).description);
-    return { id: productId, title: designation, description };
+    const caracteristique = normalizeText((data as { caracteristique?: Record<string, unknown> | null }).caracteristique?.["categorie"] as string | null);
+    return { id: productId, title: designation, description, documentCategory: caracteristique };
   }
 
   if (category === "session") {
     const designation = normalizeText((data as { designation?: string | null }).designation) ?? `Session ${productId}`;
     const description = normalizeText((data as { description?: string | null }).description);
-    return { id: productId, title: designation, description };
+    const caracteristique = normalizeText((data as { caracteristique?: Record<string, unknown> | null }).caracteristique?.["categorie"] as string | null);
+    return { id: productId, title: designation, description, documentCategory: caracteristique };
   }
 
   const slug = normalizeText((data as { slug?: string | null }).slug) ?? `${category} ${productId}`;
@@ -136,7 +145,7 @@ const resolveResourceRow = async (category: CommandeCategory, productId: string)
         ? normalizeText(String((descriptionRaw as Record<string, unknown>).text ?? ""))
         : null;
 
-  return { id: productId, title: slug, description };
+  return { id: productId, title: slug, description, documentCategory: null };
 };
 
 const insertCommandeSuccessNotification = async (commande: CommandeRow) => {
@@ -363,6 +372,114 @@ export const generateStageLetterForFaculty = async (input: {
 
   return {
     filename: `lettre-stage-${detail.commande.orderNumber ?? detail.commande.id}.pdf`,
+    buffer: await document.generateBuffer(),
+  };
+};
+
+export const generateValidationSheetForFaculty = async (commandeId: string) => {
+  const detail = await getFacultyCommandeDetail(commandeId);
+
+  if (detail.commande.categoryKey !== "documents") {
+    throw new Error("invalid_validation_commande");
+  }
+
+  if (detail.commande.status !== "success") {
+    throw new Error("validation_commande_not_paid");
+  }
+
+  if (!detail.student) {
+    throw new Error("validation_commande_data_incomplete");
+  }
+
+  const productId = normalizeText(detail.commande.product);
+
+  if (!productId) {
+    throw new Error("validation_document_missing");
+  }
+
+  const admin = createAdminClient();
+  const { data: documentData, error: documentError } = await admin
+    .from("documents")
+    .select("id, programme_id, caracteristique")
+    .eq("id", productId)
+    .maybeSingle();
+
+  if (documentError) {
+    throw new Error(documentError.message);
+  }
+
+  if (!documentData) {
+    throw new Error("validation_document_missing");
+  }
+
+  const documentCategory = getDocumentCategory({
+    caracteristique:
+      documentData.caracteristique && typeof documentData.caracteristique === "object"
+        ? (documentData.caracteristique as Record<string, unknown>)
+        : null,
+  });
+
+  if (documentCategory.trim().toLowerCase() !== "fiche de validation") {
+    throw new Error("invalid_validation_document");
+  }
+
+  const programmeId = normalizeText((documentData as { programme_id?: string | null }).programme_id);
+
+  if (!programmeId) {
+    throw new Error("validation_programme_missing");
+  }
+
+  const [programme, notes] = await Promise.all([getProgrammeById(programmeId), getNotesForProgramme(programmeId)]);
+  const studentResult = NoteManager.calculerResultatsPromotion(notes).find((item) => item.studentId === detail.student?.id) ?? null;
+
+  if (!studentResult) {
+    throw new Error("validation_notes_missing");
+  }
+
+  const orderReference = detail.commande.orderNumber ?? detail.commande.id;
+  const verificationBaseUrl = appBaseUrl ?? "http://localhost:3000";
+  const verificationUrl = `${verificationBaseUrl}/api/checking/validation/${productId}?student_id=${encodeURIComponent(detail.student.id)}&order=${encodeURIComponent(orderReference)}`;
+
+  const semestres = studentResult.semestres.map((semestre) => {
+    const unites = semestre.unites.map((unite) => ({
+      code: unite.code,
+      designation: unite.designation,
+      statut: unite.isValide ? ("V" as const) : ("NV" as const),
+      credit: unite.credit,
+      matieres: unite.elements.map((element) => ({
+        designation: element.designation,
+        credit: element.credit,
+      })),
+    }));
+
+    const casserolesCount = semestre.unites.reduce(
+      (sum, unite) => sum + unite.elements.filter((element) => element.noteFinale < 10).length,
+      0,
+    );
+
+    return {
+      designation: semestre.designation,
+      totalCredits: semestre.credit,
+      unites,
+      validatedCredits: semestre.ncv,
+      nonValidatedCredits: semestre.ncnv,
+      casserolesCount,
+    };
+  });
+
+  const document = new DocumentValidate({
+    studentName: detail.student.displayName,
+    studentEmail: detail.student.email,
+    studentPhone: detail.student.telephone,
+    matricule: studentResult.matricule || "Non renseigne",
+    programmeName: programme?.designation ?? "Promotion",
+    orderReference,
+    semestres,
+    verificationUrl,
+  });
+
+  return {
+    filename: `fiche-validation-${orderReference}.pdf`,
     buffer: await document.generateBuffer(),
   };
 };

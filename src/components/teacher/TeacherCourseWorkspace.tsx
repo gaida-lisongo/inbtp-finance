@@ -5,7 +5,6 @@ import type { FormEvent } from "react";
 
 import {
   createTeacherActivityAction,
-  exportActivityNotesAction,
   saveTeacherActivityQuestionsAction,
   saveTeacherCourseDescriptorAction,
   saveTeacherCoursePlanAction,
@@ -15,7 +14,7 @@ import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import { parsePlanChapters, renderStructuredValue } from "@/components/student/course/course-overview-shared";
 import { Modal } from "@/components/ui/modal";
-import type { TeacherCourseActivity, TeacherCourseCotationStudent, TeacherCoursePageDetails } from "@/lib/utils/supabase/teacher-teaching";
+import type { TeacherCourseActivity, TeacherCourseCotationStudent, TeacherCoursePageDetails, TeacherCourseQuestion } from "@/lib/utils/supabase/teacher-teaching";
 
 type TeacherTab = "descriptor" | "plan" | "qcm" | "tp" | "cotation";
 type PlanDraftChapter = {
@@ -902,11 +901,12 @@ function TeacherCotationTab({ data }: { data: TeacherCoursePageDetails }) {
                             setDraft((current) => ({
                               ...current,
                               [student.student.id]: {
-                                cc: getDraftValue(student, "cc"),
-                                examen: getDraftValue(student, "examen"),
-                                rattrapage: getDraftValue(student, "rattrapage"),
-                                rachat: getDraftValue(student, "rachat"),
-                                ...(current[student.student.id] ?? {}),
+                                ...(current[student.student.id] ?? {
+                                  cc: getDraftValue(student, "cc"),
+                                  examen: getDraftValue(student, "examen"),
+                                  rattrapage: getDraftValue(student, "rattrapage"),
+                                  rachat: getDraftValue(student, "rachat"),
+                                }),
                                 [column.field]: event.target.value,
                               },
                             }))
@@ -924,11 +924,12 @@ function TeacherCotationTab({ data }: { data: TeacherCoursePageDetails }) {
                           setDraft((current) => ({
                             ...current,
                             [student.student.id]: {
-                              cc: getDraftValue(student, "cc"),
-                              examen: getDraftValue(student, "examen"),
-                              rattrapage: getDraftValue(student, "rattrapage"),
-                              rachat: getDraftValue(student, "rachat"),
-                              ...(current[student.student.id] ?? {}),
+                              ...(current[student.student.id] ?? {
+                                cc: getDraftValue(student, "cc"),
+                                examen: getDraftValue(student, "examen"),
+                                rattrapage: getDraftValue(student, "rattrapage"),
+                                rachat: getDraftValue(student, "rachat"),
+                              }),
                               rachat: event.target.value,
                             },
                           }))
@@ -1027,11 +1028,13 @@ const getStructuredObjective = (value: unknown) => {
     return null;
   }
 
-  const general = typeof (value as Record<string, unknown>).general === "string" ? (value as Record<string, unknown>).general.trim() : null;
-  const specificsArray = Array.isArray((value as Record<string, unknown>).speficique)
-    ? (value as Record<string, unknown>).speficique
-    : Array.isArray((value as Record<string, unknown>).specifique)
-      ? (value as Record<string, unknown>).specifique
+  const record = value as Record<string, unknown>;
+  const generalValue = record.general;
+  const general = typeof generalValue === "string" ? generalValue.trim() : null;
+  const specificsArray = Array.isArray(record.speficique)
+    ? record.speficique
+    : Array.isArray(record.specifique)
+      ? record.specifique
       : [];
 
   const specifics = specificsArray.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
@@ -1082,11 +1085,11 @@ const getMethodologiesValue = (value: unknown) => {
     return null;
   }
 
-  const methodes = Array.isArray((value as Record<string, unknown>).methodes)
-    ? (value as Record<string, unknown>).methodes
-    : [];
+  const record = value as Record<string, unknown>;
+  const methodesValue = record.methodes;
+  const methodes = Array.isArray(methodesValue) ? methodesValue : [];
 
-  const parsed = methodes.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+  const parsed = methodes.filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 0);
 
   return parsed.length > 0 ? parsed : null;
 };
@@ -1121,12 +1124,12 @@ const getPenaltiesValue = (value: unknown) => {
     return null;
   }
 
-  const penaltiesArray = Array.isArray((value as Record<string, unknown>).penalites)
-    ? (value as Record<string, unknown>).penalites
-    : [];
+  const record = value as Record<string, unknown>;
+  const penalitesValue = record.penalites;
+  const penaltiesArray = Array.isArray(penalitesValue) ? penalitesValue : [];
 
   const parsed = penaltiesArray
-    .map((entry) => {
+    .map((entry: unknown) => {
       if (!entry || typeof entry !== "object") {
         return null;
       }
@@ -1180,12 +1183,12 @@ const getCompetencesValue = (value: unknown) => {
     return null;
   }
 
-  const competencesArray = Array.isArray((value as Record<string, unknown>).competences)
-    ? (value as Record<string, unknown>).competences
-    : [];
+  const record = value as Record<string, unknown>;
+  const competencesValue = record.competences;
+  const competencesArray = Array.isArray(competencesValue) ? competencesValue : [];
 
   const parsed = competencesArray
-    .map((entry) => {
+    .map((entry: unknown) => {
       if (!entry || typeof entry !== "object") {
         return null;
       }
@@ -1286,7 +1289,7 @@ function TeacherDescriptorTab({
     {
       id: "description",
       title: "Description",
-      value: data.courseDetails?.description ?? data.cours.description ?? "Aucune description renseignée",
+      value: data.courseDetails?.description ?? "Aucune description renseignée",
     },
     {
       id: "objectifs",
@@ -1658,40 +1661,96 @@ function DescriptorFieldModals({
   });
 
   useEffect(() => {
-    setDescriptionValue(data.courseDetails?.description ?? data.cours.description ?? "");
-    const objectifs = data.courseDetails?.objectifs ?? null;
-    setObjectifsGeneral(typeof objectifs === "object" && objectifs?.general ? String(objectifs.general) : "");
+    const description = data.courseDetails?.description;
+    setDescriptionValue(typeof description === "string" ? description : "");
+
+    const objectifsSource = data.courseDetails?.objectifs;
+    const objectifsRecord =
+      objectifsSource && typeof objectifsSource === "object"
+        ? (objectifsSource as Record<string, unknown>)
+        : null;
+    const objectifsGeneralValue = objectifsRecord?.general;
+    setObjectifsGeneral(typeof objectifsGeneralValue === "string" ? objectifsGeneralValue : "");
+    const specificsSource = Array.isArray(objectifsRecord?.speficique)
+      ? objectifsRecord?.speficique
+      : Array.isArray(objectifsRecord?.specifique)
+        ? objectifsRecord?.specifique
+        : [];
     setObjectifsSpecifique(
-      Array.isArray(objectifs?.speficique)
-        ? objectifs.speficique.filter(Boolean).join("\n")
-        : Array.isArray(objectifs?.specifique)
-          ? objectifs.specifique.filter(Boolean).join("\n")
-          : "",
+      (specificsSource ?? [])
+        .filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 0)
+        .join("\n"),
     );
-    const methodes = data.courseDetails?.methodologies?.methodes ?? data.courseDetails?.methodologies?.methodes ?? [];
-    setMethodologies(Array.isArray(methodes) ? methodes.join("\n") : "");
+
+    const methodologiesSource = data.courseDetails?.methodologies;
+    const methodologiesRecord =
+      methodologiesSource && typeof methodologiesSource === "object"
+        ? (methodologiesSource as Record<string, unknown>)
+        : null;
+    const methodesSource = methodologiesRecord?.methodes;
+    setMethodologies(
+      Array.isArray(methodesSource)
+        ? methodesSource
+            .filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 0)
+            .join("\n")
+        : "",
+    );
+
+    const penalitesSource = data.courseDetails?.penalites;
+    const penalitesRecord =
+      penalitesSource && typeof penalitesSource === "object"
+        ? (penalitesSource as Record<string, unknown>)
+        : null;
+    const penaltiesSource = penalitesRecord?.penalites;
     setPenalties(
-      Array.isArray(data.courseDetails?.penalites?.penalites)
-        ? data.courseDetails.penalites.penalites.map((item) => ({
-            penalite: item.penalite ?? "",
-            sanction: item.sanction ?? "",
-          }))
+      Array.isArray(penaltiesSource)
+        ? penaltiesSource
+            .map((item: unknown) => {
+              if (!item || typeof item !== "object") {
+                return null;
+              }
+
+              const row = item as Record<string, unknown>;
+              return {
+                penalite: typeof row.penalite === "string" ? row.penalite : "",
+                sanction: typeof row.sanction === "string" ? row.sanction : "",
+              };
+            })
+            .filter((item): item is { penalite: string; sanction: string } => item !== null)
         : [],
     );
+
+    const competencesSource = data.courseDetails?.competences;
+    const competencesRecord =
+      competencesSource && typeof competencesSource === "object"
+        ? (competencesSource as Record<string, unknown>)
+        : null;
+    const competencesArraySource = competencesRecord?.competences;
     setCompetences(
-      Array.isArray(data.courseDetails?.competences?.competences)
-        ? data.courseDetails.competences.competences.map((item) => ({
-            competence: item.competence ?? "",
-            description: item.description ?? "",
-          }))
+      Array.isArray(competencesArraySource)
+        ? competencesArraySource
+            .map((item: unknown) => {
+              if (!item || typeof item !== "object") {
+                return null;
+              }
+
+              const row = item as Record<string, unknown>;
+              return {
+                competence: typeof row.competence === "string" ? row.competence : "",
+                description: typeof row.description === "string" ? row.description : "",
+              };
+            })
+            .filter((item): item is { competence: string; description: string } => item !== null)
         : [],
     );
-    const dispo = data.courseDetails?.disponiblites ?? {};
+
+    const dispoSource = data.courseDetails?.disponiblites;
+    const dispo = dispoSource && typeof dispoSource === "object" ? (dispoSource as Record<string, unknown>) : {};
     setDisponibilites({
-      frequence: dispo.frequence ?? "",
-      periode: dispo.periode ?? "",
-      contact: dispo.contact ?? "",
-      bureau: dispo.bureau ?? "",
+      frequence: typeof dispo.frequence === "string" ? dispo.frequence : "",
+      periode: typeof dispo.periode === "string" ? dispo.periode : "",
+      contact: typeof dispo.contact === "string" ? dispo.contact : "",
+      bureau: typeof dispo.bureau === "string" ? dispo.bureau : "",
     });
   }, [data]);
 
@@ -2054,8 +2113,7 @@ function TeacherActivityCard({
           >
             Voir les notes
           </button>
-          <form action={exportActivityNotesAction}>
-            <input type="hidden" name="activity_id" value={activity.id} />
+          <form action={`/api/teacher/activities/${encodeURIComponent(activity.id)}/notes/export`} method="GET">
             <button
               type="submit"
               className="inline-flex items-center justify-center rounded-full border border-gray-300 px-4 py-2 text-xs font-semibold text-gray-700 transition hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300 dark:hover:border-brand-500/40 dark:hover:text-brand-300"
@@ -2337,8 +2395,7 @@ function ActivityNotesModal({ activity, onClose }: { activity: TeacherCourseActi
           </div>
         )}
         <div className="flex justify-end gap-2">
-          <form action={exportActivityNotesAction}>
-            <input type="hidden" name="activity_id" value={activity.id} />
+          <form action={`/api/teacher/activities/${encodeURIComponent(activity.id)}/notes/export`} method="GET">
             <button
               type="submit"
               className="rounded-full border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300 dark:hover:border-brand-500/40 dark:hover:text-brand-300"

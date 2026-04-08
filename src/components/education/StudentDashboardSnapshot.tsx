@@ -33,21 +33,21 @@ export default function StudentDashboardSnapshot({ snapshot }: StudentDashboardS
     [programmes, selectedProgrammeId],
   );
 
-  const selectedProgrammeCommandes = useMemo(() => {
+  const selectedProgrammeAvailableResources = useMemo(() => {
     if (!selectedProgramme?.id) {
       return [];
     }
 
-    return commandes.filter((commande) => commande.programmeId === selectedProgramme.id);
-  }, [commandes, selectedProgramme]);
+    return availableResources.filter((resource) => resource.programmeId === selectedProgramme.id);
+  }, [availableResources, selectedProgramme]);
 
   const selectedProgrammeCategories = useMemo(() => {
     const counts = new Map<string, FacultyDashboardCategory>();
 
-    for (const commande of selectedProgrammeCommandes) {
-      const existing = counts.get(commande.categoryKey) ?? {
-        key: commande.categoryKey,
-        label: commande.categoryLabel,
+    for (const resource of selectedProgrammeAvailableResources) {
+      const existing = counts.get(resource.categoryKey) ?? {
+        key: resource.categoryKey,
+        label: resource.categoryLabel,
         total: 0,
         success: 0,
         pending: 0,
@@ -55,21 +55,23 @@ export default function StudentDashboardSnapshot({ snapshot }: StudentDashboardS
       };
 
       existing.total += 1;
-      existing.revenue += commande.total ?? 0;
+      existing.revenue += resource.amount ?? 0;
 
-      if (commande.status === "success") {
+      const latestStatus = (resource.latestOrder?.status ?? "").trim().toLowerCase();
+
+      if (latestStatus === "success") {
         existing.success += 1;
       }
 
-      if (commande.status === "pending") {
+      if (latestStatus === "pending") {
         existing.pending += 1;
       }
 
-      counts.set(commande.categoryKey, existing);
+      counts.set(resource.categoryKey, existing);
     }
 
     return Array.from(counts.values());
-  }, [selectedProgrammeCommandes]);
+  }, [selectedProgrammeAvailableResources]);
 
   const selectedProgrammeResources = useMemo(() => {
     if (!selectedCategory?.key) {

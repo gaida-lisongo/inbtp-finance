@@ -43,7 +43,7 @@ const getBaseUrl = (): string => {
   return url.replace(/\/+$/, "");
 };
 
-const buildAuthHeaders = () => {
+const buildAuthHeaders = (): Record<string, string> => {
   const token = process.env.PAYMENT_SERVICE_AUTH_TOKEN ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!token) {
@@ -78,13 +78,17 @@ export class PaymentService {
   }
 
   private async fetchJson(endpoint: string, options: RequestInit = {}) {
+    const headers = new Headers(options.headers);
+    headers.set("Content-Type", "application/json");
+
+    const authHeaders = buildAuthHeaders();
+    for (const [key, value] of Object.entries(authHeaders)) {
+      headers.set(key, value);
+    }
+
     const resp = await fetch(`${this.baseUrl}${endpoint}`, {
       ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...buildAuthHeaders(),
-        ...(options.headers ?? {}),
-      },
+      headers,
     });
 
     const payload = await (resp.json().catch(() => ({})));
@@ -102,6 +106,8 @@ export class PaymentService {
     if (!payload.amount || !payload.currency || !payload.reference || !payload.channel) {
       throw new Error("channel, amount, currency et reference sont requis");
     }
+
+    const channel = payload.channel;
 
     if (payload.channel === "MOBILE_MONEY") {
       const body = {
@@ -149,7 +155,7 @@ export class PaymentService {
       };
     }
 
-    throw new Error(`Channel non supporté: ${payload.channel}`);
+    throw new Error(`Channel non supporté: ${channel}`);
   }
 
   async check(orderNumber: string): Promise<PaymentResponse> {

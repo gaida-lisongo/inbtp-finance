@@ -18,6 +18,8 @@ export async function createDocumentAction(programmeId: string, formData: FormDa
       programme_id: programmeId,
       designation: formData.get("designation") as string,
       description: formData.get("description") as string,
+      slug: null,
+      entra_id: null,
       montant: parseFloat(formData.get("montant") as string) || null,
       caracteristique: { categorie: formData.get("categorie") as string },
       is_active: formData.get("is_active") as string,

@@ -1,6 +1,7 @@
 "use server";
 
-import { revalidatePath, unstable_rethrow } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import { unstable_rethrow } from "next/navigation";
 
 import { updateFacultyCommandeStatus } from "@/lib/utils/supabase/faculty-commandes";
 

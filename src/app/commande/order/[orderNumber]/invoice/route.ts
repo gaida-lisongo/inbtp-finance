@@ -138,7 +138,7 @@ export async function GET(_request: Request, context: { params: Promise<{ orderN
 
     const pdfBuffer = await document.generateBuffer();
 
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(new Uint8Array(pdfBuffer), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",

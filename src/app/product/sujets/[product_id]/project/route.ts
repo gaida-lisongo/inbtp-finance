@@ -46,16 +46,18 @@ const parseStructuredArray = (value: FormDataEntryValue | null): SubjectSection[
       return [];
     }
 
-    return parsed.flatMap((item) => {
+    return parsed.reduce<SubjectSection[]>((acc, item) => {
       if (!item || typeof item !== "object") {
-        return [];
+        return acc;
       }
 
-      const section = typeof (item as Record<string, unknown>).section === "string" ? (item as Record<string, unknown>).section : "";
-      const content = typeof (item as Record<string, unknown>).content === "string" ? (item as Record<string, unknown>).content : "";
+      const record = item as Record<string, unknown>;
+      const section = typeof record.section === "string" ? record.section : "";
+      const content = typeof record.content === "string" ? record.content : "";
 
-      return [{ section, content }];
-    });
+      acc.push({ section, content });
+      return acc;
+    }, []);
   } catch {
     return [];
   }

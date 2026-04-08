@@ -32,7 +32,7 @@ export async function GET(_request: Request, context: { params: Promise<{ produc
     const pdfBuffer = await document.generateBuffer();
     const filename = `invoice-laboratoire-${productData.student.id}.pdf`;
 
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(new Uint8Array(pdfBuffer), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",

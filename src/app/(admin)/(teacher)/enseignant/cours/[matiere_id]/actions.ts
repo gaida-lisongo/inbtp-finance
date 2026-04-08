@@ -66,15 +66,22 @@ const buildCotationRedirectUrl = (formData: FormData, status: "success" | "error
   buildRedirectUrl(formData, status, "cotation", message);
 
 export async function createTeacherActivityAction(formData: FormData) {
-  const category = typeof formData.get("categorie") === "string" ? formData.get("categorie") : "qcm";
+  const categoryValue = formData.get("categorie");
+  const category = typeof categoryValue === "string" ? categoryValue : "qcm";
   const tab = category === "tp" ? "tp" : "qcm";
 
-  const rawMontant = typeof formData.get("montant") === "string" ? formData.get("montant") : "";
-  const rawNote = typeof formData.get("note") === "string" ? formData.get("note") : "";
-  const designation = typeof formData.get("designation") === "string" ? formData.get("designation").trim() : "";
-  const description = typeof formData.get("description") === "string" ? formData.get("description").trim() : null;
-  const dateLimite = typeof formData.get("date_limite") === "string" && formData.get("date_limite") ? formData.get("date_limite") : null;
-  const coursId = typeof formData.get("course_id") === "string" ? formData.get("course_id") : null;
+  const montantValue = formData.get("montant");
+  const noteValue = formData.get("note");
+  const designationValue = formData.get("designation");
+  const descriptionValue = formData.get("description");
+  const dateLimiteValue = formData.get("date_limite");
+  const courseIdValue = formData.get("course_id");
+  const rawMontant = typeof montantValue === "string" ? montantValue : "";
+  const rawNote = typeof noteValue === "string" ? noteValue : "";
+  const designation = typeof designationValue === "string" ? designationValue.trim() : "";
+  const description = typeof descriptionValue === "string" ? descriptionValue.trim() : null;
+  const dateLimite = typeof dateLimiteValue === "string" && dateLimiteValue ? dateLimiteValue : null;
+  const coursId = typeof courseIdValue === "string" ? courseIdValue : null;
 
   if (!coursId || !designation) {
     redirect(buildActivityRedirectUrl(formData, "error", tab, "activity_creation_failed"));
@@ -99,9 +106,12 @@ export async function createTeacherActivityAction(formData: FormData) {
 }
 
 export async function saveTeacherActivityQuestionsAction(formData: FormData) {
-  const activityId = typeof formData.get("activity_id") === "string" ? formData.get("activity_id") : null;
-  const questions = typeof formData.get("questions") === "string" ? formData.get("questions") : null;
-  const tab = typeof formData.get("tab") === "string" && formData.get("tab") === "tp" ? "tp" : "qcm";
+  const activityIdValue = formData.get("activity_id");
+  const questionsValue = formData.get("questions");
+  const tabValue = formData.get("tab");
+  const activityId = typeof activityIdValue === "string" ? activityIdValue : null;
+  const questions = typeof questionsValue === "string" ? questionsValue : null;
+  const tab = typeof tabValue === "string" && tabValue === "tp" ? "tp" : "qcm";
 
   if (!activityId) {
     redirect(buildActivityRedirectUrl(formData, "error", tab, "activity_required"));
@@ -118,7 +128,8 @@ export async function saveTeacherActivityQuestionsAction(formData: FormData) {
 }
 
 export async function exportActivityNotesAction(formData: FormData) {
-  const activityId = typeof formData.get("activity_id") === "string" ? formData.get("activity_id") : null;
+  const activityIdValue = formData.get("activity_id");
+  const activityId = typeof activityIdValue === "string" ? activityIdValue : null;
 
   if (!activityId) {
     throw new Error("activity_required");
@@ -138,7 +149,11 @@ export async function exportActivityNotesAction(formData: FormData) {
   }
 
   const rows = (data ?? []).map((note) => {
-    const student = note.student as Record<string, string | null> | null;
+    const studentSource = Array.isArray(note.student) ? note.student[0] : note.student;
+    const student =
+      studentSource && typeof studentSource === "object"
+        ? (studentSource as { nom?: string | null; post_nom?: string | null; prenom?: string | null; email?: string | null })
+        : null;
     const studentName = student
       ? [student.nom, student.post_nom, student.prenom].filter((value) => value && value.length > 0).join(" ")
       : "Étudiant";
@@ -164,8 +179,10 @@ export async function exportActivityNotesAction(formData: FormData) {
 }
 
 export async function saveTeacherCourseCotationAction(formData: FormData) {
-  const matiereId = typeof formData.get("matiere_id") === "string" ? formData.get("matiere_id") : null;
-  const rawRows = typeof formData.get("rows") === "string" ? formData.get("rows") : "[]";
+  const matiereIdValue = formData.get("matiere_id");
+  const rowsValue = formData.get("rows");
+  const matiereId = typeof matiereIdValue === "string" ? matiereIdValue : null;
+  const rawRows = typeof rowsValue === "string" ? rowsValue : "[]";
 
   if (!matiereId) {
     redirect(buildCotationRedirectUrl(formData, "error", "matiere_required"));
@@ -206,7 +223,8 @@ export async function saveTeacherCourseCotationAction(formData: FormData) {
 }
 
 export async function exportTeacherCourseCotationTemplateAction(formData: FormData) {
-  const matiereId = typeof formData.get("matiere_id") === "string" ? formData.get("matiere_id") : null;
+  const matiereIdValue = formData.get("matiere_id");
+  const matiereId = typeof matiereIdValue === "string" ? matiereIdValue : null;
 
   if (!matiereId) {
     throw new Error("matiere_required");
@@ -223,8 +241,10 @@ export async function exportTeacherCourseCotationTemplateAction(formData: FormDa
 }
 
 export async function importTeacherCourseCotationCsvAction(formData: FormData) {
-  const matiereId = typeof formData.get("matiere_id") === "string" ? formData.get("matiere_id") : null;
-  const csvContent = typeof formData.get("csv_content") === "string" ? formData.get("csv_content") : "";
+  const matiereIdValue = formData.get("matiere_id");
+  const csvContentValue = formData.get("csv_content");
+  const matiereId = typeof matiereIdValue === "string" ? matiereIdValue : null;
+  const csvContent = typeof csvContentValue === "string" ? csvContentValue : "";
 
   if (!matiereId) {
     redirect(buildCotationRedirectUrl(formData, "error", "matiere_required"));

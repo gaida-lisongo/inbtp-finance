@@ -279,7 +279,7 @@ export default function AppManagementPanel({
   status,
   message,
 }: AppManagementPanelProps) {
-  const initialFeedback =
+  const initialFeedback: { type: "success" | "error"; message: string } | null =
     (status === "success" || status === "error") && getMessage(message)
       ? { type: status, message: getMessage(message)! }
       : null;

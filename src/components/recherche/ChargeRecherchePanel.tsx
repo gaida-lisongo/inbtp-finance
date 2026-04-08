@@ -156,6 +156,14 @@ function ResearchEntityPanel({
     setEditorMode("list");
   };
 
+  const submitResearchRecord = async (formData: FormData) => {
+    await saveResearchRecordAction(formData);
+  };
+
+  const submitDeleteResearchRecord = async (formData: FormData) => {
+    await deleteResearchRecordAction(formData);
+  };
+
   if (editorMode !== "list") {
     return (
       <ComponentCard
@@ -169,7 +177,7 @@ function ResearchEntityPanel({
             </Button>
           </div>
 
-          <form action={saveResearchRecordAction} className="grid gap-5 lg:grid-cols-2">
+          <form action={submitResearchRecord} className="grid gap-5 lg:grid-cols-2">
             <input type="hidden" name="entity" value={tabKey} />
             <input type="hidden" name="id" value={editingItem?.id ?? ""} />
             <input type="hidden" name="programme_id" value={promotionId} />
@@ -422,13 +430,13 @@ function ResearchEntityPanel({
                           onSuccess={(result) => {
                             onNotify({
                               type: "success",
-                              message: `${result.notifiedCount} etudiant(s) notifie(s).`,
+                              message: `${result?.notifiedCount ?? 0} etudiant(s) notifie(s).`,
                             });
                           }}
                           onError={(error) => {
                             onNotify({
                               type: "error",
-                              message: getMessage(error.message) ?? error.message,
+                              message: error.message,
                             });
                           }}
                           className="px-3 py-2"
@@ -440,7 +448,7 @@ function ResearchEntityPanel({
                         >
                           Modifier
                         </button>
-                        <form action={deleteResearchRecordAction}>
+                        <form action={submitDeleteResearchRecord}>
                           <input type="hidden" name="entity" value={tabKey} />
                           <input type="hidden" name="id" value={item.id} />
                           <input type="hidden" name="annee" value={anneeId} />

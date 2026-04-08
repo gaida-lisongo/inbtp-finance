@@ -10,6 +10,7 @@ export type JuryRecord = {
   president_id: string | null;
   secretaire_id: string | null;
   isActivate: boolean | null;
+  password: string | null;
 };
 
 export type JuryWithMembers = JuryRecord & {
@@ -35,7 +36,6 @@ export type JuryWithMembers = JuryRecord & {
     id: string;
     designation: string | null;
   } | null;
-  password: string | null;
 };
 
 type AgentSummary = Pick<
@@ -83,12 +83,7 @@ export const getStudentsForProgramme = async (programmeId: string) => {
     id: string;
     created_at: string;
     reference: string | null;
-    student: {
-      id: string;
-      nom: string | null;
-      post_nom: string | null;
-      prenom: string | null;
-    } | null;
+    student: unknown;
   }>;
 
   const studentsById = new Map<
@@ -103,10 +98,22 @@ export const getStudentsForProgramme = async (programmeId: string) => {
   >();
 
   for (const row of rows) {
-    if (!row.student) continue;
-    if (studentsById.has(row.student.id)) continue;
-    studentsById.set(row.student.id, {
-      ...row.student,
+    const studentSource = Array.isArray(row.student) ? row.student[0] : row.student;
+    const student =
+      studentSource && typeof studentSource === "object"
+        ? (studentSource as { id?: string; nom?: string | null; post_nom?: string | null; prenom?: string | null })
+        : null;
+
+    const studentId = typeof student?.id === "string" ? student.id : null;
+
+    if (!studentId) continue;
+    if (studentsById.has(studentId)) continue;
+
+    studentsById.set(studentId, {
+      id: studentId,
+      nom: student?.nom ?? null,
+      post_nom: student?.post_nom ?? null,
+      prenom: student?.prenom ?? null,
       matricule: row.reference,
     });
   }
@@ -157,17 +164,18 @@ export const getJuryById = async (juryId: string) => {
     return null;
   }
 
-  const agentIds = [data.president_id, data.secretaire_id].filter(
+  const jury = data as unknown as JuryRow;
+  const agentIds = [jury.president_id, jury.secretaire_id].filter(
     (value): value is string => Boolean(value),
   );
-  const anneeIds = data.annee_id ? [data.annee_id] : [];
+  const anneeIds = jury.annee_id ? [jury.annee_id] : [];
 
   const [agentsMap, anneesMap] = await Promise.all([
     fetchAgentsByIds(agentIds),
     fetchAnneesByIds(anneeIds),
   ]);
 
-  return mapJuryMembers(data as JuryRow, agentsMap, anneesMap);
+  return mapJuryMembers(jury, agentsMap, anneesMap);
 };
 
 export const getJuriesForAgent = async (agentId: string) => {
@@ -182,7 +190,7 @@ export const getJuriesForAgent = async (agentId: string) => {
     throw new Error(error.message);
   }
 
-  const juries = (data ?? []) as JuryRow[];
+  const juries = (data ?? []) as unknown as JuryRow[];
   const agentIds = Array.from(
     new Set(
       juries.flatMap((jury) =>

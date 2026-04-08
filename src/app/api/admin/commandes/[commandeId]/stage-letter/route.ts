@@ -41,7 +41,7 @@ export async function POST(request: Request, context: { params: Promise<{ comman
       companyLocation,
     });
 
-    return new NextResponse(result.buffer, {
+    return new NextResponse(new Uint8Array(result.buffer), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",

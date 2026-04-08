@@ -9,6 +9,7 @@ import {
   getProductPath,
   type CommandeCategory,
 } from "@/lib/utils/supabase/commandes";
+import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 
 type CommandePageProps = {
   category: CommandeCategory;
@@ -43,6 +44,14 @@ export default async function CommandePage({ category, resourceId }: CommandePag
   } catch (error) {
     if (error instanceof Error && error.message === "auth_required") {
       redirect(`/signin?next=${encodeURIComponent(`/commande/${category}/${resourceId}`)}`);
+    }
+
+    if (error instanceof Error && error.message === "student_not_found") {
+      const user = await getAuthenticatedUser();
+
+      if (user?.activePersona === "admin") {
+        redirect(`/commandes/categories/${category}`);
+      }
     }
 
     loadError = error;

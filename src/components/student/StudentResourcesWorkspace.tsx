@@ -28,6 +28,8 @@ type ResourceCommandeRow = StudentDashboardSnapshot["commandes"][number] & {
   normalizedStatus: "success" | "pending" | "no" | null;
 };
 
+type ResourceKey = `${CommandeCategory}:${string}`;
+
 const normalizeText = (value: string | null | undefined) => {
   if (typeof value !== "string") {
     return "";
@@ -162,14 +164,20 @@ export default function StudentResourcesWorkspace({ snapshot, initialType }: Stu
   const initialTypeKey = normalizeText(initialType ?? "");
 
   const resourceByKey = useMemo(() => {
-    const entries = snapshot.availableResources.map((resource) => [`${resource.category}:${resource.id}`, resource] as const);
-    return new Map(entries);
+    const entries = snapshot.availableResources.map((resource) => [
+      `${resource.category}:${resource.id}` as ResourceKey,
+      resource,
+    ] as const);
+    return new Map<ResourceKey, (typeof snapshot.availableResources)[number]>(entries);
   }, [snapshot.availableResources]);
 
   const allRows = useMemo<ResourceCommandeRow[]>(() => {
     return sortByDateDesc(snapshot.commandes).map((commande) => {
       const canonicalCategory = mapCommandeCategory(commande.categorie);
-      const resourceKey = canonicalCategory && commande.product ? `${canonicalCategory}:${commande.product}` : null;
+      const resourceKey: ResourceKey | null =
+        canonicalCategory && commande.product
+          ? `${canonicalCategory}:${commande.product}`
+          : null;
       const resource = resourceKey ? resourceByKey.get(resourceKey) ?? null : null;
 
       return {
@@ -349,26 +357,30 @@ export default function StudentResourcesWorkspace({ snapshot, initialType }: Stu
       return;
     }
 
+    const commandeId = selectedCommande.id;
+    const category = selectedCommande.canonicalCategory;
+    const resourceId = selectedCommande.product;
+
     setVerificationError(null);
     setVerificationMessage(null);
 
     startTransition(async () => {
       try {
         const result = await validateCommandePaymentAccessAction({
-          commandeId: selectedCommande.id,
-          category: selectedCommande.canonicalCategory,
-          resourceId: selectedCommande.product,
+          commandeId,
+          category,
+          resourceId,
         });
 
         setStatusOverrides((previous) => ({
           ...previous,
-          [selectedCommande.id]: result.commande.status,
+          [commandeId]: result.commande.status,
         }));
 
         if (result.success) {
           setAccessPathByCommande((previous) => ({
             ...previous,
-            [selectedCommande.id]: result.productPath,
+            [commandeId]: result.productPath,
           }));
         }
 

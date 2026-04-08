@@ -7,7 +7,8 @@ import ChargeRecherchePanel from "@/components/recherche/ChargeRecherchePanel";
 import { getActiveAutorisationCodesForAgent } from "@/lib/utils/supabase/autorisations";
 import { getAnnees } from "@/lib/utils/supabase/annees";
 import { getProgrammeById, getProgrammes } from "@/lib/utils/supabase/programmes";
-import { getLaboratoiresByProgramme, getStagesByProgramme, getSujetsByProgramme, type ResearchTableName } from "@/lib/utils/supabase/recherche";
+import { getLaboratoiresByProgramme, getStagesByProgramme, getSujetsByProgramme } from "@/lib/utils/supabase/recherche";
+import type { ResearchTableName } from "@/lib/utils/supabase/recherche-shared";
 import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 
 export const metadata: Metadata = {

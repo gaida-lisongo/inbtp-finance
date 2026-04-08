@@ -13,7 +13,7 @@ export async function GET(_request: Request, context: { params: Promise<{ notifi
 
     const result = await generateSubjectCoverForStudent(normalizedId);
 
-    return new NextResponse(result.buffer, {
+    return new NextResponse(new Uint8Array(result.buffer), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",

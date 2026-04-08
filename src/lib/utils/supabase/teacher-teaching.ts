@@ -661,32 +661,33 @@ export const getTeacherCourseCotationStudents = async (matiereId: string): Promi
     created_at: string;
     reference: string | null;
     status: string | null;
-    student: {
-      id: string;
-      nom: string | null;
-      post_nom: string | null;
-      prenom: string | null;
-      email: string | null;
-    } | null;
+    student: unknown;
   }>;
 
   const latestParcoursByStudentId = new Map<string, TeacherCourseCotationStudent>();
 
   for (const row of parcoursRows) {
-    if (!row.student || latestParcoursByStudentId.has(row.student.id)) {
+    const studentSource = Array.isArray(row.student) ? row.student[0] : row.student;
+    const student =
+      studentSource && typeof studentSource === "object"
+        ? (studentSource as { id?: string; nom?: string | null; post_nom?: string | null; prenom?: string | null; email?: string | null })
+        : null;
+    const studentId = typeof student?.id === "string" ? student.id : null;
+
+    if (!studentId || latestParcoursByStudentId.has(studentId)) {
       continue;
     }
 
-    latestParcoursByStudentId.set(row.student.id, {
+    latestParcoursByStudentId.set(studentId, {
       parcoursId: row.id,
       reference: row.reference,
       status: row.status,
       student: {
-        id: row.student.id,
-        nom: row.student.nom,
-        post_nom: row.student.post_nom,
-        prenom: row.student.prenom,
-        email: row.student.email,
+        id: studentId,
+        nom: student?.nom ?? null,
+        post_nom: student?.post_nom ?? null,
+        prenom: student?.prenom ?? null,
+        email: student?.email ?? null,
       },
       cotation: null,
     });
@@ -984,8 +985,10 @@ export const updateTeacherCourseDescriptor = async (formData: FormData) => {
 
 export const updateTeacherCoursePlan = async (formData: FormData) => {
   const teacherAgentId = await getCurrentAuthenticatedTeacherAgentId();
-  const courseId = typeof formData.get("course_id") === "string" ? formData.get("course_id") : null;
-  const rawPlan = typeof formData.get("plan") === "string" ? formData.get("plan") : null;
+  const courseIdValue = formData.get("course_id");
+  const rawPlanValue = formData.get("plan");
+  const courseId = typeof courseIdValue === "string" ? courseIdValue : null;
+  const rawPlan = typeof rawPlanValue === "string" ? rawPlanValue : null;
 
   if (!courseId) {
     throw new Error("cours_required");

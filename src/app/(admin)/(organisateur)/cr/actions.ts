@@ -52,6 +52,7 @@ export async function notifyResearchRecordAction(formData: FormData) {
     const tab = getEntityTab(formData.get("tab"));
     const recordId = formData.get("record_id");
     const programmeId = formData.get("programme_id");
+    const programmeLabel = formData.get("programme_label");
 
     if (!recordId || typeof recordId !== "string") {
       throw new Error("Invalid recordId");
@@ -61,10 +62,15 @@ export async function notifyResearchRecordAction(formData: FormData) {
       throw new Error("Invalid programmeId");
     }
 
-    await notifyStudentsForResearchRecord(tab, recordId, programmeId);
+    const result = await notifyStudentsForResearchRecord(
+      tab,
+      programmeId,
+      typeof programmeLabel === "string" && programmeLabel.length > 0 ? programmeLabel : null,
+      recordId,
+    );
 
     revalidatePath("/cr");
-    return { success: true };
+    return result;
   } catch (error) {
     unstable_rethrow(error);
   }

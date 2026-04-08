@@ -1,5 +1,6 @@
 import { Document, type PdfDocumentDefinition, type ReferenceItem, type StudentDocumentIdentity } from "@/lib/documents/Document";
 import { buildOfficialDocumentHeader } from "@/lib/documents/layout";
+import { getChefSignatory, getInstitutSigle } from "@/lib/documents/signatory";
 
 type StageRecipientSex = "M" | "F" | "N";
 
@@ -13,9 +14,6 @@ export type DocumentStagePayload = {
   companyLocation?: string | null;
   documentReference?: string | null;
 };
-
-const getInstitutSigle = () => process.env.NEXT_PUBLIC_INSTITUT?.trim() || "INBTP";
-const getChefSignatory = () => process.env.NEXT_PUBLIC_CHEF?.trim() || "Chef de section";
 
 const buildQrPayload = (payload: DocumentStagePayload, issuedAt: string) =>
   JSON.stringify({

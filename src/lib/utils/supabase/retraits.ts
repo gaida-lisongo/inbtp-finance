@@ -288,6 +288,10 @@ const sendRetraitDecisionMail = async ({
     </div>
   `;
 
+  if (!requester.email) {
+    throw new Error("retrait_requester_email_missing");
+  }
+
   await sendMicrosoft365Mail({
     to: requester.email,
     subject: `${title} - ${retrait.designation ?? retrait.id}`,

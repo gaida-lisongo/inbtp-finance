@@ -6,19 +6,25 @@ import { startTransition } from "react";
 import DocumentGeneratorModal from "@/components/jury/DocumentGeneratorModal";
 import ProgrammeDeliberationCard from "@/components/jury/ProgrammeDeliberationCard";
 import type { JuryWithMembers } from "@/lib/utils/supabase/jury";
-import type { ProgrammeRecord } from "@/lib/utils/supabase/programmes";
+
+type JuryProgramme = {
+  id: string;
+  designation: string | null;
+  description: string | null;
+  annee_id: string | null;
+};
 
 type JuryProgrammeListProps = {
   jury: JuryWithMembers;
-  programmes: ProgrammeRecord[];
+  programmes: JuryProgramme[];
 };
 
 export default function JuryProgrammeList({ jury, programmes }: JuryProgrammeListProps) {
-  const [activeProgramme, setActiveProgramme] = useState<ProgrammeRecord | null>(null);
+  const [activeProgramme, setActiveProgramme] = useState<JuryProgramme | null>(null);
   const [isModalOpen, setModalOpen] = useState(false);
   const [isGenerating, setGenerating] = useState(false);
 
-  const handleDocumentRequest = useCallback((programme: ProgrammeRecord) => {
+  const handleDocumentRequest = useCallback((programme: JuryProgramme) => {
     setActiveProgramme(programme);
     setModalOpen(true);
   }, []);

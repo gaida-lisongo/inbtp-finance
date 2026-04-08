@@ -32,17 +32,17 @@ const parseStructuredError = (value?: string) => {
     }
 
     const general = typeof parsed.general === "string" ? parsed.general.trim() : null;
-    const specifics = Array.isArray(parsed.speficique)
-      ? parsed.speficique.filter((item) => typeof item === "string" && item.trim().length > 0)
+    const specifics: string[] = Array.isArray(parsed.speficique)
+      ? parsed.speficique.filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 0)
       : Array.isArray(parsed.specifique)
-        ? parsed.specifique.filter((item) => typeof item === "string" && item.trim().length > 0)
+        ? parsed.specifique.filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 0)
         : [];
 
     if (!general && specifics.length === 0) {
       return null;
     }
 
-    return [general, ...specifics.map((line) => `- ${line.trim()}`)]
+    return [general, ...specifics.map((line: string) => `- ${line.trim()}`)]
       .filter((line): line is string => Boolean(line && line.trim().length > 0))
       .join("\n");
   } catch {

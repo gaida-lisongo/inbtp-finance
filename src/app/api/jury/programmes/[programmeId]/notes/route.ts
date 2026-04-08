@@ -1,12 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import { getNotesForProgramme } from "@/lib/utils/supabase/jury";
 
 export async function GET(
-  _: Request,
-  { params }: { params: { programmeId?: string } },
+  _: NextRequest,
+  { params }: { params: Promise<{ programmeId: string }> },
 ) {
-  const programmeId = params.programmeId;
+  const { programmeId } = await params;
 
   if (!programmeId) {
     return NextResponse.json(
