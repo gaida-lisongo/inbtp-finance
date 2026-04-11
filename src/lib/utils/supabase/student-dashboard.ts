@@ -335,9 +335,52 @@ const formatUnknownText = (value: unknown) => {
 };
 
 const isDocumentPublished = (value: string | null) => (value ?? "").trim().toLowerCase() === "true";
-const isSessionPublished = (value: string | null) => {
-  const normalized = (value ?? "").trim().toLowerCase();
-  return normalized === "true" || normalized === "actif";
+const isSessionPublished = (value: unknown) => {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "number") {
+    return value === 1;
+  }
+
+  const normalized = normalizeText(typeof value === "string" ? value : null)?.toLowerCase();
+
+  if (!normalized) {
+    return false;
+  }
+
+  return normalized === "true" || normalized === "actif" || normalized === "1" || normalized === "oui" || normalized === "yes";
+};
+
+const getCommandeDashboardCategoryKey = (categorie: string | null) => {
+  const normalized = normalizeCategory(categorie);
+
+  switch (normalized) {
+    case "session":
+    case "sessions":
+      return "session";
+    case "stage":
+    case "stages":
+      return "stages";
+    case "sujet":
+    case "sujets":
+      return "sujets";
+    case "laboratoire":
+    case "laboratoires":
+      return "laboratoire";
+    case "document":
+    case "documents":
+      return "documents";
+    case "releve":
+    case "releves":
+      return "releve";
+    case "validation":
+    case "validations":
+      return "validation";
+    default:
+      return normalized;
+  }
 };
 const isResearchPublished = (value: string | null) => (value ?? "").trim().toLowerCase() === "oui";
 
@@ -887,7 +930,7 @@ export const getStudentDashboardSnapshot = async (
   const programmeByResource = await getProgrammeIdsByResource((commandesData ?? []) as CommandeRecord[]);
 
   const commandes: FacultyDashboardCommande[] = ((commandesData ?? []) as CommandeRecord[]).map((commande) => {
-    const categoryKey = normalizeCategory(commande.categorie);
+    const categoryKey = getCommandeDashboardCategoryKey(commande.categorie);
     const mappedCategory = mapCommandeCategory(commande.categorie);
     const resourceProgrammeId =
       mappedCategory && typeof commande.product === "string" && commande.product.length > 0

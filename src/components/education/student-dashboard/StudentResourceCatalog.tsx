@@ -40,6 +40,7 @@ export default function StudentResourceCatalog({
   selectedCategoryLabel,
   onClear,
 }: StudentResourceCatalogProps) {
+  console.log("Rendering StudentResourceCatalog with resources:", resources);
   return (
     <section className="space-y-4">
       <div className="rounded-2xl border border-gray-200 bg-white px-4 py-4 dark:border-gray-800 dark:bg-white/[0.03] sm:px-5">

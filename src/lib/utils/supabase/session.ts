@@ -192,7 +192,6 @@ export const getAuthenticatedUser = async (): Promise<AuthenticatedUser | null> 
   const cookieStore = await cookies();
   const supabase = createServerSupabaseClient(cookieStore);
   const { data: userData } = await supabase.auth.getUser();
-  console.log("Supabase user data:", userData);
   const user = userData.user;
   const loginMode = await getCurrentLoginMode();
 

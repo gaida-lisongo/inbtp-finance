@@ -1,6 +1,7 @@
 import { Document, type PdfDocumentDefinition, type ReferenceItem } from "@/lib/documents/Document";
 import { buildOfficialDocumentHeader } from "@/lib/documents/layout";
 import { getChefSignatory } from "@/lib/documents/signatory";
+import { getSchoolPdfBrandingAssets } from "../assets/asset-images.server";
 
 export type ReleveUnitItem = {
   semestre: string;
@@ -90,6 +91,7 @@ export class DocumentReleve extends Document<DocumentRelevePayload> {
       sectionLabel: "Scolarite",
       referenceValue: this.payload.orderReference,
     });
+    const { schoolLogo } = await getSchoolPdfBrandingAssets();
 
     const summaryTable = {
       table: {
@@ -199,46 +201,77 @@ export class DocumentReleve extends Document<DocumentRelevePayload> {
           vLineColor: () => "#D1D5DB",
         },
       },
-    {
-      columns: [
-        {
-          width: "*",
-          stack: [
-            { text: "Authentification du bulletin", style: "sectionLabel", margin: [0, 12, 0, 4] },
-            {
-              text: "Scannez le QR code pour verifier l'authenticite de ce document.",
-              fontSize: 9,
-              color: "#374151",
+      {
+        columns: [
+          {
+            width: "*",
+            stack: [
+              { text: "Authentification du bulletin", style: "sectionLabel", margin: [0, 12, 0, 4] },
+              {
+                text: "Scannez le QR code pour verifier l'authenticite de ce document.",
+                fontSize: 9,
+                color: "#374151",
+              },
+              { text: this.payload.verificationUrl, fontSize: 8, color: "#2563EB" },
+            ],
+          },
+          {
+            width: 80,
+            qr: this.payload.verificationUrl,
+            fit: 72,
+            alignment: "right",
+          },
+        ],
+        margin: [0, 12, 0, 0],
+      },
+      {
+        columns: [
+          {
+            width: "*",
+            text: "",
+          },
+          {
+            width: 200,
+            stack: [
+              { text: "Le Chef de section", bold: true, alignment: "center" },
+              { text: getChefSignatory(), alignment: "center", margin: [0, 12, 0, 0], bold: true },
+            ],
+          },
+        ],
+        margin: [0, 12, 0, 0],
+      },
+      //New page for notes details if needed
+      { text: "", pageBreak: "after" },
+      {
+        alignment: "center",
+        columns: [
+          {
+            table: {
+              widths: [150, "*", 150],
+              body: [
+                [
+                  {text: 'République Démocratique du Congo', fontSize: 9, alignment: "center", margin: [0, 2, 4, 0], color: "#6B7280" },
+                  '',
+                  //Date du jour à Kinshasa
+                  `Kinshasa, le ${new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(new Date())}`,
+                ],
+                [
+                  { text: "Ministère de l'Enseignement Supérieur, Universitaire, Recherche Scientifique et Innovation", fontSize: 9, alignment: "center", margin: [0, 2, 4, 0] },
+                  '',
+                  { text: "RELEVE DE COTES", fontSize: 9, alignment: "center", margin: [0, 2, 4, 0] },
+                ],
+                [
+                  { text: "Université", fontSize: 9, alignment: "center", margin: [0, 2, 4, 0] },
+                  '',
+                  { text: this.payload.orderReference, fontSize: 9, alignment: "center", margin: [0, 2, 4, 0], bold: true },
+                ]
+              ],
             },
-            { text: this.payload.verificationUrl, fontSize: 8, color: "#2563EB" },
-          ],
-        },
-        {
-          width: 80,
-          qr: this.payload.verificationUrl,
-          fit: 72,
-          alignment: "right",
-        },
-      ],
-      margin: [0, 12, 0, 0],
-    },
-    {
-      columns: [
-        {
-          width: "*",
-          text: "",
-        },
-        {
-          width: 200,
-          stack: [
-            { text: "Le Chef de section", bold: true, alignment: "center" },
-            { text: getChefSignatory(), alignment: "center", margin: [0, 12, 0, 0], bold: true },
-          ],
-        },
-      ],
-      margin: [0, 12, 0, 0],
-    },
-  ];
+            layout: "noBorders",
+          }
+        ]
+      }
+    ];
 
     return docDefinition;
   }

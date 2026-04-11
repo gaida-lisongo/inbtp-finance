@@ -1,4 +1,4 @@
-import { DocumentStage, DocumentValidate } from "@/lib/documents";
+import { DocumentReleve, DocumentStage, DocumentValidate } from "@/lib/documents";
 import { sendMicrosoft365Mail } from "@/lib/utils/microsoft-graph";
 import { getActiveAutorisationCodesForAgent } from "@/lib/utils/supabase/autorisations";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
@@ -480,6 +480,116 @@ export const generateValidationSheetForFaculty = async (commandeId: string) => {
 
   return {
     filename: `fiche-validation-${orderReference}.pdf`,
+    buffer: await document.generateBuffer(),
+  };
+};
+
+export const generateReleveForFaculty = async (commandeId: string) => {
+  const detail = await getFacultyCommandeDetail(commandeId);
+
+  if (detail.commande.categoryKey !== "documents") {
+    throw new Error("invalid_releve_commande");
+  }
+
+  if (detail.commande.status !== "success") {
+    throw new Error("releve_commande_not_paid");
+  }
+
+  if (!detail.student) {
+    throw new Error("releve_commande_data_incomplete");
+  }
+
+  const productId = normalizeText(detail.commande.product);
+
+  if (!productId) {
+    throw new Error("releve_document_missing");
+  }
+
+  const admin = createAdminClient();
+  const { data: documentData, error: documentError } = await admin
+    .from("documents")
+    .select("id, programme_id, caracteristique")
+    .eq("id", productId)
+    .maybeSingle();
+
+  if (documentError) {
+    throw new Error(documentError.message);
+  }
+
+  if (!documentData) {
+    throw new Error("releve_document_missing");
+  }
+
+  const documentCategory = getDocumentCategory({
+    caracteristique:
+      documentData.caracteristique && typeof documentData.caracteristique === "object"
+        ? (documentData.caracteristique as Record<string, unknown>)
+        : null,
+  });
+
+  const normalizedDocCategory = documentCategory.trim().toLowerCase();
+  if (!normalizedDocCategory.includes("relev")) {
+    throw new Error("invalid_releve_document");
+  }
+
+  const programmeId = normalizeText((documentData as { programme_id?: string | null }).programme_id);
+
+  if (!programmeId) {
+    throw new Error("releve_programme_missing");
+  }
+
+  const [programme, notes] = await Promise.all([
+    getProgrammeById(programmeId),
+    getNotesForProgramme(programmeId),
+  ]);
+  const studentResult =
+    NoteManager.calculerResultatsPromotion(notes).find((item) => item.studentId === detail.student?.id) ?? null;
+
+  if (!studentResult) {
+    throw new Error("releve_notes_missing");
+  }
+
+  const orderReference = detail.commande.orderNumber ?? detail.commande.id;
+  const verificationBaseUrl = appBaseUrl ?? "http://localhost:3000";
+  const verificationUrl = `${verificationBaseUrl}/api/checking/releve/${productId}?student_id=${encodeURIComponent(
+    detail.student.id,
+  )}&order=${encodeURIComponent(orderReference)}`;
+
+  const units = studentResult.semestres.flatMap((semestre) =>
+    semestre.unites.map((unite) => ({
+      semestre: semestre.designation,
+      code: unite.code,
+      designation: unite.designation,
+      statut: unite.isValide ? ("V" as const) : ("NV" as const),
+      credit: unite.credit,
+    })),
+  );
+
+  const bestSummary = studentResult.promotion;
+  const decision = bestSummary.mention === "F" ? "Ajourné" : "Admis";
+
+  const document = new DocumentReleve({
+    studentName: detail.student.displayName,
+    studentEmail: detail.student.email,
+    studentPhone: detail.student.telephone,
+    matricule: studentResult.matricule || "Non renseigne",
+    programmeName: programme?.designation ?? "Promotion",
+    orderReference,
+    units,
+    summary: {
+      ncv: bestSummary.ncv,
+      ncnv: bestSummary.ncnv,
+      totalObtenu: bestSummary.totalObtenu,
+      totalMax: bestSummary.totalMax,
+      pourcentage: bestSummary.pourcentage,
+      mention: bestSummary.mention,
+      decision,
+    },
+    verificationUrl,
+  });
+
+  return {
+    filename: `bulletin-${orderReference}.pdf`,
     buffer: await document.generateBuffer(),
   };
 };

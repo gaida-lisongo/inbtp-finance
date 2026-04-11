@@ -69,21 +69,21 @@ const ProductShell = ({
   </section>
 );
 
-const SessionProductView = ({ title, description }: { title: string; description: string | null }) => (
+const SessionProductView = ({ title, description, productId }: { title: string; description: string | null; productId: string }) => (
   <ProductShell
-    badge="Formulaire de session"
-    badgeClassName="bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300"
+    badge="Macaron session"
+    badgeClassName="bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-300"
     title={title}
-    description="Cette ressource ouvre un parcours de saisie. Le cadre du formulaire est deja reserve pour la future logique metier."
+    description="Cette ressource permet de generer un macaron (invoice) de session pour l'etudiant. Le PDF contient le detail des matieres et leurs dates."
   >
     <div className="grid gap-4 rounded-2xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-800 dark:bg-gray-900 sm:grid-cols-2">
       <div>
         <div className="text-sm text-gray-500 dark:text-gray-400">Etat</div>
-        <div className="mt-1 font-medium text-gray-800 dark:text-white/90">Pret pour le composant formulaire</div>
+        <div className="mt-1 font-medium text-gray-800 dark:text-white/90">Acces valide</div>
       </div>
       <div>
         <div className="text-sm text-gray-500 dark:text-gray-400">Usage</div>
-        <div className="mt-1 font-medium text-gray-800 dark:text-white/90">Session academique</div>
+        <div className="mt-1 font-medium text-gray-800 dark:text-white/90">Macaron imprimable (PDF)</div>
       </div>
       {description ? (
         <div className="sm:col-span-2">
@@ -91,6 +91,20 @@ const SessionProductView = ({ title, description }: { title: string; description
           <div className="mt-1 whitespace-pre-line text-sm text-gray-700 dark:text-gray-300">{description}</div>
         </div>
       ) : null}
+    </div>
+
+    <div className="mt-6 flex flex-wrap gap-3">
+      <a
+        href={`/product/session/${productId}/invoice`}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center justify-center rounded-lg bg-brand-500 px-5 py-3 text-sm font-medium text-white transition hover:bg-brand-600"
+      >
+        Generer le macaron (PDF)
+      </a>
+      <span className="inline-flex items-center rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">
+        QR code de verification inclus
+      </span>
     </div>
   </ProductShell>
 );
@@ -240,7 +254,7 @@ const ProductViewSwitch = ({
   subjectRequestLocked?: boolean;
 }) => {
   if (category === "session") {
-    return <SessionProductView title={title} description={description} />;
+    return <SessionProductView title={title} description={description} productId={productId} />;
   }
 
   if (category === "documents") {

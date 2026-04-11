@@ -235,8 +235,8 @@ export default async function FacultyCommandeDetailPage({ params }: FacultyComma
             Ce document est un relevé de notes. Il suffit de générer le PDF pour l'étudiant (statut success requis).
           </p>
           <form
-            action={`/product/documents/${detail.commande.product}/releve`}
-            method="get"
+            action={`/api/admin/commandes/${detail.commande.id}/releve`}
+            method="post"
             target="_blank"
             className="mt-4"
           >

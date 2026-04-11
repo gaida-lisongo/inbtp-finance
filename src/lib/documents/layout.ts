@@ -25,11 +25,11 @@ type OfficialHeaderInput = {
   referenceValue?: string | null;
 };
 
-const getSchoolName = () => process.env.NEXT_PUBLIC_SCHOOL_NAME?.trim() || "INSTITUT SUPERIEUR";
-const getInstitutSigle = () => process.env.NEXT_PUBLIC_INSTITUT?.trim() || "INBTP";
-const getContact = () => process.env.NEXT_PUBLIC_CONTACT?.trim() || "Non renseigne";
-const getEmail = () => process.env.NEXT_PUBLIC_EMAIL?.trim() || "Non renseigne";
-const getAddress = () => process.env.NEXT_PUBLIC_ADRESS?.trim() || "Non renseigne";
+export const getSchoolName = () => process.env.NEXT_PUBLIC_SCHOOL_NAME?.trim() || "INSTITUT SUPERIEUR";
+export const getInstitutSigle = () => process.env.NEXT_PUBLIC_INSTITUT?.trim() || "INBTP";
+export const getContact = () => process.env.NEXT_PUBLIC_CONTACT?.trim() || "Non renseigne";
+export const getEmail = () => process.env.NEXT_PUBLIC_EMAIL?.trim() || "Non renseigne";
+export const getAddress = () => process.env.NEXT_PUBLIC_ADRESS?.trim() || "Non renseigne";
 
 const buildRightStack = (right: DocumentHeaderInput["right"]) => {
   if (right.variant === "recipient") {

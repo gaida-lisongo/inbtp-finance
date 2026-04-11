@@ -317,6 +317,7 @@ export default function StudentResourcesWorkspace({ snapshot, initialType }: Stu
   const selectedIsStage = selectedCommande?.canonicalCategory === "stages";
   const selectedIsSubject = selectedCommande?.canonicalCategory === "sujets";
   const selectedIsLaboratoire = selectedCommande?.canonicalCategory === "laboratoire";
+  const selectedIsSession = selectedCommande?.canonicalCategory === "session";
   const selectedIsReleve =
     selectedCommande?.canonicalCategory === "documents" &&
     normalizeDocumentCategoryKey(selectedCommande.documentCategory) === "releve";
@@ -333,6 +334,8 @@ export default function StudentResourcesWorkspace({ snapshot, initialType }: Stu
     selectedIsLaboratoire && selectedCommande?.product
       ? `/product/laboratoire/${selectedCommande.product}/invoice`
       : null;
+  const selectedSessionInvoicePath =
+    selectedIsSession && selectedCommande?.product ? `/product/session/${selectedCommande.product}/invoice` : null;
   const resolvedAccessPath = selectedCommande
     ? accessPathByCommande[selectedCommande.id] ?? (selectedCommande.normalizedStatus === "success" ? selectedCommande.productPath : null)
     : null;
@@ -342,13 +345,15 @@ export default function StudentResourcesWorkspace({ snapshot, initialType }: Stu
         ? null
         : selectedIsSubject
           ? selectedSubjectCoverPath
-          : selectedLaboratoireInvoicePath ?? resolvedAccessPath
+          : selectedLaboratoireInvoicePath ?? selectedSessionInvoicePath ?? resolvedAccessPath
       : resolvedAccessPath;
   const resolvedProductLabel =
     selectedCommande?.normalizedStatus === "success" && selectedIsSubject
       ? "Generer la page de garde (PDF)"
       : selectedCommande?.normalizedStatus === "success" && selectedIsLaboratoire
         ? "Generer l'invoice laboratoire (PDF)"
+        : selectedCommande?.normalizedStatus === "success" && selectedIsSession
+          ? "Generer le macaron session (PDF)"
         : "Acceder a la ressource";
 
   const handleVerifySelectedCommande = () => {

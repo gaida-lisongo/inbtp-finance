@@ -43,7 +43,7 @@ export default async function OrderSearchPage({ params }: OrderSearchPageProps) 
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("commande")
-    .select("categorie, product")
+    .select('id, categorie, product')
     .eq("orderNumber", normalizedOrderNumber)
     .order("created_at", { ascending: false })
     .limit(1);
@@ -53,11 +53,13 @@ export default async function OrderSearchPage({ params }: OrderSearchPageProps) 
   }
 
   const commande = data?.[0];
+  console.log("Commande search result:", { data, error });
+  const commandeId = typeof commande?.id === "string" ? commande.id : null;
   const category = commande?.categorie ?? null;
   const productId = commande?.product ?? null;
 
-  if (isCommandeCategory(category) && typeof productId === "string" && productId.length > 0) {
-    redirect(getCommandePath(category, productId));
+  if (commandeId) {
+    redirect(`/commandes/${encodeURIComponent(commandeId)}`);
   }
 
   return (
