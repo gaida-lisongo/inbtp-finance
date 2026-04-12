@@ -6,7 +6,6 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
 import type { AuthenticatedUser } from "@/lib/utils/supabase/session";
 import type { AgentRole, MetierCategorie } from "@/types/education";
 import { canAccessMetier } from "@/constants/metier";
@@ -28,27 +27,16 @@ interface UseUserRoleReturn {
  * or fetched via useEffect
  */
 export function useUserRole(): UseUserRoleReturn {
-  const [user, setUser] = useState<AuthenticatedUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+  let user: AuthenticatedUser | null = null;
+  let error: Error | null = null;
 
-  // Attempt to get user from window context or local storage
-  // This assumes the parent server component passes user data somehow
-  useEffect(() => {
-    try {
-      // Check if user data is available in window context
-      // Fallback: This hook should receive user data as prop in real implementation
-      // For now, we assume parent component provides it via context or prop
-      const userData = (window as any).__AUTH_USER__;
-      if (userData) {
-        setUser(userData);
-      }
-      setIsLoading(false);
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error("Unknown error"));
-      setIsLoading(false);
+  try {
+    if (typeof window !== "undefined") {
+      user = ((window as unknown as { __AUTH_USER__?: AuthenticatedUser }).__AUTH_USER__ ?? null) as AuthenticatedUser | null;
     }
-  }, []);
+  } catch (err) {
+    error = err instanceof Error ? err : new Error("Unknown error");
+  }
 
   const role = (user?.role as AgentRole | null) || null;
   const isGestionnaire = role === "gestionnaire";
@@ -62,7 +50,7 @@ export function useUserRole(): UseUserRoleReturn {
     isOrganisateur,
     canAccessDashboard,
     canAccessMetier: (categorie: MetierCategorie) => canAccessMetier(role, categorie),
-    isLoading,
+    isLoading: false,
     error,
   };
 }

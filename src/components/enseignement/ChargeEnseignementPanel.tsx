@@ -210,7 +210,6 @@ export default function ChargeEnseignementPanel({
             <input type="hidden" name="annee" value={anneeId} />
             <input type="hidden" name="promotion" value={promotionId} />
             <input type="hidden" name="programme_id" value={promotionId} />
-
             <div>
               <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400" htmlFor="semestre-designation">
                 Designation
@@ -325,17 +324,16 @@ export default function ChargeEnseignementPanel({
             <input type="hidden" name="annee" value={anneeId} />
             <input type="hidden" name="promotion" value={promotionId} />
             <input type="hidden" name="semestre_id" value={activeSemestre?.id ?? ""} />
-
-            <div>
+            <div className="lg:col-span-2">
               <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400" htmlFor="unite-designation">
-                Designation
+              Designation
               </label>
               <input
-                id="unite-designation"
-                name="designation"
-                className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-                placeholder="Ex. Algorithmique"
-                required
+              id="unite-designation"
+              name="designation"
+              className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+              placeholder="Ex. Algorithmique"
+              required
               />
             </div>
 

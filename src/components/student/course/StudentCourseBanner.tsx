@@ -43,7 +43,7 @@ export default function StudentCourseBanner({ data }: StudentCourseBannerProps) 
           <div className="mt-1 font-semibold text-gray-900 dark:text-white/90">{data.semestre.designation || "Non renseigné"}</div>
         </div>
         <div className="border border-gray-200 bg-gray-50 px-4 py-4 text-sm sm:col-span-2 xl:col-span-4 dark:border-gray-800 dark:bg-gray-900">
-          <div className="text-gray-500 dark:text-gray-400">Unité d'enseignement</div>
+          <div className="text-gray-500 dark:text-gray-400">Unité d&apos;enseignement</div>
           <div className="mt-1 font-semibold text-gray-900 dark:text-white/90">{data.unite.designation || "Non renseignée"}</div>
         </div>
       </div>

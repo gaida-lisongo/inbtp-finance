@@ -22,7 +22,7 @@ export default function PromotionsList({
         <p className="text-sm text-gray-500 dark:text-gray-400">{activeRangeLabel}</p>
 
         {programmes.length === 0 ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400">Aucune promotion trouvée pour l'année active.</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Aucune promotion trouvée pour l&apos;année active.</p>
         ) : (
           <div className="max-h-[360px] overflow-y-auto pr-2">
             <div className="divide-y divide-gray-200 dark:divide-gray-800">

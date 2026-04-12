@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import type { StudentProgrammePageData } from "@/lib/utils/supabase/student-teaching";
 
@@ -13,11 +13,7 @@ const formatSemesterCredits = (value: number | null) => `${value ?? 0} credits`;
 
 export default function StudentProgrammePanel({ data }: StudentProgrammePanelProps) {
   const { programme, semestres, summary } = data;
-  const [selectedSemestreId, setSelectedSemestreId] = useState<string | null>(semestres[0]?.id ?? null);
-
-  useEffect(() => {
-    setSelectedSemestreId(semestres[0]?.id ?? null);
-  }, [semestres]);
+  const [selectedSemestreId, setSelectedSemestreId] = useState<string | null>(() => semestres[0]?.id ?? null);
 
   const activeSemestre = useMemo(
     () => semestres.find((semestre) => semestre.id === selectedSemestreId) ?? semestres[0] ?? null,

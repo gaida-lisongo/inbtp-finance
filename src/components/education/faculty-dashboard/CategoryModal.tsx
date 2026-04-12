@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 
 import Button from "@/components/ui/button/Button";
 import { Modal } from "@/components/ui/modal";
@@ -17,21 +17,23 @@ type CategoryModalProps = {
 };
 
 export default function CategoryModal({ category, commandes, isOpen, onClose }: CategoryModalProps) {
+  if (!isOpen) {
+    return null;
+  }
+
+  return <CategoryModalContent category={category} commandes={commandes} onClose={onClose} />;
+}
+
+function CategoryModalContent({
+  category,
+  commandes,
+  onClose,
+}: Omit<CategoryModalProps, "isOpen">) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
   const deferredSearch = useDeferredValue(search);
   const rowsPerPage = 5;
-
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    setSearch("");
-    setStatusFilter("all");
-    setPage(1);
-  }, [category?.key, isOpen]);
 
   const filteredRows = useMemo(() => {
     const query = deferredSearch.trim().toLowerCase();
@@ -67,7 +69,7 @@ export default function CategoryModal({ category, commandes, isOpen, onClose }: 
   const paginatedRows = filteredRows.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="xl" className="max-w-6xl p-0">
+    <Modal isOpen={true} onClose={onClose} size="xl" className="max-w-6xl p-0">
       <div className="rounded-3xl bg-white dark:bg-gray-900">
         <div className="border-b border-gray-200 px-6 py-5 dark:border-gray-800">
           <div className="flex flex-wrap items-start justify-between gap-4">

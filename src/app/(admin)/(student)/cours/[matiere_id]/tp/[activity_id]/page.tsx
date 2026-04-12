@@ -24,18 +24,25 @@ export default async function TpActivityPage({ params }: ActivityPageProps) {
     redirect("/");
   }
 
-  try {
-    const data = await getActivityAccessPageData(matiereId, activityId, "tp");
+  const loadResult = await (async () => {
+    try {
+      const data = await getActivityAccessPageData(matiereId, activityId, "tp");
+      return { data, error: null as string | null };
+    } catch (error) {
+      return { data: null as Awaited<ReturnType<typeof getActivityAccessPageData>> | null, error: getErrorMessage(error) };
+    }
+  })();
 
-    return (
-      <div className="space-y-6">
-        <PageBreadcrumb pageTitle={data.activity.designation || "TP"} />
-        <StudentCourseActivityPage category="tp" matiereId={matiereId} data={data} />
-      </div>
-    );
-  } catch (error) {
-    return <StudentCourseActivityErrorState matiereId={matiereId} message={getErrorMessage(error)} />;
+  if (!loadResult.data) {
+    return <StudentCourseActivityErrorState matiereId={matiereId} message={loadResult.error ?? getErrorMessage(null)} />;
   }
+
+  return (
+    <div className="space-y-6">
+      <PageBreadcrumb pageTitle={loadResult.data.activity.designation || "TP"} />
+      <StudentCourseActivityPage category="tp" matiereId={matiereId} data={loadResult.data} />
+    </div>
+  );
 }
 
 const getErrorMessage = (error: unknown) => {

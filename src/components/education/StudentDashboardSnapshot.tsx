@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import type { FacultyDashboardCategory } from "@/lib/utils/supabase/faculte-dashboard";
 import type { StudentDashboardSnapshot as StudentDashboardSnapshotData } from "@/lib/utils/supabase/student-dashboard";
@@ -21,12 +21,9 @@ export default function StudentDashboardSnapshot({ snapshot }: StudentDashboardS
   const { activeAnnee, availableResources, commandes, dateWindow, monthlySeries, programmes, summary } = snapshot;
   const [selectedCategory, setSelectedCategory] = useState<FacultyDashboardCategory | null>(null);
   const [transactionsCategoryFilter, setTransactionsCategoryFilter] = useState("all");
-  const [selectedProgrammeId, setSelectedProgrammeId] = useState<string | null>(programmes[0]?.id ?? null);
-
-  useEffect(() => {
-    const defaultProgramme = programmes.find((programme) => programme.annee_id === activeAnnee?.id) ?? programmes[0] ?? null;
-    setSelectedProgrammeId(defaultProgramme?.id ?? null);
-  }, [activeAnnee?.id, programmes]);
+  const defaultProgrammeId =
+    programmes.find((programme) => programme.annee_id === activeAnnee?.id)?.id ?? programmes[0]?.id ?? null;
+  const [selectedProgrammeId, setSelectedProgrammeId] = useState<string | null>(defaultProgrammeId);
 
   const selectedProgramme = useMemo(
     () => programmes.find((programme) => programme.id === selectedProgrammeId) ?? programmes[0] ?? null,

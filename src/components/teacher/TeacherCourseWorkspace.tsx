@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 
 import {
@@ -1586,7 +1587,7 @@ function PlanChapterCard({
           ))}
         </ul>
       ) : (
-        <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">Aucun élément structuré n'est encore défini.</p>
+        <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">Aucun élément structuré n&apos;est encore défini.</p>
       )}
     </article>
   );
@@ -1596,7 +1597,7 @@ function PlanReadView({ chapters }: { chapters: Array<{ chapter: string; items: 
   if (chapters.length === 0) {
     return (
       <article className="rounded-3xl border border-dashed border-gray-300 bg-white/60 p-6 text-sm text-gray-500 shadow-theme-sm dark:border-gray-700 dark:bg-white/[0.03] dark:text-gray-400">
-        Aucun chapitre n'est encore enregistré. Passe en mode édition pour ajouter des chapitres.
+        Aucun chapitre n&apos;est encore enregistré. Passe en mode édition pour ajouter des chapitres.
       </article>
     );
   }
@@ -1647,120 +1648,120 @@ function DescriptorFieldModals({
   openField: null | "description" | "objectifs" | "methodologies" | "penalites" | "competences" | "disponiblites";
   onClose: () => void;
 }) {
-  const [descriptionValue, setDescriptionValue] = useState("");
-  const [objectifsGeneral, setObjectifsGeneral] = useState("");
-  const [objectifsSpecifique, setObjectifsSpecifique] = useState("");
-  const [methodologies, setMethodologies] = useState("");
-  const [penalties, setPenalties] = useState<Array<{ penalite: string; sanction: string }>>([]);
-  const [competences, setCompetences] = useState<Array<{ competence: string; description: string }>>([]);
-  const [disponibilites, setDisponibilites] = useState({
-    frequence: "",
-    periode: "",
-    contact: "",
-    bureau: "",
-  });
+  if (!openField) {
+    return null;
+  }
 
-  useEffect(() => {
+  return <DescriptorFieldModalsContent key={`${data.cours.id}-${openField}`} data={data} openField={openField} onClose={onClose} />;
+}
+
+function DescriptorFieldModalsContent({
+  data,
+  openField,
+  onClose,
+}: {
+  data: TeacherCoursePageDetails;
+  openField: "description" | "objectifs" | "methodologies" | "penalites" | "competences" | "disponiblites";
+  onClose: () => void;
+}) {
+  const [descriptionValue, setDescriptionValue] = useState(() => {
     const description = data.courseDetails?.description;
-    setDescriptionValue(typeof description === "string" ? description : "");
-
+    return typeof description === "string" ? description : "";
+  });
+  const [objectifsGeneral, setObjectifsGeneral] = useState(() => {
     const objectifsSource = data.courseDetails?.objectifs;
     const objectifsRecord =
-      objectifsSource && typeof objectifsSource === "object"
-        ? (objectifsSource as Record<string, unknown>)
-        : null;
+      objectifsSource && typeof objectifsSource === "object" ? (objectifsSource as Record<string, unknown>) : null;
     const objectifsGeneralValue = objectifsRecord?.general;
-    setObjectifsGeneral(typeof objectifsGeneralValue === "string" ? objectifsGeneralValue : "");
+    return typeof objectifsGeneralValue === "string" ? objectifsGeneralValue : "";
+  });
+  const [objectifsSpecifique, setObjectifsSpecifique] = useState(() => {
+    const objectifsSource = data.courseDetails?.objectifs;
+    const objectifsRecord =
+      objectifsSource && typeof objectifsSource === "object" ? (objectifsSource as Record<string, unknown>) : null;
     const specificsSource = Array.isArray(objectifsRecord?.speficique)
       ? objectifsRecord?.speficique
       : Array.isArray(objectifsRecord?.specifique)
         ? objectifsRecord?.specifique
         : [];
-    setObjectifsSpecifique(
-      (specificsSource ?? [])
-        .filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 0)
-        .join("\n"),
-    );
 
+    return (specificsSource ?? [])
+      .filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 0)
+      .join("\n");
+  });
+  const [methodologies, setMethodologies] = useState(() => {
     const methodologiesSource = data.courseDetails?.methodologies;
     const methodologiesRecord =
       methodologiesSource && typeof methodologiesSource === "object"
         ? (methodologiesSource as Record<string, unknown>)
         : null;
     const methodesSource = methodologiesRecord?.methodes;
-    setMethodologies(
-      Array.isArray(methodesSource)
-        ? methodesSource
-            .filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 0)
-            .join("\n")
-        : "",
-    );
 
+    return Array.isArray(methodesSource)
+      ? methodesSource
+          .filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 0)
+          .join("\n")
+      : "";
+  });
+  const [penalties, setPenalties] = useState<Array<{ penalite: string; sanction: string }>>(() => {
     const penalitesSource = data.courseDetails?.penalites;
     const penalitesRecord =
-      penalitesSource && typeof penalitesSource === "object"
-        ? (penalitesSource as Record<string, unknown>)
-        : null;
+      penalitesSource && typeof penalitesSource === "object" ? (penalitesSource as Record<string, unknown>) : null;
     const penaltiesSource = penalitesRecord?.penalites;
-    setPenalties(
-      Array.isArray(penaltiesSource)
-        ? penaltiesSource
-            .map((item: unknown) => {
-              if (!item || typeof item !== "object") {
-                return null;
-              }
 
-              const row = item as Record<string, unknown>;
-              return {
-                penalite: typeof row.penalite === "string" ? row.penalite : "",
-                sanction: typeof row.sanction === "string" ? row.sanction : "",
-              };
-            })
-            .filter((item): item is { penalite: string; sanction: string } => item !== null)
-        : [],
-    );
+    return Array.isArray(penaltiesSource)
+      ? penaltiesSource
+          .map((item: unknown) => {
+            if (!item || typeof item !== "object") {
+              return null;
+            }
 
+            const row = item as Record<string, unknown>;
+            return {
+              penalite: typeof row.penalite === "string" ? row.penalite : "",
+              sanction: typeof row.sanction === "string" ? row.sanction : "",
+            };
+          })
+          .filter((item): item is { penalite: string; sanction: string } => item !== null)
+      : [];
+  });
+  const [competences, setCompetences] = useState<Array<{ competence: string; description: string }>>(() => {
     const competencesSource = data.courseDetails?.competences;
     const competencesRecord =
-      competencesSource && typeof competencesSource === "object"
-        ? (competencesSource as Record<string, unknown>)
-        : null;
+      competencesSource && typeof competencesSource === "object" ? (competencesSource as Record<string, unknown>) : null;
     const competencesArraySource = competencesRecord?.competences;
-    setCompetences(
-      Array.isArray(competencesArraySource)
-        ? competencesArraySource
-            .map((item: unknown) => {
-              if (!item || typeof item !== "object") {
-                return null;
-              }
 
-              const row = item as Record<string, unknown>;
-              return {
-                competence: typeof row.competence === "string" ? row.competence : "",
-                description: typeof row.description === "string" ? row.description : "",
-              };
-            })
-            .filter((item): item is { competence: string; description: string } => item !== null)
-        : [],
-    );
+    return Array.isArray(competencesArraySource)
+      ? competencesArraySource
+          .map((item: unknown) => {
+            if (!item || typeof item !== "object") {
+              return null;
+            }
 
+            const row = item as Record<string, unknown>;
+            return {
+              competence: typeof row.competence === "string" ? row.competence : "",
+              description: typeof row.description === "string" ? row.description : "",
+            };
+          })
+          .filter((item): item is { competence: string; description: string } => item !== null)
+      : [];
+  });
+  const [disponibilites, setDisponibilites] = useState(() => {
     const dispoSource = data.courseDetails?.disponiblites;
     const dispo = dispoSource && typeof dispoSource === "object" ? (dispoSource as Record<string, unknown>) : {};
-    setDisponibilites({
+
+    return {
       frequence: typeof dispo.frequence === "string" ? dispo.frequence : "",
       periode: typeof dispo.periode === "string" ? dispo.periode : "",
       contact: typeof dispo.contact === "string" ? dispo.contact : "",
       bureau: typeof dispo.bureau === "string" ? dispo.bureau : "",
-    });
-  }, [data]);
+    };
+  });
 
   const closeModal = () => {
     onClose();
   };
-
-  if (!openField) {
-    return null;
-  }
 
   const commonHiddenFields = (
     <>
@@ -1770,7 +1771,7 @@ function DescriptorFieldModals({
   );
 
   return (
-    <Modal isOpen={Boolean(openField)} onClose={closeModal} className="m-4 max-w-4xl">
+    <Modal isOpen onClose={closeModal} className="m-4 max-w-4xl">
       <div className="p-6">
         {openField === "description" ? (
           <form action={saveTeacherCourseDescriptorAction} className="space-y-4">
@@ -2053,9 +2054,9 @@ function TeacherActivityCard({
   return (
     <article className="rounded-3xl border border-gray-200 bg-white shadow-theme-sm dark:border-gray-800 dark:bg-white/[0.03]">
       <div className="overflow-hidden rounded-t-3xl">
-        <img
+        <Image
           src="/images/carousel/carousel-04.png"
-          alt="Illustration de l'épreuve"
+          alt="Illustration de l&apos;épreuve"
           className="h-52 w-full object-cover"
           width={384}
           height={208}
@@ -2180,7 +2181,7 @@ function AddActivityModal({
             Annuler
           </button>
           <button type="submit" className="rounded-full bg-brand-500 px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-600">
-            Créer l'épreuve
+            Créer l&apos;épreuve
           </button>
         </div>
       </form>
@@ -2189,11 +2190,15 @@ function AddActivityModal({
 }
 
 function QuestionnaireModal({ activity, onClose }: { activity: TeacherCourseActivity | null; onClose: () => void }) {
-  const [questionRows, setQuestionRows] = useState<TeacherCourseQuestion[]>([]);
+  if (!activity) {
+    return null;
+  }
 
-  useEffect(() => {
-    setQuestionRows(activity?.questions ?? []);
-  }, [activity]);
+  return <QuestionnaireModalContent key={activity.id} activity={activity} onClose={onClose} />;
+}
+
+function QuestionnaireModalContent({ activity, onClose }: { activity: TeacherCourseActivity; onClose: () => void }) {
+  const [questionRows, setQuestionRows] = useState<TeacherCourseQuestion[]>(() => activity.questions ?? []);
 
   const updateRow = (index: number, field: keyof TeacherCourseQuestion, value: string | number | undefined | string[]) => {
     setQuestionRows((current) =>
@@ -2237,10 +2242,6 @@ function QuestionnaireModal({ activity, onClose }: { activity: TeacherCourseActi
     form.submit();
     hiddenInput.remove();
   };
-
-  if (!activity) {
-    return null;
-  }
 
   return (
     <Modal isOpen onClose={onClose} className="m-4 max-w-5xl">
@@ -2375,7 +2376,7 @@ function ActivityNotesModal({ activity, onClose }: { activity: TeacherCourseActi
           </button>
         </div>
         {activity.notes.length === 0 ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400">Aucune note n'a encore été enregistrée pour cette activité.</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Aucune note n&apos;a encore été enregistrée pour cette activité.</p>
         ) : (
           <div className="space-y-3">
             {activity.notes.map((note) => (
@@ -2417,11 +2418,15 @@ function ActivityNotesModal({ activity, onClose }: { activity: TeacherCourseActi
 }
 
 function QuestionnaireEditor({ activity, onClose }: { activity: TeacherCourseActivity | null; onClose: () => void }) {
-  const [questionRows, setQuestionRows] = useState<TeacherCourseQuestion[]>([]);
+  if (!activity) {
+    return null;
+  }
 
-  useEffect(() => {
-    setQuestionRows(activity?.questions ?? []);
-  }, [activity]);
+  return <QuestionnaireEditorContent key={activity.id} activity={activity} onClose={onClose} />;
+}
+
+function QuestionnaireEditorContent({ activity, onClose }: { activity: TeacherCourseActivity; onClose: () => void }) {
+  const [questionRows, setQuestionRows] = useState<TeacherCourseQuestion[]>(() => activity.questions ?? []);
 
   const updateRow = (index: number, field: keyof TeacherCourseQuestion, value: string | number | undefined | string[]) => {
     setQuestionRows((current) =>
@@ -2496,10 +2501,6 @@ function QuestionnaireEditor({ activity, onClose }: { activity: TeacherCourseAct
   const removeQuestion = (index: number) => {
     setQuestionRows((current) => current.filter((_, rowIndex) => rowIndex !== index));
   };
-
-  if (!activity) {
-    return null;
-  }
 
   const serializedQuestions = useMemo(
     () =>
@@ -2615,7 +2616,7 @@ function QuestionnaireEditor({ activity, onClose }: { activity: TeacherCourseAct
                   className="text-xs font-semibold text-error-600 hover:text-error-700"
                   onClick={() => removeQuestion(index)}
                 >
-                  {activity.category === "tp" ? "Supprimer l'énoncé" : "Supprimer la question"}
+                  {activity.category === "tp" ? "Supprimer l&apos;énoncé" : "Supprimer la question"}
                 </button>
               </div>
             </div>
@@ -2631,7 +2632,7 @@ function QuestionnaireEditor({ activity, onClose }: { activity: TeacherCourseAct
           </button>
           {activity.category === "qcm" && (
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              Chaque champ "ligne" correspond à une réponse possible; indiquez l'index correct à partir de 0.
+              Chaque champ &quot;ligne&quot; correspond à une réponse possible; indiquez l&apos;index correct à partir de 0.
             </p>
           )}
         </div>

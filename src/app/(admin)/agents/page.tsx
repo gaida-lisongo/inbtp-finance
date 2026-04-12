@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 export default async function AgentsPage() {
   const user = await getAuthenticatedUser();
 
-  if (!user || !user.canAccessAdmin || user.role !== "gestionnaire") {
+  if (!user || user.role !== "organisateur") {
     redirect("/signin?error=access_denied");
   }
 

@@ -37,22 +37,31 @@ export default async function StudentCoursePage({ params }: StudentCoursePagePro
     redirect("/");
   }
 
-  try {
-    const data = await getStudentCourseDetails(matiereId);
+  const loadResult = await (async () => {
+    try {
+      const data = await getStudentCourseDetails(matiereId);
+      return { data, error: null as string | null };
+    } catch (error) {
+      return { data: null as Awaited<ReturnType<typeof getStudentCourseDetails>> | null, error: getErrorMessage(error) };
+    }
+  })();
 
-    return (
-      <div className="space-y-6">
-        <PageBreadcrumb pageTitle={data.matiere.designation || "Cours"} />
-        <StudentCourseOverview data={data} />
-      </div>
-    );
-  } catch (error) {
+  if (!loadResult.data) {
     return (
       <div className="rounded-3xl border border-error-200 bg-white p-8 shadow-theme-sm dark:border-error-500/30 dark:bg-white/[0.03]">
         <div className="text-sm font-medium uppercase tracking-[0.2em] text-error-600">Cours indisponible</div>
         <h1 className="mt-4 text-2xl font-semibold text-gray-900 dark:text-white/90">Impossible de charger ce cours</h1>
-        <p className="mt-4 text-sm leading-6 text-gray-600 dark:text-gray-300">{getErrorMessage(error)}</p>
+        <p className="mt-4 text-sm leading-6 text-gray-600 dark:text-gray-300">
+          {loadResult.error ?? "Impossible de charger ce cours."}
+        </p>
       </div>
     );
   }
+
+  return (
+    <div className="space-y-6">
+      <PageBreadcrumb pageTitle={loadResult.data.matiere.designation || "Cours"} />
+      <StudentCourseOverview data={loadResult.data} />
+    </div>
+  );
 }

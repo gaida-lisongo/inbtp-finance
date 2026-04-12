@@ -232,7 +232,7 @@ export default async function FacultyCommandeDetailPage({ params }: FacultyComma
         <section className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/[0.03]">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white/90">Génération bulletin</h2>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-            Ce document est un relevé de notes. Il suffit de générer le PDF pour l'étudiant (statut success requis).
+            Ce document est un relevé de notes. Il suffit de générer le PDF pour l&apos;étudiant (statut success requis).
           </p>
           <form
             action={`/api/admin/commandes/${detail.commande.id}/releve`}

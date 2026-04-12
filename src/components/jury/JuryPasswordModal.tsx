@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { Modal } from "@/components/ui/modal";
 
@@ -19,13 +19,27 @@ export default function JuryPasswordModal({
   isSubmitting = false,
   error,
 }: JuryPasswordModalProps) {
-  const [password, setPassword] = useState("");
+  if (!isOpen) {
+    return null;
+  }
 
-  useEffect(() => {
-    if (isOpen) {
-      setPassword("");
-    }
-  }, [isOpen]);
+  return (
+    <JuryPasswordModalContent
+      onClose={onClose}
+      onConfirm={onConfirm}
+      isSubmitting={isSubmitting}
+      error={error}
+    />
+  );
+}
+
+function JuryPasswordModalContent({
+  onClose,
+  onConfirm,
+  isSubmitting,
+  error,
+}: Omit<JuryPasswordModalProps, "isOpen">) {
+  const [password, setPassword] = useState("");
 
   const handleConfirm = useCallback(() => {
     const trimmed = password.trim();
@@ -34,7 +48,7 @@ export default function JuryPasswordModal({
   }, [onConfirm, password]);
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="md">
+    <Modal isOpen={true} onClose={onClose} size="md">
       <div className="space-y-5">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">
@@ -84,4 +98,3 @@ export default function JuryPasswordModal({
     </Modal>
   );
 }
-
