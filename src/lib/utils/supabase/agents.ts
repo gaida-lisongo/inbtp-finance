@@ -489,10 +489,10 @@ export const getAllAgents = async (): Promise<AgentRecord[]> => {
 
 export const createAgent = async (agentData: {
   nom: string;
-  post_nom: string;
+  post_nom: string | null;
   prenom: string;
   email: string;
-  grade: string;
+  grade: string | null;
   role?: string | null;
 }): Promise<AgentRecord> => {
   const supabase = createAdminClient();

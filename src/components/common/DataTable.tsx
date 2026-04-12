@@ -16,6 +16,7 @@ interface DataTableProps<T> {
   onEdit?: (item: T) => void;
   onDelete?: (item: T) => void;
   addButtonLabel?: string;
+  headerActions?: React.ReactNode;
 }
 
 function DataTable<T extends { id: string }>({
@@ -26,6 +27,7 @@ function DataTable<T extends { id: string }>({
   onEdit,
   onDelete,
   addButtonLabel = "Ajouter",
+  headerActions,
 }: DataTableProps<T>) {
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -40,7 +42,7 @@ function DataTable<T extends { id: string }>({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center gap-3">
         <input
           type="text"
           placeholder={searchPlaceholder}
@@ -48,11 +50,16 @@ function DataTable<T extends { id: string }>({
           onChange={(e) => setSearchTerm(e.target.value)}
           className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white"
         />
-        {onAdd && (
-          <Button onClick={onAdd} size="sm">
-            {addButtonLabel}
-          </Button>
-        )}
+        {headerActions || onAdd ? (
+          <div className="flex items-center gap-2">
+            {headerActions}
+            {onAdd ? (
+              <Button onClick={onAdd} size="sm">
+                {addButtonLabel}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
         <div className="max-w-full overflow-x-auto">

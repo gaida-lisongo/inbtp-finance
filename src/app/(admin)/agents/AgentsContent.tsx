@@ -6,6 +6,7 @@ import { Modal } from "@/components/ui/modal";
 import Form from "@/components/form/Form";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
+import AgentCsvImportModal from "@/components/agents/AgentCsvImportModal";
 import type { AgentRecord } from "@/lib/utils/supabase/agents-shared";
 import { getAgentsAction, createAgentAction, updateAgentAction, deleteAgentAction } from "@/app/actions/agents";
 
@@ -16,6 +17,7 @@ export default function AgentsContent() {
   // Modals
   const [agentModalOpen, setAgentModalOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<AgentRecord | null>(null);
+  const [csvImportOpen, setCsvImportOpen] = useState(false);
 
   // Forms
   const [agentForm, setAgentForm] = useState({
@@ -120,6 +122,10 @@ export default function AgentsContent() {
     return <div>Chargement...</div>;
   }
 
+  const existingEmails = agents
+    .map((agent) => agent.email ?? "")
+    .filter((value) => value.trim().length > 0);
+
   return (
     <>
       <DataTable
@@ -130,6 +136,21 @@ export default function AgentsContent() {
         onEdit={handleEditAgent}
         onDelete={handleDeleteAgent}
         addButtonLabel="Ajouter Agent"
+        headerActions={
+          <Button size="sm" variant="outline" onClick={() => setCsvImportOpen(true)}>
+            Importer CSV
+          </Button>
+        }
+      />
+
+      <AgentCsvImportModal
+        isOpen={csvImportOpen}
+        onClose={() => setCsvImportOpen(false)}
+        existingEmails={existingEmails}
+        onImported={() => {
+          setCsvImportOpen(false);
+          loadAgents();
+        }}
       />
 
       {/* Agent Modal */}
