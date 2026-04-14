@@ -17,6 +17,11 @@ const normalizeText = (value: string | null | undefined) => {
 };
 
 const appBaseUrl = process.env.NEXT_PUBLIC_HOST_URL?.replace(/\/$/, "");
+const buildSerialNumber = (productId: string, orderReference: string) => {
+  const raw = `${orderReference}${productId}`.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (raw.length >= 14) return raw.slice(-14);
+  return raw.padStart(14, "0");
+};
 
 export async function GET(_request: Request, context: { params: Promise<{ product_id: string }> }) {
   try {
@@ -67,9 +72,10 @@ export async function GET(_request: Request, context: { params: Promise<{ produc
 
     const orderReference = productData.existingSuccessCommande?.orderNumber ?? productData.existingSuccessCommande?.id ?? productId;
     const verificationBaseUrl = appBaseUrl ?? "http://localhost:3000";
-    const verificationUrl = `${verificationBaseUrl}/api/checking/releve/${productId}?student_id=${encodeURIComponent(
+    const verificationUrl = `${verificationBaseUrl}/checking/releve/${productId}?student_id=${encodeURIComponent(
       productData.student.id,
     )}&order=${encodeURIComponent(orderReference)}`;
+    const serialNumber = buildSerialNumber(productId, orderReference);
 
     const units = studentResult.semestres.flatMap((semestre) =>
       semestre.unites.map((unite) => ({
@@ -78,6 +84,17 @@ export async function GET(_request: Request, context: { params: Promise<{ produc
         designation: unite.designation,
         statut: unite.isValide ? ("V" as const) : ("NV" as const),
         credit: unite.credit,
+        moyenne: unite.sessions.best.moyenne,
+        elements: (unite.elements ?? []).map((element) => ({
+          designation: element.designation,
+          credit: element.credit,
+          cc: element.cc,
+          examen: element.examen,
+          noteSession: element.noteSession,
+          rattrapage: element.rattrapage,
+          rachat: element.rachat,
+          noteFinale: element.noteFinale,
+        })),
       })),
     );
 
@@ -91,6 +108,7 @@ export async function GET(_request: Request, context: { params: Promise<{ produc
       matricule: studentResult.matricule || "Non renseigne",
       programmeName: programme?.designation ?? "Promotion",
       orderReference,
+      serialNumber,
       units,
       summary: {
         ncv: bestSummary.ncv,

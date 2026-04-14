@@ -551,9 +551,11 @@ export const generateReleveForFaculty = async (commandeId: string) => {
 
   const orderReference = detail.commande.orderNumber ?? detail.commande.id;
   const verificationBaseUrl = appBaseUrl ?? "http://localhost:3000";
-  const verificationUrl = `${verificationBaseUrl}/api/checking/releve/${productId}?student_id=${encodeURIComponent(
+  const verificationUrl = `${verificationBaseUrl}/checking/releve/${productId}?student_id=${encodeURIComponent(
     detail.student.id,
   )}&order=${encodeURIComponent(orderReference)}`;
+  const serialRaw = `${orderReference}${productId}`.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const serialNumber = serialRaw.length >= 14 ? serialRaw.slice(-14) : serialRaw.padStart(14, "0");
 
   const units = studentResult.semestres.flatMap((semestre) =>
     semestre.unites.map((unite) => ({
@@ -562,6 +564,17 @@ export const generateReleveForFaculty = async (commandeId: string) => {
       designation: unite.designation,
       statut: unite.isValide ? ("V" as const) : ("NV" as const),
       credit: unite.credit,
+      moyenne: unite.sessions.best.moyenne,
+      elements: (unite.elements ?? []).map((element) => ({
+        designation: element.designation,
+        credit: element.credit,
+        cc: element.cc,
+        examen: element.examen,
+        noteSession: element.noteSession,
+        rattrapage: element.rattrapage,
+        rachat: element.rachat,
+        noteFinale: element.noteFinale,
+      })),
     })),
   );
 
@@ -575,6 +588,7 @@ export const generateReleveForFaculty = async (commandeId: string) => {
     matricule: studentResult.matricule || "Non renseigne",
     programmeName: programme?.designation ?? "Promotion",
     orderReference,
+    serialNumber,
     units,
     summary: {
       ncv: bestSummary.ncv,

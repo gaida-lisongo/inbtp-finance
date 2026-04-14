@@ -17,9 +17,10 @@ type JuryPromotionCardProps = {
     description: string | null;
     annee_id: string | null;
   }>;
+  basePath?: string;
 };
 
-export default function JuryPromotionCard({ jury, programmes }: JuryPromotionCardProps) {
+export default function JuryPromotionCard({ jury, programmes, basePath = "/jury" }: JuryPromotionCardProps) {
 
   const presidentLabel = jury.president
     ? [jury.president.prenom, jury.president.post_nom, jury.president.nom]
@@ -87,7 +88,7 @@ export default function JuryPromotionCard({ jury, programmes }: JuryPromotionCar
             {programmes.length} promotion{programmes.length > 1 ? "s" : ""}
           </span>
           <Link
-            href={`/jury/${jury.id}`}
+            href={`${basePath}/${jury.id}`}
             className="rounded-full bg-red-600 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-white transition hover:bg-red-500"
           >
             Voir les promotions

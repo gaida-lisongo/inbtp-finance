@@ -1,7 +1,6 @@
 import { Document, type PdfDocumentDefinition, type ReferenceItem } from "@/lib/documents/Document";
 import { buildOfficialDocumentHeader } from "@/lib/documents/layout";
 import { getChefSignatory } from "@/lib/documents/signatory";
-import { getSchoolPdfBrandingAssets } from "../assets/asset-images.server";
 
 export type ReleveUnitItem = {
   semestre: string;
@@ -9,6 +8,17 @@ export type ReleveUnitItem = {
   designation: string;
   statut: "V" | "NV";
   credit: number;
+  moyenne: number;
+  elements: Array<{
+    designation: string;
+    credit: number;
+    cc: number;
+    examen: number;
+    noteSession: number;
+    rattrapage: number;
+    rachat: number;
+    noteFinale: number;
+  }>;
 };
 
 export type ReleveSummary = {
@@ -28,6 +38,7 @@ export type DocumentRelevePayload = {
   matricule: string;
   programmeName: string;
   orderReference: string;
+  serialNumber: string;
   units: ReleveUnitItem[];
   summary: ReleveSummary;
   verificationUrl: string;
@@ -44,6 +55,18 @@ const formatPercentage = (value: number) =>
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   }).format(value);
+
+const formatGrade = (value: number) =>
+  new Intl.NumberFormat("fr-FR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(value);
+
+const normalizeSerial = (value: string) => {
+  const normalized = (value ?? "").toString().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (normalized.length >= 14) return normalized.slice(-14);
+  return normalized.padStart(14, "0");
+};
 
 export class DocumentReleve extends Document<DocumentRelevePayload> {
   info() {
@@ -86,191 +109,237 @@ export class DocumentReleve extends Document<DocumentRelevePayload> {
 
   async content(docDefinition: PdfDocumentDefinition) {
     const today = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(new Date());
-    const header = await buildOfficialDocumentHeader({
+    const [headerTop] = await buildOfficialDocumentHeader({
       dateLabel: today,
-      sectionLabel: "Scolarite",
-      referenceValue: this.payload.orderReference,
+      sectionLabel: null,
+      referenceValue: null,
     });
-    const { schoolLogo } = await getSchoolPdfBrandingAssets();
+
+    const serialNumber = normalizeSerial(this.payload.serialNumber);
+    const serialCells = serialNumber.split("").map((char) => ({
+      text: char,
+      alignment: "center" as const,
+      bold: true,
+      fontSize: 10,
+      margin: [0, 4, 0, 4] as [number, number, number, number],
+    }));
+
+    const unitsRows: unknown[] = this.payload.units.map((unit) => {
+      const statusColor = unit.statut === "V" ? "#15803D" : "#B91C1C";
+
+      return [
+        { text: unit.code, alignment: "center", fontSize: 8, margin: [0, 1, 0, 1] },
+        { text: unit.designation, fontSize: 8, margin: [0, 1, 0, 1] },
+        { text: formatCredit(unit.credit), alignment: "center", fontSize: 8, margin: [0, 1, 0, 1] },
+        { text: `${formatGrade(unit.moyenne)}/20`, alignment: "center", fontSize: 8, margin: [0, 1, 0, 1], bold: true },
+        { text: unit.statut, alignment: "center", fontSize: 8, margin: [0, 1, 0, 1], bold: true, color: statusColor },
+      ];
+    });
+
+    docDefinition.styles = {
+      ...(docDefinition.styles ?? {}),
+      tableHeader: { bold: true, alignment: "center", fontSize: 8, margin: [0, 3, 0, 3] },
+      sectionRow: { bold: true, fontSize: 9, color: "#111827", margin: [0, 4, 0, 4] },
+      metaLabel: { fontSize: 8.2, color: "#6B7280" },
+      metaValue: { fontSize: 8.2, bold: true, color: "#111827" },
+    };
+
+    docDefinition.pageMargins = [18, 14, 18, 14];
+    docDefinition.defaultStyle = {
+      ...(docDefinition.defaultStyle ?? {}),
+      fontSize: 8.5,
+      lineHeight: 1.05,
+    };
 
     const summaryTable = {
       table: {
-        widths: [120, 90],
+        widths: [90, "*"],
         body: [
-          ["NCV", String(this.payload.summary.ncv)],
-          ["NCNV", String(this.payload.summary.ncnv)],
-          ["Total obtenu", formatCredit(this.payload.summary.totalObtenu)],
-          ["Total max", formatCredit(this.payload.summary.totalMax)],
-          [
-            "Pourcentage",
-            `${formatPercentage(this.payload.summary.pourcentage)}%`,
-          ],
-          ["Mention", this.payload.summary.mention],
-          ["Decision", this.payload.summary.decision],
+          [{ text: "NCV", style: "metaLabel" }, { text: String(this.payload.summary.ncv), style: "metaValue" }],
+          [{ text: "NCNV", style: "metaLabel" }, { text: String(this.payload.summary.ncnv), style: "metaValue" }],
+          [{ text: "Pourcentage", style: "metaLabel" }, { text: `${formatPercentage(this.payload.summary.pourcentage)}%`, style: "metaValue" }],
+          [{ text: "Mention", style: "metaLabel" }, { text: this.payload.summary.mention, style: "metaValue" }],
+          [{ text: "Decision", style: "metaLabel" }, { text: this.payload.summary.decision, style: "metaValue" }],
         ],
       },
       layout: "lightHorizontalLines",
     };
 
-    const tableBody = [
+    const sectionLabel = process.env.NEXT_PUBLIC_SECTION?.trim() || "Non renseignée";
+
+    const outerTableBody: unknown[] = [
       [
-        { text: "Semestre", style: "tableHeaderCenter" },
-        { text: "Code", style: "tableHeaderCenter" },
-        { text: "Unité", style: "tableHeaderLeft" },
-        { text: "Statut", style: "tableHeaderCenter" },
-        { text: "Crédit", style: "tableHeaderCenter" },
-      ],
-      ...this.payload.units.map((unit) => [
-        { text: unit.semestre, alignment: "center", fontSize: 8 },
-        { text: unit.code, alignment: "center", fontSize: 8 },
-        { text: unit.designation, fontSize: 8 },
         {
-          text: unit.statut,
-          alignment: "center",
-          bold: true,
-          fontSize: 8,
-          color: unit.statut === "V" ? "#15803D" : "#B91C1C",
+          colSpan: 5,
+          stack: [
+            { ...(headerTop as Record<string, unknown>), margin: [0, 0, 0, 2] },
+            { text: "RELEVE DE COTES", alignment: "center", bold: true, fontSize: 11, margin: [0, 0, 0, 2] },
+          ],
         },
-        { text: formatCredit(unit.credit), alignment: "center", fontSize: 8 },
-      ]),
-    ];
-
-    docDefinition.styles = {
-      ...(docDefinition.styles ?? {}),
-      tableHeaderCenter: { bold: true, alignment: "center", fontSize: 9, margin: [0, 4, 0, 4] },
-      tableHeaderLeft: { bold: true, alignment: "left", fontSize: 9, margin: [0, 4, 0, 4] },
-    };
-
-    docDefinition.content = [
-      ...header,
-      { text: "BULLETIN DE NOTES", style: "title", margin: [0, 0, 0, 12] },
-      {
-        columns: [
-          {
-            width: "*",
-            stack: [
-              {
-                text: [
-                  "Etudiant: ",
-                  { text: this.payload.studentName, bold: true },
+        "",
+        "",
+        "",
+        "",
+      ],
+      [
+        {
+          colSpan: 5,
+          columns: [
+            {
+              width: "*",
+              table: {
+                widths: [78, "*"],
+                body: [
+                  [{ text: "Étudiant", style: "metaLabel" }, { text: this.payload.studentName, style: "metaValue" }],
+                  [{ text: "Matricule", style: "metaLabel" }, { text: this.payload.matricule || "Non renseigné", style: "metaValue" }],
                 ],
-                margin: [0, 0, 0, 4],
               },
-              {
-                text: `Matricule: ${this.payload.matricule}`,
-                margin: [0, 0, 0, 4],
+              layout: "noBorders",
+              margin: [0, 1, 8, 1],
+            },
+            {
+              width: "*",
+              table: {
+                widths: [65, "*"],
+                body: [
+                  [{ text: "Programme", style: "metaLabel" }, { text: this.payload.programmeName || "Non renseigné", style: "metaValue" }],
+                  [{ text: "Section", style: "metaLabel" }, { text: sectionLabel, style: "metaValue" }],
+                ],
               },
-              {
-                text: `Promotion: ${this.payload.programmeName}`,
-                margin: [0, 0, 0, 6],
-              },
-              {
-                text: `Email: ${this.payload.studentEmail ?? "Non renseigne"}`,
-                fontSize: 9,
-                margin: [0, 0, 0, 2],
-              },
-              {
-                text: `Tel: ${this.payload.studentPhone ?? "Non renseigne"}`,
-                fontSize: 9,
-              },
-            ],
-          },
-          {
-            width: 120,
-            stack: [
-              { text: "Synthèse globale", style: "sectionLabel" },
-              summaryTable,
-            ],
-          },
-        ],
-      },
-      {
-        text: "Detail des unites",
-        style: "sectionLabel",
-        margin: [0, 12, 0, 6],
-      },
-      {
-        table: {
-          headerRows: 1,
-          widths: [60, 50, "*", 40, 40],
-          body: tableBody,
+              layout: "noBorders",
+              margin: [8, 1, 0, 1],
+            },
+          ],
+          margin: [0, 0, 0, 0],
         },
-        layout: {
-          fillColor: (rowIndex: number) => (rowIndex === 0 ? "#E5E7EB" : null),
-          hLineColor: () => "#D1D5DB",
-          vLineColor: () => "#D1D5DB",
-        },
-      },
-      {
-        columns: [
-          {
-            width: "*",
-            stack: [
-              { text: "Authentification du bulletin", style: "sectionLabel", margin: [0, 12, 0, 4] },
-              {
-                text: "Scannez le QR code pour verifier l'authenticite de ce document.",
-                fontSize: 9,
-                color: "#374151",
+        "",
+        "",
+        "",
+        "",
+      ],
+      [
+        {
+          colSpan: 5,
+          columns: [
+            { width: 86, text: "N° de série", bold: true, fontSize: 8.5, margin: [0, 3, 0, 0] },
+            {
+              width: "*",
+              table: { widths: new Array(14).fill("*"), body: [serialCells] },
+              layout: {
+                hLineColor: () => "#111827",
+                vLineColor: () => "#111827",
+                hLineWidth: () => 0.6,
+                vLineWidth: () => 0.6,
+                paddingLeft: () => 0,
+                paddingRight: () => 0,
+                paddingTop: () => 0,
+                paddingBottom: () => 0,
               },
-              { text: this.payload.verificationUrl, fontSize: 8, color: "#2563EB" },
-            ],
-          },
-          {
-            width: 80,
-            qr: this.payload.verificationUrl,
-            fit: 72,
-            alignment: "right",
-          },
-        ],
-        margin: [0, 12, 0, 0],
-      },
-      {
-        columns: [
-          {
-            width: "*",
-            text: "",
-          },
-          {
-            width: 200,
-            stack: [
-              { text: "Le Chef de section", bold: true, alignment: "center" },
-              { text: getChefSignatory(), alignment: "center", margin: [0, 12, 0, 0], bold: true },
-            ],
-          },
-        ],
-        margin: [0, 12, 0, 0],
-      },
-      //New page for notes details if needed
-      { text: "", pageBreak: "after" },
-      {
-        alignment: "center",
-        columns: [
-          {
-            table: {
-              widths: [150, "*", 150],
-              body: [
-                [
-                  {text: 'République Démocratique du Congo', fontSize: 9, alignment: "center", margin: [0, 2, 4, 0], color: "#6B7280" },
-                  '',
-                  //Date du jour à Kinshasa
-                  `Kinshasa, le ${new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(new Date())}`,
-                ],
-                [
-                  { text: "Ministère de l'Enseignement Supérieur, Universitaire, Recherche Scientifique et Innovation", fontSize: 9, alignment: "center", margin: [0, 2, 4, 0] },
-                  '',
-                  { text: "RELEVE DE COTES", fontSize: 9, alignment: "center", margin: [0, 2, 4, 0] },
-                ],
-                [
-                  { text: "Université", fontSize: 9, alignment: "center", margin: [0, 2, 4, 0] },
-                  '',
-                  { text: this.payload.orderReference, fontSize: 9, alignment: "center", margin: [0, 2, 4, 0], bold: true },
-                ]
+              margin: [0, 0, 0, 1],
+            },
+          ],
+          margin: [0, 0, 0, 0],
+        },
+        "",
+        "",
+        "",
+        "",
+      ],
+      [
+        { text: "UNITÉS D’ENSEIGNEMENT — MOYENNES", colSpan: 5, style: "sectionRow", fillColor: "#E5E7EB" },
+        "",
+        "",
+        "",
+        "",
+      ],
+      [
+        { text: "Code", style: "tableHeader" },
+        { text: "Unité d’enseignement", style: "tableHeader" },
+        { text: "Cr", style: "tableHeader" },
+        { text: "Moy/20", style: "tableHeader" },
+        { text: "Statut", style: "tableHeader" },
+      ],
+      ...unitsRows,
+      [
+        { text: "SYNTHÈSE — SIGNATURE — AUTHENTIFICATION", colSpan: 5, style: "sectionRow", fillColor: "#E5E7EB", margin: [0, 10, 0, 2] },
+        "",
+        "",
+        "",
+        "",
+      ],
+      [
+        {
+          colSpan: 5,
+          columns: [
+            {
+              width: "*",
+              stack: [
+                { text: "Synthèse", style: "sectionLabel", margin: [0, 0, 0, 2] },
+                summaryTable,
               ],
             },
-            layout: "noBorders",
-          }
-        ]
-      }
+            {
+              width: 200,
+              stack: [
+                {
+                  columns: [
+                    { width: 78, qr: this.payload.verificationUrl, fit: 64, alignment: "left" },
+                    {
+                      width: "*",
+                      stack: [
+                        { text: "Authentification", style: "sectionLabel", margin: [0, 0, 0, 2], alignment: "left" },
+                        { text: `Fait à Kinshasa, le ${today.toUpperCase()}`, fontSize: 8.2, color: "#6B7280", alignment: "left" },
+                      ],
+                      margin: [6, 0, 0, 0],
+                    },
+                  ],
+                  margin: [0, 0, 0, 8],
+                },
+                { text: "Signature & cachet", style: "sectionLabel", alignment: "center", margin: [0, 0, 0, 8] },
+                {
+                  canvas: [{ type: "line", x1: 0, y1: 0, x2: 160, y2: 0, lineWidth: 0.7, lineColor: "#9CA3AF" }],
+                  margin: [20, 30, 20, 0],
+                },
+                { text: "Le Chef de section", alignment: "center", fontSize: 8.5, margin: [0, 14, 0, 2] },
+                { text: getChefSignatory(), alignment: "center", bold: true, fontSize: 9.5 },
+              ],
+            },
+          ],
+          margin: [0, 1, 0, 1],
+        },
+        "",
+        "",
+        "",
+        "",
+      ],
+    ];
+
+    docDefinition.content = [
+      {
+        table: {
+          headerRows: 0,
+          widths: [55, "*", 30, 45, 35],
+          body: outerTableBody,
+        },
+        layout: {
+          hLineColor: () => "#111827",
+          vLineColor: () => "#111827",
+          hLineWidth: (i: number, node: { table?: { body?: unknown[] } }) => {
+            const rows = node.table?.body?.length ?? 0;
+            if (i === 0 || i === rows) return 1.2;
+            return 0.35;
+          },
+          vLineWidth: (i: number, node: { table?: { widths?: unknown[] } }) => {
+            const cols = (node.table?.widths as unknown[] | undefined)?.length ?? 0;
+            if (i === 0 || i === cols) return 1.2;
+            return 0.35;
+          },
+          paddingLeft: () => 4,
+          paddingRight: () => 4,
+          paddingTop: () => 2.5,
+          paddingBottom: () => 2.5,
+        },
+      },
     ];
 
     return docDefinition;

@@ -17,9 +17,10 @@ type JuryProgramme = {
 type JuryProgrammeListProps = {
   jury: JuryWithMembers;
   programmes: JuryProgramme[];
+  basePath?: string;
 };
 
-export default function JuryProgrammeList({ jury, programmes }: JuryProgrammeListProps) {
+export default function JuryProgrammeList({ jury, programmes, basePath = "/jury" }: JuryProgrammeListProps) {
   const [activeProgramme, setActiveProgramme] = useState<JuryProgramme | null>(null);
   const [isModalOpen, setModalOpen] = useState(false);
   const [isGenerating, setGenerating] = useState(false);
@@ -132,6 +133,7 @@ export default function JuryProgrammeList({ jury, programmes }: JuryProgrammeLis
               <ProgrammeDeliberationCard
                 key={programme.id}
                 juryId={jury.id}
+                basePath={basePath}
                 programme={programme}
                 onRequestDocument={handleDocumentRequest}
               />

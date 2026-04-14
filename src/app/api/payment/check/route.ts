@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { PaymentService } from "@/lib/services/PaymentService";
 
-const service = PaymentService.getInstance();
-
 export async function GET(request: Request) {
   try {
+    const service = PaymentService.getInstance();
     const url = new URL(request.url);
     const orderNumber = url.searchParams.get("orderNumber");
 

@@ -57,10 +57,7 @@ export default async function JuryPage({ searchParams }: JuryPageProps) {
       <PageBreadcrumb pageTitle={`Jury - ${programmeDetails.designation || "Promotion"}`} />
 
       <div className="space-y-6">
-        <ComponentCard
-          title={programmeDetails.designation || "Promotion"}
-          desc="Point d'entree du metier Jury."
-        >
+        <ComponentCard title={programmeDetails.designation || "Promotion"} desc="Point d'entree du metier Jury.">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="rounded-xl bg-gray-50 p-4 dark:bg-white/[0.03]">
               <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Annee academique</p>
@@ -81,3 +78,4 @@ export default async function JuryPage({ searchParams }: JuryPageProps) {
     </div>
   );
 }
+

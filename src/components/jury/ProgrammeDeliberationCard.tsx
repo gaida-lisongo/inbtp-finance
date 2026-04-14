@@ -13,6 +13,7 @@ type ProgrammeStudent = {
 
 type ProgrammeDeliberationCardProps = {
   juryId: string;
+  basePath?: string;
   programme: {
     id: string;
     designation: string | null;
@@ -26,6 +27,7 @@ type ProgrammeDeliberationCardProps = {
 
 export default function ProgrammeDeliberationCard({
   juryId,
+  basePath = "/jury",
   programme,
   onRequestDocument,
 }: ProgrammeDeliberationCardProps) {
@@ -96,7 +98,7 @@ export default function ProgrammeDeliberationCard({
           </h3>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <Link
-              href={`/jury/${juryId}/promotion/${programme.id}`}
+              href={`${basePath}/${juryId}/promotion/${programme.id}`}
               className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-gray-600 shadow-sm transition hover:border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
             >
               Ouvrir

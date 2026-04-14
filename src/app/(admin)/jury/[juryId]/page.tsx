@@ -32,9 +32,12 @@ export default async function JuryDetailPage({ params }: JuryDetailPageProps) {
     redirect("/jury");
   }
 
-  const programmes: ProgrammeRecord[] = jury.annee_id
-    ? await getProgrammesByYear(jury.annee_id)
-    : [];
+  const isMember = jury.president_id === user.agentId || jury.secretaire_id === user.agentId;
+  if (!isMember) {
+    redirect("/signin?error=access_denied");
+  }
+
+  const programmes: ProgrammeRecord[] = jury.annee_id ? await getProgrammesByYear(jury.annee_id) : [];
 
   return (
     <div className="space-y-6">
@@ -50,21 +53,13 @@ export default async function JuryDetailPage({ params }: JuryDetailPageProps) {
             </p>
           </div>
           <div className="flex gap-4 text-sm text-gray-500 dark:text-gray-400">
-            <span className="font-semibold text-gray-900 dark:text-white">
-              Président :
-            </span>
+            <span className="font-semibold text-gray-900 dark:text-white">Président :</span>
             <span>
-              {[jury.president?.prenom, jury.president?.post_nom, jury.president?.nom]
-                .filter(Boolean)
-                .join(" ") || "NC"}
+              {[jury.president?.prenom, jury.president?.post_nom, jury.president?.nom].filter(Boolean).join(" ") || "NC"}
             </span>
-            <span className="font-semibold text-gray-900 dark:text-white">
-              Secrétaire :
-            </span>
+            <span className="font-semibold text-gray-900 dark:text-white">Secrétaire :</span>
             <span>
-              {[jury.secretaire?.prenom, jury.secretaire?.post_nom, jury.secretaire?.nom]
-                .filter(Boolean)
-                .join(" ") || "NC"}
+              {[jury.secretaire?.prenom, jury.secretaire?.post_nom, jury.secretaire?.nom].filter(Boolean).join(" ") || "NC"}
             </span>
           </div>
         </div>
@@ -74,3 +69,4 @@ export default async function JuryDetailPage({ params }: JuryDetailPageProps) {
     </div>
   );
 }
+

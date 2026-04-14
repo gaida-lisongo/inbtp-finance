@@ -15,9 +15,7 @@ type JuryPromotionPageProps = {
   searchParams?: Promise<{ q?: string }>;
 };
 
-export default async function JuryPromotionPage({
-  params,
-}: JuryPromotionPageProps) {
+export default async function JuryPromotionPage({ params }: JuryPromotionPageProps) {
   const user = await getAuthenticatedUser();
   if (!user || !user.canManageCharges || !user.agentId || user.role !== "titulaire") {
     redirect("/signin?error=access_denied");
@@ -34,9 +32,7 @@ export default async function JuryPromotionPage({
   }
 
   const juries = await getJuriesForAgent(user.agentId);
-  const matching = programme.annee_id
-    ? juries.filter((jury) => jury.annee_id === programme.annee_id)
-    : juries;
+  const matching = programme.annee_id ? juries.filter((jury) => jury.annee_id === programme.annee_id) : juries;
 
   const jury = matching[0] ?? null;
   if (!jury) {
@@ -45,3 +41,4 @@ export default async function JuryPromotionPage({
 
   redirect(`/jury/${jury.id}/promotion/${promotionId}`);
 }
+

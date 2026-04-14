@@ -52,15 +52,11 @@ export default async function JuryPromotionPage({ params }: JuryPromotionPagePro
   }
 
   const notes = await getNotesForProgramme(promotionId);
-  const results = NoteManager.classerParPourcentage(
-    NoteManager.calculerResultatsPromotion(notes),
-  );
+  const results = NoteManager.classerParPourcentage(NoteManager.calculerResultatsPromotion(notes));
 
   return (
     <div className="space-y-6">
-      <PageBreadcrumb
-        pageTitle={`Délibération - ${programme.designation ?? "Promotion"}`}
-      />
+      <PageBreadcrumb pageTitle={`Délibération - ${programme.designation ?? "Promotion"}`} />
 
       <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -94,3 +90,4 @@ export default async function JuryPromotionPage({ params }: JuryPromotionPagePro
     </div>
   );
 }
+

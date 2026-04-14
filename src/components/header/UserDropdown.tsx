@@ -283,7 +283,8 @@ export default function UserDropdown({ user }: UserDropdownProps) {
               </DropdownItem>
             </li>
           ) : null}
-
+        {
+          user.activePersona !== "student" ? (
           <li>
             <DropdownItem
               onItemClick={closeDropdown}
@@ -310,7 +311,10 @@ export default function UserDropdown({ user }: UserDropdownProps) {
             </DropdownItem>
           </li>
 
-          {user.role === "titulaire" ? (
+          ) : null
+        }
+
+          {user.role === "organisateur" || user.role === "titulaire" ? (
             <li>
               <DropdownItem
                 onItemClick={closeDropdown}

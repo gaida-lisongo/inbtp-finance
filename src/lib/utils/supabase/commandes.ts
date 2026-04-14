@@ -11,6 +11,9 @@ export type CommandeCategory = "documents" | "session" | "stages" | "sujets" | "
 export type PaymentChannel = "MOBILE_MONEY" | "CREDIT_CARD";
 export type PaymentCurrency = "USD";
 
+type ActivityCommandeCategory = "tp" | "qcm" | "ressource";
+type CommandePaymentCategory = CommandeCategory | ActivityCommandeCategory;
+
 export type CommandeRecord = {
   id: string;
   created_at: string;
@@ -110,7 +113,7 @@ type PaymentValidationResult = {
   message: string;
   commande: CommandeRecord;
   paymentResponse: unknown;
-  category: CommandeCategory;
+  category: CommandePaymentCategory;
   productId: string;
   productPath: string;
   commandePath: string;
@@ -184,6 +187,16 @@ const normalizeCommandeCategoryValue = (value: string | null | undefined): Comma
     default:
       return null;
   }
+};
+
+const normalizeActivityCommandeCategory = (value: string | null | undefined): ActivityCommandeCategory | null => {
+  const normalized = normalizeText(value)?.toLowerCase();
+
+  if (normalized === "tp" || normalized === "qcm" || normalized === "ressource") {
+    return normalized;
+  }
+
+  return null;
 };
 
 const normalizeText = (value: string | null | undefined) => {
@@ -492,6 +505,50 @@ const updatePaiementStatusByOrderNumber = async (orderNumber: string, status: "s
 
   if (error) {
     throw new Error(error.message);
+  }
+};
+
+const upsertActivityCommandeTrackingRow = async (input: {
+  admin: ReturnType<typeof createAdminClient>;
+  activityId: string;
+  studentId: string;
+  status: "pending" | "success";
+  slug?: string | null;
+  entraId?: string | null;
+}) => {
+  const { data: existingRows, error: existingError } = await input.admin
+    .from("cmd_activity")
+    .select("id")
+    .eq("activity_id", input.activityId)
+    .eq("student_id", input.studentId)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (existingError) {
+    throw new Error(existingError.message);
+  }
+
+  const existing = (existingRows ?? [])[0] as { id?: string | null } | undefined;
+  const existingId = normalizeText(existing?.id);
+  const payload = {
+    activity_id: input.activityId,
+    student_id: input.studentId,
+    status: input.status,
+    slug: input.slug ?? null,
+    entra_id: input.entraId ?? null,
+  };
+
+  if (existingId) {
+    const { error: updateError } = await input.admin.from("cmd_activity").update(payload).eq("id", existingId);
+    if (updateError) {
+      throw new Error(updateError.message);
+    }
+    return;
+  }
+
+  const { error: insertError } = await input.admin.from("cmd_activity").insert(payload);
+  if (insertError) {
+    throw new Error(insertError.message);
   }
 };
 
@@ -1039,13 +1096,13 @@ export const validateCommandePaymentByOrderNumber = async (orderNumber: string):
   const commande = commandeData as CommandeRecord;
   const previousStatus = commande.status;
   const rawCategory = normalizeCommandeCategoryValue(commande.categorie);
+  const activityCategory = normalizeActivityCommandeCategory(commande.categorie);
   const productId = normalizeText(commande.product);
 
-  if (!rawCategory || !productId) {
+  if ((!rawCategory && !activityCategory) || !productId) {
     throw new Error("commande_resource_invalid");
   }
 
-  const category = rawCategory;
   const paymentService = PaymentService.getInstance();
   const paymentResponse = await paymentService.check(normalizedOrderNumber);
   const isSuccess = isPaymentResponseSuccessful(paymentResponse);
@@ -1072,6 +1129,73 @@ export const validateCommandePaymentByOrderNumber = async (orderNumber: string):
     }
   }
 
+  if (activityCategory) {
+    const { data: activityData, error: activityError } = await admin
+      .from("activity")
+      .select("cours_id, slug, entra_id")
+      .eq("id", productId)
+      .maybeSingle();
+
+    if (activityError) {
+      throw new Error(activityError.message);
+    }
+
+    const activity = activityData as { cours_id?: string | null; slug?: string | null; entra_id?: string | null } | null;
+    const courseId = normalizeText(activity?.cours_id);
+
+    if (!courseId) {
+      throw new Error("activity_course_missing");
+    }
+
+    const { data: courseData, error: courseError } = await admin
+      .from("cours")
+      .select("matiere_id")
+      .eq("id", courseId)
+      .maybeSingle();
+
+    if (courseError) {
+      throw new Error(courseError.message);
+    }
+
+    const course = courseData as { matiere_id?: string | null } | null;
+    const matiereId = normalizeText(course?.matiere_id);
+
+    if (!matiereId) {
+      throw new Error("activity_course_missing");
+    }
+
+    if (isSuccess) {
+      const studentId = normalizeText((updatedCommande as CommandeRecord).student_id);
+      if (!studentId) {
+        throw new Error("commande_student_missing");
+      }
+
+      await upsertActivityCommandeTrackingRow({
+        admin,
+        activityId: productId,
+        studentId,
+        status: "success",
+        slug: normalizeText(activity?.slug),
+        entraId: normalizeText(activity?.entra_id),
+      });
+    }
+
+    return {
+      success: isSuccess,
+      message: isSuccess
+        ? "Le paiement a ete confirme par FlexPay."
+        : "La transaction n'a pas pu etre confirmee. Le statut de la commande passe en « no ».",
+      commande: updatedCommande as CommandeRecord,
+      paymentResponse,
+      category: activityCategory,
+      productId,
+      productPath: `/cours/${matiereId}/${activityCategory}/${productId}`,
+      commandePath: `/commande/order/${encodeURIComponent(normalizedOrderNumber)}`,
+    };
+  }
+
+  const resourceCategory = rawCategory as CommandeCategory;
+
   return {
     success: isSuccess,
     message: isSuccess
@@ -1079,10 +1203,10 @@ export const validateCommandePaymentByOrderNumber = async (orderNumber: string):
       : "La transaction n'a pas pu etre confirmee. Le statut de la commande passe en « no ».",
     commande: updatedCommande as CommandeRecord,
     paymentResponse,
-    category,
+    category: resourceCategory,
     productId,
-    productPath: getProductPath(category, productId),
-    commandePath: getCommandePath(category, productId),
+    productPath: getProductPath(resourceCategory, productId),
+    commandePath: getCommandePath(resourceCategory, productId),
   };
 };
 

@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { PaymentService } from "@/lib/services/PaymentService";
 
-const service = PaymentService.getInstance();
-
 export async function OPTIONS() {
   return NextResponse.json({ ok: true }, {
     status: 204,
@@ -16,6 +14,7 @@ export async function OPTIONS() {
 
 export async function POST(request: Request) {
   try {
+    const service = PaymentService.getInstance();
     const body = await request.json();
 
     const response = await service.payout(body as any);
