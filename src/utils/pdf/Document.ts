@@ -5,6 +5,7 @@ import { getChef, getContact, getEmail } from "@/lib/documents/layout";
 
 
 export interface Note {
+  code: string,
   unite: string,
   credit: number,
   moyenne: number,
@@ -70,7 +71,7 @@ class Document {
                     italics: true,
                     bold: true,
                     fontSize: this.chart.xs,
-                    alignment: 'center',
+                    alignment: 'right',
                     lineHeight: 1 // 👈 au lieu de 1.35 (gros impact)
                 },
                 tabEC:{
