@@ -29,6 +29,18 @@ export const assetImageRegistry = {
     width: 120,
     height: 80,
   },
+  motif: {
+    src: "/images/inbtp/motif.png",
+    alt: "Motif INBTP",
+    width: 685,
+    height: 39
+  },
+  fond: {
+    src: "/images/inbtp/fond.png",
+    alt: "Image de fond",
+    width: 1010,
+    height:1428
+  }
 } as const;
 
 export type AssetImageKey = keyof typeof assetImageRegistry;
