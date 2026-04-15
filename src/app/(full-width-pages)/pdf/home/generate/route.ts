@@ -128,8 +128,7 @@ export async function GET(request: Request) {
     keywords: "pdf, test",
   })
 
-  await bulletin.buildFooter("https://btp.inbtp.net");
-  await bulletin.generate();
+  await bulletin.generate("https://btp.inbtp.net");
   // await bulletin.background();
   const buffer = await bulletin.generateBuffer()
 

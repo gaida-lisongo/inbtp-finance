@@ -12,6 +12,22 @@ class DocumentBulletin extends Document {
     if (notes.length > 0) {
       this.parseData(notes);
     }
+
+    this.docDefinition.styles = {
+        ...this.docDefinition.styles,
+        tabUnite: {
+            italics: true,
+            bold: true,
+            fontSize: this.chart.xs,
+            alignment: 'right',
+            lineHeight: 1 // 👈 au lieu de 1.35 (gros impact)
+        },
+        tabEC:{
+            italics: true,
+            fontSize: this.chart.xs,
+            alignment: 'left',
+        },
+    }
   }
 
   parseData(data: Note[]) {
@@ -66,11 +82,12 @@ class DocumentBulletin extends Document {
     this.items = parsedRows;
   }
 
-  async generate() {
+  async generate(payload: string) {
     const syntheses = this.syntheses;
     const moyenne = syntheses.moyenne(this.notes);
 
     await this.background()
+    await this.buildFooter(payload);
 
     await this.studentLayout([
       {

@@ -67,18 +67,6 @@ class Document {
                     fillColor: this.chart.secondary,
                     lineHeight: 1 // 👈 au lieu de 1.35 (gros impact)
                 },
-                tabUnite: {
-                    italics: true,
-                    bold: true,
-                    fontSize: this.chart.xs,
-                    alignment: 'right',
-                    lineHeight: 1 // 👈 au lieu de 1.35 (gros impact)
-                },
-                tabEC:{
-                    italics: true,
-                    fontSize: this.chart.xs,
-                    alignment: 'left',
-                },
                 gras: {
                     fontSize: this.chart.sm,
                     bold: true,
@@ -183,7 +171,11 @@ class Document {
     }
 
     async adminLayout(){
+        const mainPage: any[] = [
 
+        ];
+
+        this.content(mainPage);
     }
 
     async studentLayout(
