@@ -39,6 +39,7 @@ export type DocumentRelevePayload = {
   studentPhone: string | null;
   matricule: string;
   programmeName: string;
+  anneeAcad: string;
   orderReference: string;
   serialNumber: string;
   units: ReleveUnitItem[];

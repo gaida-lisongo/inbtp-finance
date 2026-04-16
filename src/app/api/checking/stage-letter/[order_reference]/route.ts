@@ -14,6 +14,8 @@ const normalizeText = (value: string | null | undefined) => {
 const buildStudentName = (student: { prenom: string | null; post_nom: string | null; nom: string | null }) =>
   [student.prenom, student.post_nom, student.nom].filter(Boolean).join(" ").trim() || "Etudiant";
 
+const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+
 export type CheckStageLetterResponse =
   | {
       valid: true;
@@ -56,12 +58,13 @@ export async function GET(request: Request, context: { params: Promise<{ order_r
     }
 
     const admin = createAdminClient();
+    const orClause = isUuid(orderReference) ? `id.eq.${orderReference},orderNumber.eq.${orderReference}` : `orderNumber.eq.${orderReference}`;
 
     const { data: commandesData, error: commandesError } = await admin
       .from("commande")
       .select('id, "orderNumber", created_at, product, categorie, student_id, total, status')
       .eq("student_id", studentId)
-      .or(`id.eq.${orderReference},orderNumber.eq.${orderReference}`)
+      .or(orClause)
       .eq("status", "success")
       .in("categorie", ["stage", "stages"])
       .order("created_at", { ascending: false })
@@ -165,4 +168,3 @@ export async function GET(request: Request, context: { params: Promise<{ order_r
     return NextResponse.json({ valid: false, error: message } satisfies CheckStageLetterResponse, { status: 500 });
   }
 }
-

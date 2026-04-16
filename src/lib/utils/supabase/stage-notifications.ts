@@ -1,8 +1,8 @@
-import { generateStageLetterPdfBuffer } from "@/lib/documents/stage-letter-pdf";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
-import { getProductPageData, getCommandeStudentDisplayName } from "@/lib/utils/supabase/commandes";
+import { getProductPageData } from "@/lib/utils/supabase/commandes";
 import { getActiveAutorisationCodesForAgent } from "@/lib/utils/supabase/autorisations";
 import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
+import { generateStageLetterPdfBufferFromOrderReference } from "@/lib/utils/supabase/stage-letter-generation";
 
 type StageRecipientSex = "M" | "F";
 type DeliveredStatus = "pending" | "success" | "no";
@@ -393,27 +393,18 @@ export const generateStageLetterFromNotification = async (notificationStageId: n
   }
 
   const student = studentData as StudentRow;
-  const studentName = getCommandeStudentDisplayName(student);
   const recipientSex: StageRecipientSex = normalizeText(stageRow.recipientSex) === "F" ? "F" : "M";
 
   const orderReference = normalizeText(stageRow.documentReference) ?? parent.id;
-  const buffer = await generateStageLetterPdfBuffer(
-    {
-      stageTitle: normalizeText(stageRow.stageTitle) ?? "Stage academique",
-      student: {
-        fullName: studentName,
-        email: student.email,
-        telephone: student.telephone,
-      },
-      recipientName: normalizeText(stageRow.recipientName) ?? "A qui de droit",
-      recipientQuality: normalizeText(stageRow.recipientQuality) ?? "Responsable",
-      recipientSex,
-      companyName: normalizeText(stageRow.companyName) ?? "Entreprise",
-      companyLocation: normalizeText(stageRow.companyLocation) ?? "Lieu",
-      documentReference: orderReference,
-    },
-    { studentId: student.id, orderReference },
-  );
+  const result = await generateStageLetterPdfBufferFromOrderReference({
+    orderReference,
+    studentId: student.id,
+    recipientName: normalizeText(stageRow.recipientName) ?? "A qui de droit",
+    recipientQuality: normalizeText(stageRow.recipientQuality) ?? "Responsable",
+    recipientSex,
+    companyName: normalizeText(stageRow.companyName) ?? "Entreprise",
+    companyLocation: normalizeText(stageRow.companyLocation) ?? "Lieu",
+  });
 
   const { error: stageUpdateError } = await admin
     .from("notifications_stage")
@@ -449,6 +440,6 @@ export const generateStageLetterFromNotification = async (notificationStageId: n
 
   return {
     filename: `lettre-stage-notification-${stageRow.id}.pdf`,
-    buffer,
+    buffer: result.buffer,
   };
 };

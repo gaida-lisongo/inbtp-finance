@@ -1,5 +1,5 @@
 import { DocumentReleve, DocumentValidate } from "@/lib/documents";
-import { generateStageLetterPdfBuffer } from "@/lib/documents/stage-letter-pdf";
+import { generateStageLetterPdfBufferFromCommandeId } from "@/lib/utils/supabase/stage-letter-generation";
 import { sendMicrosoft365Mail } from "@/lib/utils/microsoft-graph";
 import { getActiveAutorisationCodesForAgent } from "@/lib/utils/supabase/autorisations";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
@@ -342,42 +342,12 @@ export const generateStageLetterForFaculty = async (input: {
   companyName: string;
   companyLocation: string;
 }) => {
-  const detail = await getFacultyCommandeDetail(input.commandeId);
-
-  if (detail.commande.categoryKey !== "stages") {
-    throw new Error("invalid_stage_commande");
-  }
-
-  if (detail.commande.status !== "success") {
-    throw new Error("stage_commande_not_paid");
-  }
-
-  if (!detail.student || !detail.resource) {
-    throw new Error("stage_commande_data_incomplete");
-  }
-
-  const orderReference = detail.commande.orderNumber ?? detail.commande.id;
-  const buffer = await generateStageLetterPdfBuffer(
-    {
-      stageTitle: detail.resource.title,
-      student: {
-        fullName: detail.student.displayName,
-        email: detail.student.email,
-        telephone: detail.student.telephone,
-      },
-      recipientName: input.recipientName,
-      recipientQuality: input.recipientQuality,
-      recipientSex: input.recipientSex,
-      companyName: input.companyName,
-      companyLocation: input.companyLocation,
-      documentReference: orderReference,
-    },
-    { studentId: detail.student.id, orderReference },
-  );
+  await assertCsAdminAccess();
+  const result = await generateStageLetterPdfBufferFromCommandeId(input);
 
   return {
-    filename: `lettre-stage-${orderReference}.pdf`,
-    buffer,
+    filename: `lettre-stage-${result.orderReference}.pdf`,
+    buffer: result.buffer,
   };
 };
 
