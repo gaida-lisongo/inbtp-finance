@@ -76,12 +76,12 @@ class Document {
                     italics: true,
                 },
                 title: {
-                    fontSize: this.chart.lg,
+                    fontSize: this.chart.sm,
                     alignment: 'left',
                     bold: true,
                 },
                 subtitle: {
-                    fontSize: this.chart.md,
+                    fontSize: this.chart.sm,
                     alignment: 'left',
                     color: this.chart.primary,
                 },
@@ -94,6 +94,18 @@ class Document {
             },
         };
     }
+
+    getCurrentFrDate = () => {
+        const now = new Date();
+
+        const jour = now.getDate().toString().padStart(2, '0');
+
+        const mois = new Intl.DateTimeFormat('fr-FR', { month: 'long' }).format(now);
+
+        const annee = now.getFullYear();
+
+        return `${jour} / ${mois.charAt(0).toUpperCase() + mois.slice(1)} / ${annee}`;
+    };
 
     getService(){
         return process.env.NEXT_PUBLIC_SHORT_SECTION || 'BTP'
@@ -170,9 +182,75 @@ class Document {
         this.docDefinition = {...this.docDefinition, info: {title, author, subject, keywords}};
     }
 
-    async adminLayout(){
-        const mainPage: any[] = [
+    async adminLayout(content: any = []){
+        const { schoolLogo } = await getSchoolPdfBrandingAssets();
 
+        const normalizedBodyRows = Array.isArray(content)
+          ? content.filter((row) => !(Array.isArray(row) && row.length === 0))
+          : [];
+
+        const service = this.getService();
+
+        const mainPage: any[] = [
+            {
+                table: {
+                    headerRows: 1,
+                    widths: [60, '*', 180],
+                    body: [
+                        //header
+                        [
+                            {
+                                image: schoolLogo, 
+                                fit: [150, 80],
+                                
+                            },
+                            {
+                                stack: [
+                                    {text: ('République Démocratique du Congo').toLocaleUpperCase()},
+                                    {text: "MINISTÈRE DE L’ENSEIGNEMENT SUPÉRIEUR, UNIVERSITAIRE, RECHERCHE SCIENTIFIQUE ET INNOVATIONS", style: 'title'},
+                                    {
+                                        canvas: [
+                                            {
+                                                type: "line",
+                                                x1: 0,
+                                                y1: 0,
+                                                x2: 300,
+                                                y2: 0,
+                                                lineWidth: 0.8,
+                                                lineColor: this.chart.black,
+                                            },
+                                        ],
+                                        margin: [0, 0, 0, 5]
+                                    },
+                                    {text: "INSTITUT NATIONAL DU BÂTIMENT ET DES TRAVAUX PUBLICS", style: 'subtitle'},
+                                    {text: "B.P. 4731-KINSHASA / NGALIEMA", italics: true}, 
+                                ],
+                                margin: [this.chart.xs, 0,0,0],
+                                colSpan: 2,
+                            },
+                            ""
+                        ],
+                        [
+                            {
+                            text: `La Section ${service}`, style: 'subtitle', italics: true, colSpan: 3, margin: [0, 0, 0, this.chart.xs],
+							border: [false, false, false, false]},
+                            '',
+                            ''
+                        ],
+                        //content
+                        ...normalizedBodyRows,
+                    ]
+                },
+                layout: {
+                    hLineWidth: () => 0,
+                    vLineWidth: () => 0,
+                    paddingTop: () => 0,
+                    paddingBottom: () => 0,
+                    paddingLeft: () => 0,
+                    paddingRight: () => 0
+
+                }
+            }
         ];
 
         this.content(mainPage);
