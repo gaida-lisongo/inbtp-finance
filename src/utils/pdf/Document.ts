@@ -54,7 +54,7 @@ class Document {
                 lineHeight: 1,
                 alignment: "justify",
                 color: this.chart.black,
-                columnGap: 10
+                columnGap: 5
             },
             styles: {
                 invert: {
@@ -449,14 +449,17 @@ class Document {
 
     async buildFooter(url: string){
       const { motif } = await getSchoolPdfBrandingAssets();
+      const qrSize = 100;
+      const currentMargins = (this.docDefinition.pageMargins ?? this.pageMargins) as [number, number, number, number];
+      const nextBottomMargin = Math.max(currentMargins[3], qrSize + 25);
     
-      this.docDefinition= {...this.docDefinition, footer: (_currentPage: number, _pageCount: number) => ({
+      this.docDefinition= {...this.docDefinition, pageMargins: [currentMargins[0], currentMargins[1], currentMargins[2], nextBottomMargin], footer: (_currentPage: number, _pageCount: number) => ({
         margin: [this.pageMargins[0], 0, this.pageMargins[2], 24],
         columns: [
             {
-                width: 50,
+                width: qrSize,
                 qr: url,
-                fit:50,
+                fit: qrSize,
                 alignment: "left",
             },
             {
@@ -478,18 +481,18 @@ class Document {
                     },                 
                     {
                         text: `Avenue de la montagne N°21, Quartier Jolie-Parc, Commune de Ngaliema, Kinshasa-RDC`,
-                        style: 'mention'
+                        style: 'mention', color: this.chart.black
                     },
                     {
                         text: `Site web: www.inbtp.ac.cd , E-mail: sg.academique@inbtp.ac.cd, Tél: +243 822 238 661`,
-                        style: 'mention'
+                        style: 'mention', color: this.chart.black
 
                     },
                     {
                         image: motif, fit: [500, 20], alignment: 'center'
                     },  
                 ],
-                margin: [5, 0, 5, 0],
+                margin: [0, 40, 0, 0],
             }
         ]
       })};

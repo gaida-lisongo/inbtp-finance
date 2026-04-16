@@ -396,20 +396,24 @@ export const generateStageLetterFromNotification = async (notificationStageId: n
   const studentName = getCommandeStudentDisplayName(student);
   const recipientSex: StageRecipientSex = normalizeText(stageRow.recipientSex) === "F" ? "F" : "M";
 
-  const buffer = await generateStageLetterPdfBuffer({
-    stageTitle: normalizeText(stageRow.stageTitle) ?? "Stage academique",
-    student: {
-      fullName: studentName,
-      email: student.email,
-      telephone: student.telephone,
+  const orderReference = normalizeText(stageRow.documentReference) ?? parent.id;
+  const buffer = await generateStageLetterPdfBuffer(
+    {
+      stageTitle: normalizeText(stageRow.stageTitle) ?? "Stage academique",
+      student: {
+        fullName: studentName,
+        email: student.email,
+        telephone: student.telephone,
+      },
+      recipientName: normalizeText(stageRow.recipientName) ?? "A qui de droit",
+      recipientQuality: normalizeText(stageRow.recipientQuality) ?? "Responsable",
+      recipientSex,
+      companyName: normalizeText(stageRow.companyName) ?? "Entreprise",
+      companyLocation: normalizeText(stageRow.companyLocation) ?? "Lieu",
+      documentReference: orderReference,
     },
-    recipientName: normalizeText(stageRow.recipientName) ?? "A qui de droit",
-    recipientQuality: normalizeText(stageRow.recipientQuality) ?? "Responsable",
-    recipientSex,
-    companyName: normalizeText(stageRow.companyName) ?? "Entreprise",
-    companyLocation: normalizeText(stageRow.companyLocation) ?? "Lieu",
-    documentReference: normalizeText(stageRow.documentReference) ?? parent.id,
-  });
+    { studentId: student.id, orderReference },
+  );
 
   const { error: stageUpdateError } = await admin
     .from("notifications_stage")

@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { buildStageLetterContent } from "@/lib/documents/DocumentStage";
 import { type PdfDocumentDefinition, generatePdfBufferFromDefinition } from "@/lib/documents/Document";
 import { getChef } from "@/lib/documents/layout";
-import { buildDocumentFooter } from "@/lib/documents/layout";
 import { getActiveAutorisationCodesForAgent } from "@/lib/utils/supabase/autorisations";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
+import { buildStageLetterVerificationRedirectUrl } from "@/lib/documents/stage-letter-verification";
 import UtilsDocumentStage from "@/utils/pdf/DocumentStage";
 
 type CommandeRow = {
@@ -121,7 +120,6 @@ export async function POST(request: Request) {
       return Boolean(stage && student);
     });
 
-    const bulkEngine = process.env.STAGE_LETTER_BULK_ENGINE?.trim().toLowerCase() === "utils" ? "utils" : "lib";
     const content: unknown[] = [];
     let utilsBaseDefinition: Pick<
       PdfDocumentDefinition,
@@ -150,36 +148,36 @@ export async function POST(request: Request) {
         documentReference: commande.orderNumber ?? commande.id,
       } as const;
 
-      const letterContent =
-        bulkEngine === "utils"
-          ? await (async () => {
-              const verificationBaseUrl = process.env.NEXT_PUBLIC_HOST_URL?.replace(/\/$/, "") ?? "http://localhost:3000";
-              const signature = { nom: getChef(), titre: "Chef de Section" };
-              const document = new UtilsDocumentStage(payload);
+      const letterContent = await (async () => {
+        const verificationUrl = buildStageLetterVerificationRedirectUrl({
+          orderReference: payload.documentReference,
+          studentId: student.id,
+        });
+        const signature = { nom: getChef(), titre: "Chef de Section" };
+        const document = new UtilsDocumentStage(payload);
 
-              document.info({
-                title: `Lettre de stage - ${payload.student.fullName}`,
-                author: "Dashboard Agents",
-                subject: "Lettre de recommandation de stage",
-                keywords: "stage, lettre, export",
-              });
+        document.info({
+          title: `Lettre de stage - ${payload.student.fullName}`,
+          author: "Dashboard Agents",
+          subject: "Lettre de recommandation de stage",
+          keywords: "stage, lettre, export",
+        });
 
-              await document.generate(verificationBaseUrl, signature);
+        await document.generate(verificationUrl, signature);
 
-              if (!utilsBaseDefinition) {
-                utilsBaseDefinition = {
-                  pageSize: document.docDefinition.pageSize,
-                  pageMargins: document.docDefinition.pageMargins,
-                  defaultStyle: document.docDefinition.defaultStyle,
-                  styles: document.docDefinition.styles,
-                  background: document.docDefinition.background,
-                  footer: document.docDefinition.footer,
-                };
-              }
+        if (!utilsBaseDefinition) {
+          utilsBaseDefinition = {
+            pageSize: document.docDefinition.pageSize,
+            pageMargins: document.docDefinition.pageMargins,
+            defaultStyle: document.docDefinition.defaultStyle,
+            styles: document.docDefinition.styles,
+            background: document.docDefinition.background,
+            footer: document.docDefinition.footer,
+          };
+        }
 
-              return document.docDefinition.content ?? [];
-            })()
-          : await buildStageLetterContent(payload);
+        return document.docDefinition.content ?? [];
+      })();
 
       content.push(...letterContent);
 
@@ -192,50 +190,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Aucune lettre exploitable n'a ete generee." }, { status: 400 });
     }
 
-    if (bulkEngine === "utils" && !utilsBaseDefinition) {
+    if (!utilsBaseDefinition) {
       return NextResponse.json({ success: false, error: "Impossible de construire la definition PDF (engine utils)." }, { status: 500 });
     }
 
-    const docDefinition: PdfDocumentDefinition =
-      bulkEngine === "utils"
-        ? {
-            info: {
-              title: "Lettres de recommandation de stage",
-              author: "Dashboard Agents",
-              subject: "Export multiple des lettres de stage",
-              keywords: "stages, lettres, export",
-            },
-            ...(utilsBaseDefinition ?? {}),
-            content,
-          }
-        : {
+    const docDefinition: PdfDocumentDefinition = {
       info: {
         title: "Lettres de recommandation de stage",
         author: "Dashboard Agents",
         subject: "Export multiple des lettres de stage",
         keywords: "stages, lettres, export",
       },
-      pageSize: "A4",
-      pageMargins: [48, 56, 48, 56],
-      defaultStyle: {
-        fontSize: 11,
-        lineHeight: 1.35,
-      },
-      styles: {
-        title: {
-          fontSize: 18,
-          bold: true,
-          alignment: "center",
-        },
-        sectionLabel: {
-          fontSize: 10,
-          bold: true,
-          color: "#4B5563",
-          margin: [0, 0, 0, 6],
-        },
-      },
+      ...(utilsBaseDefinition as Record<string, unknown>),
       content,
-      footer: buildDocumentFooter(),
     };
 
     const pdfBuffer = await generatePdfBufferFromDefinition(docDefinition);

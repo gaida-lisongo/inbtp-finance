@@ -1,4 +1,4 @@
-import { DocumentStagePayload } from "@/lib/documents/DocumentStage";
+import { type DocumentStagePayload } from "@/lib/documents/stage-letter";
 import Document from "./Document";
 import { StudentDocumentIdentity } from "@/lib/documents/Document";
 

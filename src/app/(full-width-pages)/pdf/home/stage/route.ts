@@ -1,4 +1,4 @@
-import { DocumentStagePayload } from "@/lib/documents/DocumentStage";
+import { type DocumentStagePayload } from "@/lib/documents/stage-letter";
 import { getChef } from "@/lib/documents/layout";
 import DocumentStage from "@/utils/pdf/DocumentStage";
 import { NextResponse } from "next/server";

@@ -356,23 +356,27 @@ export const generateStageLetterForFaculty = async (input: {
     throw new Error("stage_commande_data_incomplete");
   }
 
-  const buffer = await generateStageLetterPdfBuffer({
-    stageTitle: detail.resource.title,
-    student: {
-      fullName: detail.student.displayName,
-      email: detail.student.email,
-      telephone: detail.student.telephone,
+  const orderReference = detail.commande.orderNumber ?? detail.commande.id;
+  const buffer = await generateStageLetterPdfBuffer(
+    {
+      stageTitle: detail.resource.title,
+      student: {
+        fullName: detail.student.displayName,
+        email: detail.student.email,
+        telephone: detail.student.telephone,
+      },
+      recipientName: input.recipientName,
+      recipientQuality: input.recipientQuality,
+      recipientSex: input.recipientSex,
+      companyName: input.companyName,
+      companyLocation: input.companyLocation,
+      documentReference: orderReference,
     },
-    recipientName: input.recipientName,
-    recipientQuality: input.recipientQuality,
-    recipientSex: input.recipientSex,
-    companyName: input.companyName,
-    companyLocation: input.companyLocation,
-    documentReference: detail.commande.orderNumber ?? detail.commande.id,
-  });
+    { studentId: detail.student.id, orderReference },
+  );
 
   return {
-    filename: `lettre-stage-${detail.commande.orderNumber ?? detail.commande.id}.pdf`,
+    filename: `lettre-stage-${orderReference}.pdf`,
     buffer,
   };
 };

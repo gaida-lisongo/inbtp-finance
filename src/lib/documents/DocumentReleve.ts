@@ -33,6 +33,8 @@ export type ReleveSummary = {
 
 export type DocumentRelevePayload = {
   studentName: string;
+  studentVille: string;
+  studentDateNaiss: Date;
   studentEmail: string | null;
   studentPhone: string | null;
   matricule: string;
