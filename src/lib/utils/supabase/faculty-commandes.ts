@@ -1,4 +1,5 @@
-import { DocumentReleve, DocumentValidate } from "@/lib/documents";
+import { getChef } from "@/lib/documents/layout";
+import { DocumentValidate } from "@/lib/documents";
 import { generateStageLetterPdfBufferFromCommandeId } from "@/lib/utils/supabase/stage-letter-generation";
 import { sendMicrosoft365Mail } from "@/lib/utils/microsoft-graph";
 import { getActiveAutorisationCodesForAgent } from "@/lib/utils/supabase/autorisations";
@@ -9,6 +10,7 @@ import { getProgrammeById } from "@/lib/utils/supabase/programmes";
 import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 import { getStudentDisplayName } from "@/lib/utils/supabase/students-shared";
 import { NoteManager } from "@/utils/excel/NoteManager";
+import PdfDocumentReleve from "@/utils/pdf/DocumentReleve";
 
 type CommandeRow = {
   id: string;
@@ -29,6 +31,32 @@ type StudentRow = {
   prenom: string | null;
   email: string | null;
   telephone: string | null;
+};
+
+const parseBirthDate = (record: Record<string, unknown>) => {
+  const candidates = [
+    record.date_naissance,
+    record.date_naiss,
+    record.dateNaissance,
+    record.dateNaiss,
+    record.naissance,
+    record.birth_date,
+  ];
+
+  for (const value of candidates) {
+    if (value instanceof Date) {
+      return value;
+    }
+
+    if (typeof value === "string" && value.trim().length > 0) {
+      const parsed = new Date(value);
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    }
+  }
+
+  return null;
 };
 
 type ProgrammeRow = {
@@ -556,12 +584,45 @@ export const generateReleveForFaculty = async (commandeId: string) => {
   const bestSummary = studentResult.promotion;
   const decision = bestSummary.mention === "F" ? "Ajourné" : "Admis";
 
-  const document = new DocumentReleve({
+  const adminStudentPromise = admin.from("students").select("*").eq("id", detail.student.id).maybeSingle();
+  const adminYearPromise = programme?.annee_id
+    ? admin.from("annees").select("designation").eq("id", programme.annee_id).maybeSingle()
+    : Promise.resolve({ data: null, error: null });
+
+  const [{ data: rawStudentData, error: rawStudentError }, { data: anneeData, error: anneeError }] = await Promise.all([
+    adminStudentPromise,
+    adminYearPromise,
+  ]);
+
+  if (rawStudentError) {
+    throw new Error(rawStudentError.message);
+  }
+
+  if (anneeError) {
+    throw new Error(anneeError.message);
+  }
+
+  const rawStudentRecord = (rawStudentData ?? null) as Record<string, unknown> | null;
+  const studentVille =
+    rawStudentRecord && typeof rawStudentRecord.ville === "string" && rawStudentRecord.ville.trim().length > 0
+      ? rawStudentRecord.ville.trim()
+      : "Non renseigne";
+  const studentDateNaiss = rawStudentRecord ? parseBirthDate(rawStudentRecord) : null;
+  const anneeAcad =
+    typeof (anneeData as { designation?: string | null } | null)?.designation === "string" &&
+    (anneeData as { designation?: string | null }).designation?.trim()
+      ? ((anneeData as { designation: string }).designation.trim() as string)
+      : "Non renseignee";
+
+  const payload = {
     studentName: detail.student.displayName,
+    studentVille,
+    studentDateNaiss: studentDateNaiss ?? new Date("1970-01-01"),
     studentEmail: detail.student.email,
     studentPhone: detail.student.telephone,
     matricule: studentResult.matricule || "Non renseigne",
     programmeName: programme?.designation ?? "Promotion",
+    anneeAcad,
     orderReference,
     serialNumber,
     units,
@@ -575,7 +636,17 @@ export const generateReleveForFaculty = async (commandeId: string) => {
       decision,
     },
     verificationUrl,
+  };
+
+  const document = new PdfDocumentReleve(payload);
+  document.info({
+    title: `Releve de cotes - ${payload.studentName}`,
+    author: "Dashboard Agents",
+    subject: "Bulletin de notes",
+    keywords: "releve, bulletin, note, credits",
   });
+
+  await document.generate(verificationUrl, { nom: getChef(), titre: "Chef de Section" });
 
   return {
     filename: `bulletin-${orderReference}.pdf`,

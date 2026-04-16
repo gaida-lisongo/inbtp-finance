@@ -134,11 +134,6 @@ class DocumentReleve extends Document {
                     style: 'tabUnite',
                     color: unit.moyenne < 10 ? this.chart.secondary : this.chart.black,
                 },
-                {
-                    text: `${unit.statut}`,
-                    style: 'tabUnite',
-                    color: unit.statut === "V" ? this.chart.green : this.chart.secondary,
-                },
             ];
             return unitRow;
         });
@@ -152,8 +147,7 @@ class DocumentReleve extends Document {
                 },
                 '',
                 '',
-                { text: `${this.formatGrade(this.summary.totalObtenu / Math.max(1, (this.summary.totalMax / 20)))}/20`, style: 'tabUnite', colSpan: 3 },
-                '',
+                { text: `${this.formatGrade(this.summary.totalObtenu / Math.max(1, (this.summary.totalMax / 20)))}/20`, style: 'tabUnite', colSpan: 2 },
                 ''
             ],
             [
@@ -164,8 +158,7 @@ class DocumentReleve extends Document {
                 },
                 '',
                 '',
-                { text: String(this.summary.ncv), style: 'tabUnite', colSpan: 3 },
-                '',
+                { text: String(this.summary.ncv), style: 'tabUnite', colSpan: 2 },
                 ''
             ],
             [
@@ -176,8 +169,7 @@ class DocumentReleve extends Document {
                 },
                 '',
                 '',
-                { text: String(this.summary.ncnv), style: 'tabUnite', colSpan: 3 },
-                '',
+                { text: String(this.summary.ncnv), style: 'tabUnite', colSpan: 2 },
                 ''
             ],
             [
@@ -188,8 +180,7 @@ class DocumentReleve extends Document {
                 },
                 '',
                 '',
-                { text: this.summary.mention, style: 'tabUnite', colSpan: 3},
-                '',
+                { text: this.summary.mention, style: 'tabUnite', colSpan: 2},
                 ''
             ],
             [
@@ -202,10 +193,9 @@ class DocumentReleve extends Document {
                 '',
                 {
                     text: this.summary.decision,
-                    style: 'tabUnite', colSpan: 3,
+                    style: 'tabUnite', colSpan: 2,
                     color: this.summary.decision.toLowerCase().includes("admi") ? this.chart.green : this.chart.secondary,
                 },
-                '',
                 ''
             ],
 
@@ -261,7 +251,7 @@ class DocumentReleve extends Document {
                     margin: [this.chart.lg, 0, this.chart.lg, 0],
                     table: {
                         headerRows: 1,
-                        widths: [ 25, 25, "*", 25, 40, 25],
+                        widths: [ 25, 40, "*", 25, 40],
                         body: [
                             [
                                 { text: "N°", style: "tabHeader" },
@@ -269,7 +259,6 @@ class DocumentReleve extends Document {
                                 { text: "Matière", style: "tabHeader" },
                                 { text: "Crédit", style: "tabHeader" },
                                 { text: "Moyenne", style: "tabHeader" },
-                                { text: "Statut", style: "tabHeader" },
                             ],
                             ...items,
                             ...summaryTable

@@ -13,6 +13,33 @@ type CheckReleveResponse =
       studentId: string;
       orderReference: string;
       validatedAt: string;
+      student?: {
+        id: string;
+        fullName: string;
+        email: string | null;
+        telephone: string | null;
+        pays: string | null;
+        ville: string | null;
+        adresse: string | null;
+        commune: string | null;
+      } | null;
+      product?: {
+        id: string;
+        designation: string | null;
+        category: string;
+        programmeId: string | null;
+      };
+      programme?: {
+        id: string;
+        designation: string | null;
+        annee: string | null;
+      } | null;
+      commande?: {
+        id: string;
+        orderNumber: string | null;
+        categorie: string | null;
+        total: number | null;
+      };
     }
   | {
       valid: false;
@@ -94,6 +121,11 @@ export default function ReleveCheckingClient({ productId, studentId, order }: Re
       return <p className="text-sm text-red-600 dark:text-red-400">{result.data.error}</p>;
     }
 
+    const student = result.data.student ?? null;
+    const product = result.data.product ?? null;
+    const programme = result.data.programme ?? null;
+    const commande = result.data.commande ?? null;
+
     return (
       <div className="space-y-3">
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-200">
@@ -108,12 +140,58 @@ export default function ReleveCheckingClient({ productId, studentId, order }: Re
           </div>
           <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-white/[0.03]">
             <dt className="text-xs text-gray-500 dark:text-gray-400">Produit</dt>
-            <dd className="mt-1 break-all text-sm font-medium text-gray-900 dark:text-white/90">{result.data.productId}</dd>
+            <dd className="mt-1 break-all text-sm font-medium text-gray-900 dark:text-white/90">
+              {product?.designation ?? result.data.productId}
+            </dd>
+            {product?.category ? (
+              <dd className="mt-1 text-xs text-gray-600 dark:text-gray-300">Catégorie: {product.category}</dd>
+            ) : null}
           </div>
+
           <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-white/[0.03] sm:col-span-2">
             <dt className="text-xs text-gray-500 dark:text-gray-400">Étudiant</dt>
-            <dd className="mt-1 break-all text-sm font-medium text-gray-900 dark:text-white/90">{result.data.studentId}</dd>
+            <dd className="mt-1 text-sm font-medium text-gray-900 dark:text-white/90">{student?.fullName ?? result.data.studentId}</dd>
+            <dd className="mt-1 break-all text-xs text-gray-600 dark:text-gray-300">
+              {[
+                student?.email ? `Email: ${student.email}` : null,
+                student?.telephone ? `Téléphone: ${student.telephone}` : null,
+                student?.ville ? `Ville: ${student.ville}` : null,
+                student?.pays ? `Pays: ${student.pays}` : null,
+                student?.commune ? `Commune: ${student.commune}` : null,
+              ]
+                .filter(Boolean)
+                .join(" • ")}
+            </dd>
           </div>
+
+          {programme ? (
+            <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-white/[0.03] sm:col-span-2">
+              <dt className="text-xs text-gray-500 dark:text-gray-400">Programme</dt>
+              <dd className="mt-1 break-all text-sm font-medium text-gray-900 dark:text-white/90">
+                {programme.designation ?? programme.id}
+              </dd>
+              {programme.annee ? (
+                <dd className="mt-1 text-xs text-gray-600 dark:text-gray-300">Année: {programme.annee}</dd>
+              ) : null}
+            </div>
+          ) : null}
+
+          {commande ? (
+            <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-white/[0.03] sm:col-span-2">
+              <dt className="text-xs text-gray-500 dark:text-gray-400">Commande</dt>
+              <dd className="mt-1 break-all text-sm font-medium text-gray-900 dark:text-white/90">
+                {commande.orderNumber ?? commande.id}
+              </dd>
+              <dd className="mt-1 break-all text-xs text-gray-600 dark:text-gray-300">
+                {[
+                  commande.categorie ? `Catégorie: ${commande.categorie}` : null,
+                  typeof commande.total === "number" ? `Total: ${commande.total}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" • ")}
+              </dd>
+            </div>
+          ) : null}
         </dl>
       </div>
     );
@@ -137,4 +215,3 @@ export default function ReleveCheckingClient({ productId, studentId, order }: Re
     </div>
   );
 }
-
