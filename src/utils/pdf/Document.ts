@@ -258,11 +258,11 @@ class Document {
 
     async studentLayout(
         content: any,
-        student: {profile?: string, nom:string, sexe: string, nationalite: string}= {
+        student: {profile?: string, nom:string, sexe: string, ville: string}= {
             profile: 'https://thumbs.dreamstime.com/b/black-college-graduate-attractive-young-holding-certificate-indoors-52814469.jpg',
             nom: "PierreMbenza MbenzaMbenza",
             sexe: "M",
-            nationalite: "Congolaise",
+            ville: "Congolaise",
         }, 
         parcour: {promotion: string, systeme: string, matricule: string, annee: string}={
             promotion: "L3 Bâtiment",

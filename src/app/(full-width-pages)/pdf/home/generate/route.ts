@@ -120,7 +120,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const title = normalizeText(url.searchParams.get("title")) ?? "Document test";
 
-  const bulletin = new DocumentBulletin(data);
+  const bulletin = new DocumentBulletin({ notes: data });
   bulletin.info({
     title,
     author: "Dashboard Agents",

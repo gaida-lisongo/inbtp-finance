@@ -1,5 +1,4 @@
 import { getChef } from "@/lib/documents/layout";
-import { DocumentValidate } from "@/lib/documents";
 import { generateStageLetterPdfBufferFromCommandeId } from "@/lib/utils/supabase/stage-letter-generation";
 import { sendMicrosoft365Mail } from "@/lib/utils/microsoft-graph";
 import { getActiveAutorisationCodesForAgent } from "@/lib/utils/supabase/autorisations";
@@ -10,6 +9,8 @@ import { getProgrammeById } from "@/lib/utils/supabase/programmes";
 import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 import { getStudentDisplayName } from "@/lib/utils/supabase/students-shared";
 import { NoteManager } from "@/utils/excel/NoteManager";
+import type { Note } from "@/utils/pdf/Document";
+import DocumentBulletin, { type DocumentBulletinPayload } from "@/utils/pdf/DocumentBulletin";
 import PdfDocumentReleve from "@/utils/pdf/DocumentReleve";
 
 type CommandeRow = {
@@ -60,6 +61,13 @@ const parseBirthDate = (record: Record<string, unknown>) => {
 
   return null;
 };
+
+const formatDocumentDate = (value: Date) =>
+  new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(value);
 
 type ProgrammeRow = {
   id: string;
@@ -450,45 +458,96 @@ export const generateValidationSheetForFaculty = async (commandeId: string) => {
 
   const orderReference = detail.commande.orderNumber ?? detail.commande.id;
   const verificationBaseUrl = appBaseUrl ?? "http://localhost:3000";
-  const verificationUrl = `${verificationBaseUrl}/api/checking/validation/${productId}?student_id=${encodeURIComponent(detail.student.id)}&order=${encodeURIComponent(orderReference)}`;
+  const verificationUrl = `${verificationBaseUrl}/api/verify/validation/${productId}?student_id=${encodeURIComponent(detail.student.id)}&order=${encodeURIComponent(orderReference)}`;
 
-  const semestres = studentResult.semestres.map((semestre) => {
-    const unites = semestre.unites.map((unite) => ({
-      code: unite.code,
-      designation: unite.designation,
-      statut: unite.isValide ? ("V" as const) : ("NV" as const),
-      credit: unite.credit,
-      matieres: unite.elements.map((element) => ({
-        designation: element.designation,
-        credit: element.credit,
-      })),
-    }));
+  const bulletinNotes: Note[] = studentResult.semestres.flatMap((semestre) =>
+    semestre.unites.map((unite) => {
+      const noteValue = unite.isValide ? 20 : 0;
 
-    const casserolesCount = semestre.unites.reduce(
-      (sum, unite) => sum + unite.elements.filter((element) => element.noteFinale < 10).length,
-      0,
-    );
+      return {
+        code: unite.code,
+        unite: `${semestre.designation} - ${unite.designation}`,
+        credit: unite.credit,
+        moyenne: noteValue,
+        elements: unite.elements.map((element) => ({
+          designation: element.designation,
+          cc: 0,
+          examen: 0,
+          rattrage: noteValue,
+          credit: element.credit,
+        })),
+      };
+    }),
+  );
 
-    return {
-      designation: semestre.designation,
-      totalCredits: semestre.credit,
-      unites,
-      validatedCredits: semestre.ncv,
-      nonValidatedCredits: semestre.ncnv,
-      casserolesCount,
-    };
+  const adminStudentPromise = admin.from("students").select("*").eq("id", detail.student.id).maybeSingle();
+  const adminYearPromise = programme?.annee_id
+    ? admin.from("annees").select("designation").eq("id", programme.annee_id).maybeSingle()
+    : Promise.resolve({ data: null, error: null });
+
+  const [{ data: rawStudentData, error: rawStudentError }, { data: anneeData, error: anneeError }] = await Promise.all([
+    adminStudentPromise,
+    adminYearPromise,
+  ]);
+
+  if (rawStudentError) {
+    throw new Error(rawStudentError.message);
+  }
+
+  if (anneeError) {
+    throw new Error(anneeError.message);
+  }
+
+  const rawStudentRecord = (rawStudentData ?? null) as Record<string, unknown> | null;
+  const studentVille =
+    rawStudentRecord && typeof rawStudentRecord.ville === "string" && rawStudentRecord.ville.trim().length > 0
+      ? rawStudentRecord.ville.trim()
+      : "Non renseignee";
+  const studentSexe =
+    rawStudentRecord && typeof rawStudentRecord.sexe === "string" && rawStudentRecord.sexe.trim().length > 0
+      ? rawStudentRecord.sexe.trim().toUpperCase()
+      : "M";
+
+  const payload: DocumentBulletinPayload = {
+    notes: bulletinNotes,
+    student: {
+      nom: detail.student.displayName,
+      sexe: studentSexe,
+      ville: studentVille,
+    },
+    parcour: {
+      promotion: programme?.designation ?? "Promotion",
+      systeme: programme?.systeme ?? "LMD",
+      matricule: studentResult.matricule || "Non renseigne",
+      annee:
+        typeof (anneeData as { designation?: string | null } | null)?.designation === "string" &&
+        (anneeData as { designation?: string | null }).designation?.trim()
+          ? (anneeData as { designation: string }).designation.trim()
+          : "Non renseignee",
+    },
+    contact: {
+      email: detail.student.email ?? "Non renseigne",
+      telephone: detail.student.telephone ?? "Non renseigne",
+      adresse: studentVille,
+    },
+    document: {
+      type: "Fiche de validation",
+      ressource: programme?.designation ?? "Promotion",
+      detail: "Validation des credits par semestre",
+      reference: orderReference,
+      dateCreate: formatDocumentDate(new Date()),
+    },
+  };
+
+  const document = new DocumentBulletin(payload);
+  document.info({
+    title: `Fiche de validation - ${detail.student.displayName}`,
+    author: "Dashboard Agents",
+    subject: "Validation des credits par semestre",
+    keywords: "validation, credits, semestre, unites, matieres",
   });
 
-  const document = new DocumentValidate({
-    studentName: detail.student.displayName,
-    studentEmail: detail.student.email,
-    studentPhone: detail.student.telephone,
-    matricule: studentResult.matricule || "Non renseigne",
-    programmeName: programme?.designation ?? "Promotion",
-    orderReference,
-    semestres,
-    verificationUrl,
-  });
+  await document.generate(verificationUrl);
 
   return {
     filename: `fiche-validation-${orderReference}.pdf`,

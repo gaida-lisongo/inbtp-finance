@@ -6,7 +6,8 @@ import { getNotesForProgramme } from "@/lib/utils/supabase/jury";
 import { getProductPageData, getCommandeStudentDisplayName } from "@/lib/utils/supabase/commandes";
 import { getProgrammeById } from "@/lib/utils/supabase/programmes";
 import { NoteManager } from "@/utils/excel/NoteManager";
-import DocumentValidation from "@/utils/pdf/DocumentValidation";
+import DocumentBulletin, { type DocumentBulletinPayload } from "@/utils/pdf/DocumentBulletin";
+import type { Note } from "@/utils/pdf/Document";
 
 const appBaseUrl = process.env.NEXT_PUBLIC_HOST_URL?.replace(/\/$/, "");
 
@@ -17,6 +18,13 @@ const normalizeText = (value: string | null | undefined) => {
 
   return value.trim().toLowerCase();
 };
+
+const formatDocumentDate = (value: Date) =>
+  new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(value);
 
 export async function GET(_request: Request, context: { params: Promise<{ product_id: string }> }) {
   try {
@@ -48,34 +56,27 @@ export async function GET(_request: Request, context: { params: Promise<{ produc
 
     const orderReference = productData.existingSuccessCommande?.orderNumber ?? productData.existingSuccessCommande?.id ?? productId;
     const verificationBaseUrl = appBaseUrl ?? "http://localhost:3000";
-    const verificationUrl = `${verificationBaseUrl}/api/checking/validation/${productId}?student_id=${encodeURIComponent(productData.student.id)}&order=${encodeURIComponent(orderReference)}`;
+    const verificationUrl = `${verificationBaseUrl}/api/verify/validation/${productId}?student_id=${encodeURIComponent(productData.student.id)}&order=${encodeURIComponent(orderReference)}`;
 
-    const semestres = studentResult.semestres.map((semestre) => {
-      const unites = semestre.unites.map((unite) => ({
-        code: unite.code,
-        designation: unite.designation,
-        statut: unite.isValide ? ("V" as const) : ("NV" as const),
-        credit: unite.credit,
-        matieres: unite.elements.map((element) => ({
-          designation: element.designation,
-          credit: element.credit,
-        })),
-      }));
+    const bulletinNotes: Note[] = studentResult.semestres.flatMap((semestre) =>
+      semestre.unites.map((unite) => {
+        const noteValue = unite.isValide ? 20 : 0;
 
-      const casserolesCount = semestre.unites.reduce(
-        (sum, unite) => sum + unite.elements.filter((element) => element.noteFinale < 10).length,
-        0,
-      );
-
-      return {
-        designation: semestre.designation,
-        totalCredits: semestre.credit,
-        unites,
-        validatedCredits: semestre.ncv,
-        nonValidatedCredits: semestre.ncnv,
-        casserolesCount,
-      };
-    });
+        return {
+          code: unite.code,
+          unite: `${semestre.designation} - ${unite.designation}`,
+          credit: unite.credit,
+          moyenne: noteValue,
+          elements: unite.elements.map((element) => ({
+            designation: element.designation,
+            cc: 0,
+            examen: 0,
+            rattrage: noteValue,
+            credit: element.credit,
+          })),
+        };
+      }),
+    );
 
     const admin = createAdminClient();
     const { data: documentRow, error: documentError } = await admin
@@ -92,6 +93,24 @@ export async function GET(_request: Request, context: { params: Promise<{ produc
       return new NextResponse("Document introuvable.", { status: 404 });
     }
 
+    const adminStudentPromise = admin.from("students").select("*").eq("id", productData.student.id).maybeSingle();
+    const adminYearPromise = programme?.annee_id
+      ? admin.from("annees").select("designation").eq("id", programme.annee_id).maybeSingle()
+      : Promise.resolve({ data: null, error: null });
+
+    const [{ data: rawStudentData, error: rawStudentError }, { data: anneeData, error: anneeError }] = await Promise.all([
+      adminStudentPromise,
+      adminYearPromise,
+    ]);
+
+    if (rawStudentError) {
+      throw new Error(rawStudentError.message);
+    }
+
+    if (anneeError) {
+      throw new Error(anneeError.message);
+    }
+
     const documentCategory = getDocumentCategory({
       caracteristique:
         documentRow.caracteristique && typeof documentRow.caracteristique === "object"
@@ -103,20 +122,49 @@ export async function GET(_request: Request, context: { params: Promise<{ produc
       return new NextResponse("Ce document n'est pas une fiche de validation.", { status: 400 });
     }
 
-    const payload = {
-      studentName: getCommandeStudentDisplayName(productData.student),
-      studentEmail: productData.student.email ?? null,
-      studentPhone: productData.student.telephone ?? null,
-      matricule: studentResult.matricule || "Non renseigne",
-      programmeName: programme?.designation ?? "Promotion",
-      orderReference,
-      semestres,
-      verificationUrl,
+    const rawStudentRecord = (rawStudentData ?? null) as Record<string, unknown> | null;
+    const studentVille =
+      rawStudentRecord && typeof rawStudentRecord.ville === "string" && rawStudentRecord.ville.trim().length > 0
+        ? rawStudentRecord.ville.trim()
+        : "Non renseignee";
+    const studentSexe =
+      rawStudentRecord && typeof rawStudentRecord.sexe === "string" && rawStudentRecord.sexe.trim().length > 0
+        ? rawStudentRecord.sexe.trim().toUpperCase()
+        : "M";
+    const documentPayload: DocumentBulletinPayload = {
+      notes: bulletinNotes,
+      student: {
+        nom: getCommandeStudentDisplayName(productData.student),
+        sexe: studentSexe,
+        ville: studentVille,
+      },
+      parcour: {
+        promotion: programme?.designation ?? "Promotion",
+        systeme: programme?.systeme ?? "LMD",
+        matricule: studentResult.matricule || "Non renseigne",
+        annee:
+          typeof (anneeData as { designation?: string | null } | null)?.designation === "string" &&
+          (anneeData as { designation?: string | null }).designation?.trim()
+            ? (anneeData as { designation: string }).designation.trim()
+            : "Non renseignee",
+      },
+      contact: {
+        email: productData.student.email ?? "Non renseigne",
+        telephone: productData.student.telephone ?? "Non renseigne",
+        adresse: studentVille,
+      },
+      document: {
+        type: "Fiche de validation",
+        ressource: programme?.designation ?? "Promotion",
+        detail: "Validation des credits par semestre",
+        reference: orderReference,
+        dateCreate: formatDocumentDate(new Date()),
+      },
     };
 
-    const document = new DocumentValidation(payload);
+    const document = new DocumentBulletin(documentPayload);
     document.info({
-      title: `Fiche de validation - ${payload.studentName}`,
+      title: `Fiche de validation - ${getCommandeStudentDisplayName(productData.student)}`,
       author: "Dashboard Agents",
       subject: "Validation des credits par semestre",
       keywords: "validation, credits, semestre, unites, matieres",
