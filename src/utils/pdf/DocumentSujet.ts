@@ -124,7 +124,6 @@ class DocumentSujet extends Document {
     }
 
     generateProtocole(){
-        console.log("Objectifs : ", this.projet.objectif)
         const mainPage = [
             [{text: this.projet?.validation ? `Validé` : 'Non Validé', alignment: 'left'}, '', {text:`Score ${this.projet.note}/25`, alignment: 'right'}],
             [{text: 'PROTOCOLE DE RECHERCHE', colSpan: 3, style: 'title', alignment: 'center', margin: [0, this.chart.lg *3, 0, this.chart.md]}, '', ''],
@@ -281,10 +280,14 @@ class DocumentSujet extends Document {
         verifyUrl: string,
         type: 'Protocle' | 'Couverture'
     ) {
-        await this.background();
         await this.buildFooter(verifyUrl);
 
-        await this.adminLayout(type == 'Couverture' ? this.generateCouverture() : this.generateProtocole())
+        if(type == 'Protocle'){
+            await this.background();
+            this.adminLayout(this.generateProtocole());
+        } else {
+            this.layout(this.generateCouverture());
+        }
     }
 }
 

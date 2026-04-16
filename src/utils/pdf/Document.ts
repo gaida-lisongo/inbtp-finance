@@ -182,6 +182,51 @@ class Document {
         this.docDefinition = {...this.docDefinition, info: {title, author, subject, keywords}};
     }
 
+    async layout(content: any = []){
+        const { schoolLogo } = await getSchoolPdfBrandingAssets();
+
+        const service = this.getService();
+
+        const mainPage: any[] = [
+            {
+                stack: [
+                    {text: ('République Démocratique du Congo').toLocaleUpperCase(), alignment: 'center'},
+                    {text: "MINISTÈRE DE L’ENSEIGNEMENT SUPÉRIEUR, UNIVERSITAIRE, RECHERCHE SCIENTIFIQUE ET INNOVATIONS", style: 'title', fontSize: this.chart.md, alignment: 'center'},
+                    {
+                        canvas: [
+                            {
+                                type: "line",
+                                x1: 0,
+                                y1: 0,
+                                x2: 300,
+                                y2: 0,
+                                lineWidth: 1,
+                                lineColor: this.chart.black,
+                            },
+                        ],
+                        margin: [0, 0, 0, 5],
+                        alignment: "center"
+                    },
+                    {text: "INSTITUT NATIONAL DU BÂTIMENT ET DES TRAVAUX PUBLICS", style: 'subtitle', alignment: 'center', fontSize: this.chart.md},
+                    {
+                        image: schoolLogo, 
+                        fit: [150, 80],
+                        margin: [0, this.chart.lg, 0, this.chart.lg],
+                        alignment: 'center'
+                    },
+                    {text: "B.P. 4731\nKINSHASA / NGALIEMA", color: this.chart.primary, bold:true, italics: true, alignment: 'center'}, 
+                    {
+                        text: `Section ${service}`.toUpperCase(), 
+                        alignment: 'center', italics: true, bold: true, margin: [0, this.chart.md, 0, this.chart.xs],
+                    },
+                    ...content
+                ]
+            }
+        ]
+
+        this.content(mainPage)
+    }
+
     async adminLayout(content: any = []){
         const { schoolLogo } = await getSchoolPdfBrandingAssets();
 
@@ -232,7 +277,7 @@ class Document {
                         ],
                         [
                             {
-                            text: `La Section ${service}`, style: 'subtitle', italics: true, colSpan: 3, margin: [0, 0, 0, this.chart.xs],
+                            text: `Section ${service}`.toUpperCase(), style: 'subtitle', italics: true, colSpan: 3, margin: [0, 0, 0, this.chart.xs],
 							border: [false, false, false, false]},
                             '',
                             ''
