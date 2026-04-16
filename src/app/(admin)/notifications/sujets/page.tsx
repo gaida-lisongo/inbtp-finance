@@ -146,6 +146,14 @@ export default async function SubjectNotificationsPage() {
                       Generer page de garde
                     </button>
                   </form>
+                  <form action={`/api/admin/notifications/sujets/${item.id}/protocol`} method="post" target="_blank">
+                    <button
+                      type="submit"
+                      className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+                    >
+                      Voir protocole
+                    </button>
+                  </form>
                 </div>
               </div>
 

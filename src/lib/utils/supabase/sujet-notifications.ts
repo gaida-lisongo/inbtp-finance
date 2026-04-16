@@ -1,8 +1,8 @@
-import { DocumentSujet } from "@/lib/documents";
 import { getActiveAutorisationCodesForAgent } from "@/lib/utils/supabase/autorisations";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 import { getCurrentAuthenticatedStudent, getProductPageData, getCommandeStudentDisplayName } from "@/lib/utils/supabase/commandes";
 import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
+import PdfDocumentSujet from "@/utils/pdf/DocumentSujet";
 
 type SubjectSection = {
   section: string;
@@ -24,6 +24,9 @@ type SubjectNotificationRow = {
   resultats_attendus: unknown;
   chronogrammes: unknown;
   references: unknown;
+  note: number | null;
+  validation: boolean | null;
+  observations: unknown;
 };
 
 type NotificationRow = {
@@ -106,6 +109,37 @@ const parseStructuredSections = (value: unknown): SubjectSection[] => {
       return { section, content };
     })
     .filter((item): item is SubjectSection => Boolean(item));
+};
+
+const parseObservationLines = (value: unknown): string[] => {
+  if (typeof value === "string") {
+    return value
+      .split("\n")
+      .map((item) => normalizeText(item))
+      .filter((item): item is string => Boolean(item));
+  }
+
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .flatMap((item) => {
+      if (typeof item === "string") {
+        return item.split("\n");
+      }
+
+      if (item && typeof item === "object") {
+        const record = item as Record<string, unknown>;
+        if (typeof record.content === "string") {
+          return record.content.split("\n");
+        }
+      }
+
+      return [];
+    })
+    .map((item) => normalizeText(item))
+    .filter((item): item is string => Boolean(item));
 };
 
 const parseSujetJury = (value: unknown): SujetJuryMember[] => {
@@ -235,7 +269,7 @@ const getSujetRowWithParent = async (notificationSujetId: string) => {
   const { data: sujetData, error: sujetError } = await admin
     .from("notifications_sujet")
     .select(
-      "id, created_at, notification_id, titre, directeur, co_directeur, thematique, justification, problematique, objectif, methodologie, resultats_attendus, chronogrammes, references",
+      "id, created_at, notification_id, titre, directeur, co_directeur, thematique, justification, problematique, objectif, methodologie, resultats_attendus, chronogrammes, references, note, validation, observations",
     )
     .eq("id", notificationSujetId)
     .maybeSingle();
@@ -295,31 +329,92 @@ const getSujetRowWithParent = async (notificationSujetId: string) => {
   };
 };
 
-const buildSubjectCoverBuffer = async (notificationSujetId: string) => {
+const buildSubjectDocumentPayload = async (notificationSujetId: string): Promise<{
+  payload: {
+    projet: {
+      validation: boolean;
+      note: number;
+      titre: string;
+      directeur: string;
+      co_directeur: string;
+      thematique: string[];
+      justification: string[];
+      problematique: string[];
+      objectif: string[];
+      methodologie: SubjectSection[];
+      resultats: SubjectSection[];
+      chronogrammes: SubjectSection[];
+      references: SubjectSection[];
+    };
+    student: {
+      nom: string;
+      email: string;
+      telephone: string;
+      matricule: string;
+      programme: string;
+      annee: string;
+    };
+  };
+  parent: NotificationRow;
+  student: StudentRow;
+}> => {
   const data = await getSujetRowWithParent(notificationSujetId);
   const studentName = getCommandeStudentDisplayName(data.student);
-  const jury = await findSujetJuryByNotificationReference({
-    studentId: data.student.id,
-    notificationObject: data.parent.object,
-  });
-  const document = new DocumentSujet({
-    title: normalizeText(data.sujetRow.titre) ?? "Sujet de recherche",
-    director: normalizeText(data.sujetRow.directeur) ?? "Directeur non renseigne",
-    coDirector: normalizeText(data.sujetRow.co_directeur),
-    jury,
-    student: {
-      fullName: studentName,
-      email: data.student.email,
-      telephone: data.student.telephone,
-    },
-  });
 
   return {
-    filename: `page-garde-sujet-${notificationSujetId}.pdf`,
-    buffer: await document.generateBuffer(),
+    payload: {
+      projet: {
+        validation: data.sujetRow.validation ?? false,
+        note: data.sujetRow.note ?? 0.0,
+        titre: normalizeText(data.sujetRow.titre) ?? "Sujet de recherche",
+        directeur: normalizeText(data.sujetRow.directeur) ?? "Directeur non renseigne",
+        co_directeur: normalizeText(data.sujetRow.co_directeur) ?? "",
+        thematique: parseStringSections(data.sujetRow.thematique),
+        justification: parseStringSections(data.sujetRow.justification),
+        problematique: parseStringSections(data.sujetRow.problematique),
+        objectif: parseStringSections(data.sujetRow.objectif),
+        methodologie: parseStructuredSections(data.sujetRow.methodologie),
+        resultats: parseStructuredSections(data.sujetRow.resultats_attendus),
+        chronogrammes: parseStructuredSections(data.sujetRow.chronogrammes),
+        references: parseStructuredSections(data.sujetRow.references),
+      },
+      student: {
+        nom: studentName,
+        email: data.student.email ?? "Non renseigne",
+        telephone: data.student.telephone ?? "Non renseigne",
+        matricule: "Non renseigne",
+        programme: "Non renseigne",
+        annee: "Non renseignee",
+      },
+    },
     parent: data.parent,
     student: data.student,
   };
+};
+
+const buildSubjectPdfBuffer = async (
+  notificationSujetId: string,
+  verifyUrl: string,
+  type: "Couverture" | "Protocle",
+) => {
+  const data = await buildSubjectDocumentPayload(notificationSujetId);
+  const document = new PdfDocumentSujet(data.payload);
+
+  await document.generate(verifyUrl, type);
+
+  return {
+    notificationSujetId,
+    parent: data.parent,
+    student: data.student,
+    payload: data.payload,
+    filename: `${type === "Couverture" ? "page-garde" : "protocole"}-sujet-${notificationSujetId}.pdf`,
+    buffer: await document.generateBuffer(),
+  };
+};
+
+export const getSubjectDocumentPayloadFromNotification = async (notificationSujetId: string) => {
+  await assertOrganizerAccess();
+  return buildSubjectDocumentPayload(notificationSujetId);
 };
 
 export const createSubjectResearchRequestNotification = async (input: {
@@ -437,6 +532,9 @@ export type SubjectRequestNotificationItem = {
   resultatsAttendus: SubjectSection[];
   chronogrammes: SubjectSection[];
   references: SubjectSection[];
+  note: number | null;
+  validation: boolean | null;
+  observations: string[];
   notificationStatus: boolean;
   student: {
     id: string;
@@ -453,7 +551,7 @@ export const getSubjectRequestNotifications = async (): Promise<SubjectRequestNo
   const { data: subjectRowsData, error: subjectRowsError } = await admin
     .from("notifications_sujet")
     .select(
-      "id, created_at, notification_id, titre, directeur, co_directeur, thematique, justification, problematique, objectif, methodologie, resultats_attendus, chronogrammes, references",
+      "id, created_at, notification_id, titre, directeur, co_directeur, thematique, justification, problematique, objectif, methodologie, resultats_attendus, chronogrammes, references, note, validation, observations",
     )
     .order("created_at", { ascending: false });
 
@@ -524,6 +622,9 @@ export const getSubjectRequestNotifications = async (): Promise<SubjectRequestNo
         resultatsAttendus: parseStructuredSections(row.resultats_attendus),
         chronogrammes: parseStructuredSections(row.chronogrammes),
         references: parseStructuredSections(row.references),
+        note: typeof row.note === "number" && Number.isFinite(row.note) ? row.note : null,
+        validation: typeof row.validation === "boolean" ? row.validation : null,
+        observations: parseObservationLines(row.observations),
         notificationStatus: notification.status === true,
         student: student
           ? {
@@ -546,7 +647,9 @@ export const getSubjectRequestNotificationById = async (notificationSujetId: str
 export const generateSubjectCoverFromNotification = async (notificationSujetId: string) => {
   await assertOrganizerAccess();
   const admin = createAdminClient();
-  const result = await buildSubjectCoverBuffer(notificationSujetId);
+  const verificationBaseUrl = process.env.NEXT_PUBLIC_HOST_URL?.replace(/\/$/, "") ?? "http://localhost:3000";
+  const verifyUrl = `${verificationBaseUrl}/api/verify/sujet/${encodeURIComponent(notificationSujetId)}?type=cover`;
+  const result = await buildSubjectPdfBuffer(notificationSujetId, verifyUrl, "Couverture");
 
   const { error: notificationUpdateError } = await admin
     .from("notifications")
@@ -582,7 +685,9 @@ export const generateSubjectCoverForStudent = async (notificationSujetId: string
     throw new Error("access_denied");
   }
 
-  return buildSubjectCoverBuffer(notificationSujetId);
+  const verificationBaseUrl = process.env.NEXT_PUBLIC_HOST_URL?.replace(/\/$/, "") ?? "http://localhost:3000";
+  const verifyUrl = `${verificationBaseUrl}/api/verify/sujet/${encodeURIComponent(notificationSujetId)}?type=cover`;
+  return buildSubjectPdfBuffer(notificationSujetId, verifyUrl, "Couverture");
 };
 
 export type StudentSubjectRequestState = {

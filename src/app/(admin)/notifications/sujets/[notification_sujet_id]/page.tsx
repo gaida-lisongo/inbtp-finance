@@ -1,45 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import SubjectEvaluationPanel from "@/components/recherche/SubjectEvaluationPanel";
 import { getSubjectRequestNotificationById } from "@/lib/utils/supabase/sujet-notifications";
 
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
-
-const renderSimpleSections = (label: string, sections: string[]) => (
-  <div className="space-y-2 rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-    <h4 className="text-sm font-semibold text-gray-900 dark:text-white/90">{label}</h4>
-    {sections.length === 0 ? (
-      <p className="text-sm text-gray-500 dark:text-gray-400">Aucune section renseignee.</p>
-    ) : (
-      <div className="space-y-2">
-        {sections.map((section, index) => (
-          <pre key={`${label}-${index}`} className="whitespace-pre-wrap rounded-lg bg-gray-50 p-3 text-sm text-gray-700 dark:bg-gray-900 dark:text-gray-200">
-            {section}
-          </pre>
-        ))}
-      </div>
-    )}
-  </div>
-);
-
-const renderStructuredSections = (label: string, sections: Array<{ section: string; content: string }>) => (
-  <div className="space-y-2 rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-    <h4 className="text-sm font-semibold text-gray-900 dark:text-white/90">{label}</h4>
-    {sections.length === 0 ? (
-      <p className="text-sm text-gray-500 dark:text-gray-400">Aucune section renseignee.</p>
-    ) : (
-      <div className="space-y-3">
-        {sections.map((item, index) => (
-          <article key={`${label}-${index}`} className="rounded-lg bg-gray-50 p-3 dark:bg-gray-900">
-            <h5 className="text-sm font-medium text-gray-800 dark:text-gray-100">{item.section}</h5>
-            <pre className="mt-2 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-200">{item.content}</pre>
-          </article>
-        ))}
-      </div>
-    )}
-  </div>
-);
 
 export default async function SubjectNotificationDetailPage({
   params,
@@ -92,6 +58,14 @@ export default async function SubjectNotificationDetailPage({
               Generer page de garde
             </button>
           </form>
+          <form action={`/api/admin/notifications/sujets/${item.id}/protocol`} method="post" target="_blank">
+            <button
+              type="submit"
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+            >
+              Voir protocole de recherche
+            </button>
+          </form>
           <Link
             href="/notifications/sujets"
             className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 dark:border-gray-700 dark:text-gray-200"
@@ -99,18 +73,9 @@ export default async function SubjectNotificationDetailPage({
             Retour liste sujets
           </Link>
         </div>
-
-        <div className="mt-5 grid gap-4 lg:grid-cols-2">
-          {renderSimpleSections("Thematique", item.thematique)}
-          {renderSimpleSections("Justification", item.justification)}
-          {renderSimpleSections("Problematique", item.problematique)}
-          {renderSimpleSections("Objectif", item.objectif)}
-          {renderStructuredSections("Methodologie", item.methodologie)}
-          {renderStructuredSections("Resultats attendus", item.resultatsAttendus)}
-          {renderStructuredSections("Chronogrammes", item.chronogrammes)}
-          {renderStructuredSections("References", item.references)}
-        </div>
       </section>
+
+      <SubjectEvaluationPanel item={item} />
     </main>
   );
 }
