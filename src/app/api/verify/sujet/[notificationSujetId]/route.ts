@@ -19,10 +19,12 @@ export async function GET(request: Request, context: { params: Promise<{ notific
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  const redirectUrl = new URL(`/notifications/sujets/${encodeURIComponent(notificationSujetId)}`, request.url);
-  if (type) {
-    redirectUrl.searchParams.set("document_type", type);
-  }
+  const redirectPath =
+    type === "protocol"
+      ? `/checking/protocol/${encodeURIComponent(notificationSujetId)}`
+      : `/notifications/sujets/${encodeURIComponent(notificationSujetId)}`;
+
+  const redirectUrl = new URL(redirectPath, request.url);
 
   return NextResponse.redirect(redirectUrl);
 }
