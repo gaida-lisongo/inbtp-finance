@@ -1,8 +1,52 @@
-import { DocumentRelevePayload, ReleveSummary, ReleveUnitItem } from "@/lib/documents/DocumentReleve";
 import Document from "./Document";
 
 type PdfCell = string | number | Record<string, unknown>;
 type PdfRow = PdfCell[];
+
+export type ReleveUnitItem = {
+    semestre: string;
+    code: string;
+    designation: string;
+    statut: "V" | "NV";
+    credit: number;
+    moyenne: number;
+    elements: Array<{
+        designation: string;
+        credit: number;
+        cc: number;
+        examen: number;
+        noteSession: number;
+        rattrapage: number;
+        rachat: number;
+        noteFinale: number;
+    }>;
+};
+
+export type ReleveSummary = {
+    ncv: number;
+    ncnv: number;
+    totalObtenu: number;
+    totalMax: number;
+    pourcentage: number;
+    mention: string;
+    decision: string;
+};
+
+export type DocumentRelevePayload = {
+    studentName: string;
+    studentVille: string;
+    studentDateNaiss: Date;
+    studentEmail: string | null;
+    studentPhone: string | null;
+    matricule: string;
+    programmeName: string;
+    anneeAcad: string;
+    orderReference: string;
+    serialNumber: string;
+    units: ReleveUnitItem[];
+    summary: ReleveSummary;
+    verificationUrl: string;
+};
 
 class DocumentReleve extends Document {
     private student: {
@@ -221,6 +265,9 @@ class DocumentReleve extends Document {
                         { text: signature.nom, bold: true },
                         ", ",
                         signature.titre,
+                        " ",
+                        this.getService(),
+                        
                         ", atteste par la présente que l’étudiant(e) ",
                         { text: this.student.nomComplet, bold: true },
                         ", né(e) à ",

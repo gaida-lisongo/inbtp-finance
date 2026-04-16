@@ -30,6 +30,8 @@ type StudentRow = {
   post_nom: string | null;
   prenom: string | null;
   email: string | null;
+  ville: string | null;
+  date_naissance: string | null;
   telephone: string | null;
 };
 
@@ -80,6 +82,8 @@ export type FacultyCommandeDetail = {
     id: string;
     displayName: string;
     email: string | null;
+    ville: string | null;
+    date_naissance: string | null;
     telephone: string | null;
   } | null;
   programme: ProgrammeRow | null;
@@ -262,7 +266,7 @@ export const getFacultyCommandeDetail = async (commandeId: string): Promise<Facu
   const productId = normalizeText(commande.product);
 
   const studentPromise = studentId
-    ? admin.from("students").select("id, nom, post_nom, prenom, email, telephone").eq("id", studentId).maybeSingle()
+    ? admin.from("students").select("id, nom, post_nom, prenom, ville, date_naissance, email, telephone").eq("id", studentId).maybeSingle()
     : Promise.resolve({ data: null, error: null });
   const parcoursPromise = studentId
     ? admin.from("parcours").select("programme_id").eq("student_id", studentId).limit(1).maybeSingle()
@@ -274,6 +278,7 @@ export const getFacultyCommandeDetail = async (commandeId: string): Promise<Facu
     parcoursPromise,
     resourcePromise,
   ]);
+
 
   if (studentError) {
     throw new Error(studentError.message);
@@ -301,6 +306,8 @@ export const getFacultyCommandeDetail = async (commandeId: string): Promise<Facu
     programme = (programmeData ?? null) as ProgrammeRow | null;
   }
 
+  console.log("Student record :", studentRecord);
+  
   return {
     commande: {
       ...commande,
@@ -311,6 +318,8 @@ export const getFacultyCommandeDetail = async (commandeId: string): Promise<Facu
           id: studentRecord.id,
           displayName: getStudentDisplayName(studentRecord),
           email: studentRecord.email,
+          ville: studentRecord.ville,
+          date_naissance: studentRecord.date_naissance,
           telephone: studentRecord.telephone,
         }
       : null,
@@ -607,6 +616,7 @@ export const generateReleveForFaculty = async (commandeId: string) => {
     rawStudentRecord && typeof rawStudentRecord.ville === "string" && rawStudentRecord.ville.trim().length > 0
       ? rawStudentRecord.ville.trim()
       : "Non renseigne";
+  console.log("Ville: ", detail.student);
   const studentDateNaiss = rawStudentRecord ? parseBirthDate(rawStudentRecord) : null;
   const anneeAcad =
     typeof (anneeData as { designation?: string | null } | null)?.designation === "string" &&

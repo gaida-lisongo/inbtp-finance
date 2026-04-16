@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 
-import { DocumentValidate } from "@/lib/documents";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 import { getDocumentCategory } from "@/lib/utils/supabase/documents-shared";
 import { getNotesForProgramme } from "@/lib/utils/supabase/jury";
 import { getProductPageData, getCommandeStudentDisplayName } from "@/lib/utils/supabase/commandes";
 import { getProgrammeById } from "@/lib/utils/supabase/programmes";
 import { NoteManager } from "@/utils/excel/NoteManager";
+import DocumentValidation from "@/utils/pdf/DocumentValidation";
 
 const appBaseUrl = process.env.NEXT_PUBLIC_HOST_URL?.replace(/\/$/, "");
 
@@ -103,7 +103,7 @@ export async function GET(_request: Request, context: { params: Promise<{ produc
       return new NextResponse("Ce document n'est pas une fiche de validation.", { status: 400 });
     }
 
-    const document = new DocumentValidate({
+    const payload = {
       studentName: getCommandeStudentDisplayName(productData.student),
       studentEmail: productData.student.email ?? null,
       studentPhone: productData.student.telephone ?? null,
@@ -112,7 +112,17 @@ export async function GET(_request: Request, context: { params: Promise<{ produc
       orderReference,
       semestres,
       verificationUrl,
+    };
+
+    const document = new DocumentValidation(payload);
+    document.info({
+      title: `Fiche de validation - ${payload.studentName}`,
+      author: "Dashboard Agents",
+      subject: "Validation des credits par semestre",
+      keywords: "validation, credits, semestre, unites, matieres",
     });
+
+    await document.generate(verificationUrl);
     const pdfBuffer = await document.generateBuffer();
     const filename = `fiche-validation-${productData.student.id}.pdf`;
 

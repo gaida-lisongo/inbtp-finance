@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getChef } from "@/lib/documents/layout";
-import type { DocumentRelevePayload } from "@/lib/documents/DocumentReleve";
+import type { DocumentRelevePayload } from "@/utils/pdf/DocumentReleve";
 import DocumentReleve from "@/utils/pdf/DocumentReleve";
 
 const normalizeText = (value: string | null) => {
