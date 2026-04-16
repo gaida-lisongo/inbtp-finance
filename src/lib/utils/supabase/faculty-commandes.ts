@@ -1,4 +1,5 @@
-import { DocumentReleve, DocumentStage, DocumentValidate } from "@/lib/documents";
+import { DocumentReleve, DocumentValidate } from "@/lib/documents";
+import { generateStageLetterPdfBuffer } from "@/lib/documents/stage-letter-pdf";
 import { sendMicrosoft365Mail } from "@/lib/utils/microsoft-graph";
 import { getActiveAutorisationCodesForAgent } from "@/lib/utils/supabase/autorisations";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
@@ -355,7 +356,7 @@ export const generateStageLetterForFaculty = async (input: {
     throw new Error("stage_commande_data_incomplete");
   }
 
-  const document = new DocumentStage({
+  const buffer = await generateStageLetterPdfBuffer({
     stageTitle: detail.resource.title,
     student: {
       fullName: detail.student.displayName,
@@ -372,7 +373,7 @@ export const generateStageLetterForFaculty = async (input: {
 
   return {
     filename: `lettre-stage-${detail.commande.orderNumber ?? detail.commande.id}.pdf`,
-    buffer: await document.generateBuffer(),
+    buffer,
   };
 };
 

@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 
 import { buildStageLetterContent } from "@/lib/documents/DocumentStage";
 import { type PdfDocumentDefinition, generatePdfBufferFromDefinition } from "@/lib/documents/Document";
+import { getChef } from "@/lib/documents/layout";
 import { buildDocumentFooter } from "@/lib/documents/layout";
 import { getActiveAutorisationCodesForAgent } from "@/lib/utils/supabase/autorisations";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
+import UtilsDocumentStage from "@/utils/pdf/DocumentStage";
 
 type CommandeRow = {
   id: string;
@@ -119,7 +121,12 @@ export async function POST(request: Request) {
       return Boolean(stage && student);
     });
 
+    const bulkEngine = process.env.STAGE_LETTER_BULK_ENGINE?.trim().toLowerCase() === "utils" ? "utils" : "lib";
     const content: unknown[] = [];
+    let utilsBaseDefinition: Pick<
+      PdfDocumentDefinition,
+      "pageSize" | "pageMargins" | "defaultStyle" | "styles" | "background" | "footer"
+    > | null = null;
 
     for (let index = 0; index < buildableCommandes.length; index += 1) {
       const commande = buildableCommandes[index];
@@ -130,7 +137,7 @@ export async function POST(request: Request) {
         continue;
       }
 
-      const letterContent = await buildStageLetterContent({
+      const payload = {
         stageTitle: stage.slug ?? "Stage academique",
         student: {
           fullName: getStudentDisplayName(student),
@@ -141,7 +148,38 @@ export async function POST(request: Request) {
         recipientQuality: "Service d'accueil de stage",
         recipientSex: "N",
         documentReference: commande.orderNumber ?? commande.id,
-      });
+      } as const;
+
+      const letterContent =
+        bulkEngine === "utils"
+          ? await (async () => {
+              const verificationBaseUrl = process.env.NEXT_PUBLIC_HOST_URL?.replace(/\/$/, "") ?? "http://localhost:3000";
+              const signature = { nom: getChef(), titre: "Chef de Section" };
+              const document = new UtilsDocumentStage(payload);
+
+              document.info({
+                title: `Lettre de stage - ${payload.student.fullName}`,
+                author: "Dashboard Agents",
+                subject: "Lettre de recommandation de stage",
+                keywords: "stage, lettre, export",
+              });
+
+              await document.generate(verificationBaseUrl, signature);
+
+              if (!utilsBaseDefinition) {
+                utilsBaseDefinition = {
+                  pageSize: document.docDefinition.pageSize,
+                  pageMargins: document.docDefinition.pageMargins,
+                  defaultStyle: document.docDefinition.defaultStyle,
+                  styles: document.docDefinition.styles,
+                  background: document.docDefinition.background,
+                  footer: document.docDefinition.footer,
+                };
+              }
+
+              return document.docDefinition.content ?? [];
+            })()
+          : await buildStageLetterContent(payload);
 
       content.push(...letterContent);
 
@@ -154,7 +192,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Aucune lettre exploitable n'a ete generee." }, { status: 400 });
     }
 
-    const docDefinition: PdfDocumentDefinition = {
+    if (bulkEngine === "utils" && !utilsBaseDefinition) {
+      return NextResponse.json({ success: false, error: "Impossible de construire la definition PDF (engine utils)." }, { status: 500 });
+    }
+
+    const docDefinition: PdfDocumentDefinition =
+      bulkEngine === "utils"
+        ? {
+            info: {
+              title: "Lettres de recommandation de stage",
+              author: "Dashboard Agents",
+              subject: "Export multiple des lettres de stage",
+              keywords: "stages, lettres, export",
+            },
+            ...(utilsBaseDefinition ?? {}),
+            content,
+          }
+        : {
       info: {
         title: "Lettres de recommandation de stage",
         author: "Dashboard Agents",

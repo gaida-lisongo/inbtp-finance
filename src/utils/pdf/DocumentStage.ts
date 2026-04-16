@@ -49,6 +49,7 @@ class DocumentStage extends Document {
     }
 
     parseData(data: DocumentStagePayload){
+        const reference = `INBTP/${this.getService()}/STG/${(new Date()).getFullYear()}/${(Date.now()).toString().slice(-5)}`
         this.document = {
             type: 'Lettre de stage',
             ressource: data.stageTitle,
@@ -57,7 +58,7 @@ class DocumentStage extends Document {
             sexe: data.recipientSex,
             entreprise: data.companyName ?? '',
             localisation: data.companyLocation ?? '',
-            reference: data.documentReference ?? ''
+            reference
         }
 
         this.student = data.student;

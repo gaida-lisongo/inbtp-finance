@@ -1,4 +1,4 @@
-import { DocumentStage } from "@/lib/documents";
+import { generateStageLetterPdfBuffer } from "@/lib/documents/stage-letter-pdf";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 import { getProductPageData, getCommandeStudentDisplayName } from "@/lib/utils/supabase/commandes";
 import { getActiveAutorisationCodesForAgent } from "@/lib/utils/supabase/autorisations";
@@ -396,7 +396,7 @@ export const generateStageLetterFromNotification = async (notificationStageId: n
   const studentName = getCommandeStudentDisplayName(student);
   const recipientSex: StageRecipientSex = normalizeText(stageRow.recipientSex) === "F" ? "F" : "M";
 
-  const document = new DocumentStage({
+  const buffer = await generateStageLetterPdfBuffer({
     stageTitle: normalizeText(stageRow.stageTitle) ?? "Stage academique",
     student: {
       fullName: studentName,
@@ -410,8 +410,6 @@ export const generateStageLetterFromNotification = async (notificationStageId: n
     companyLocation: normalizeText(stageRow.companyLocation) ?? "Lieu",
     documentReference: normalizeText(stageRow.documentReference) ?? parent.id,
   });
-
-  const pdfBuffer = await document.generateBuffer();
 
   const { error: stageUpdateError } = await admin
     .from("notifications_stage")
@@ -447,6 +445,6 @@ export const generateStageLetterFromNotification = async (notificationStageId: n
 
   return {
     filename: `lettre-stage-notification-${stageRow.id}.pdf`,
-    buffer: pdfBuffer,
+    buffer,
   };
 };
