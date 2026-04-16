@@ -1,3 +1,4 @@
+import { text } from "stream/consumers";
 import Document from "./Document";
 
 type ProjetPayload = { validation: boolean, note: number, titre: string, directeur: string, co_directeur: string, thematique: string[], justification: string[], problematique: string[], objectif: string[], methodologie: Array<{section: string; content: string}>, resultats:Array<{section: string; content: string}>, chronogrammes: Array<{section: string; content: string}>, references:Array<{section: string; content: string}> }
@@ -122,6 +123,29 @@ class DocumentSujet extends Document {
             ...(data?.student ?? [])
         }
     }
+
+    generateText = (cycle: string) => {
+        const [diplomeRaw, specialisationRaw] = cycle.split(':');
+
+        const diplome = diplomeRaw?.trim();
+        const specialisation = specialisationRaw?.trim();
+
+        const lower = diplome?.toLowerCase() || '';
+
+        let baseText = '';
+
+        if (lower.includes('licence') || lower.includes('l3')) {
+            baseText = `Travail de fin de cycle présenté en vue de l’obtention du diplôme de Licence`;
+        } else if (lower.includes('master')) {
+            baseText = `Mémoire présenté en vue de l’obtention du diplôme de Master`;
+        } else {
+            baseText = `Travail académique réalisé dans le cadre du cycle de ${diplome}`;
+        }
+
+        return specialisation 
+            ? `${baseText} en ${specialisation}.`
+            : `${baseText}.`;
+    };
 
     generateProtocole(){
         const mainPage = [
@@ -271,14 +295,73 @@ class DocumentSujet extends Document {
         return mainPage;
     }
 
-    generateCouverture(){
-        console.log("Creating document mono page with data")
-        return []
+    generateCouverture(cycle: string){
+        console.log("Creating document mono page with data :", cycle)
+        return [
+            {
+                table: {
+                    body: [
+                        [
+                            {
+                                text: this.projet.titre,
+                                fontSize: this.chart.lg,
+                                fillColor: this.chart.primary,
+                                color: this.chart.white,
+                                alignment: 'center',
+                                bold: true,
+                                border: [false, false, false, false]
+                            }
+                        ]
+                    ]
+                },
+                layout: {
+                    paddingLeft: () => this.chart.lg,
+                    paddingRight: () => this.chart.lg,
+                    paddingTop: () => this.chart.md * 3,
+                    paddingBottom: () => this.chart.md * 3,
+                    hLineWidth: () => 0,
+                    vLineWidth: () => 0
+                },
+                margin: [this.chart.md, 0, this.chart.md, this.chart.md]
+            },
+            {
+                text: [`${'é'.toLocaleUpperCase()}crit par : `, {text: this.student.nom, bold: true}],
+                alignment: 'center'
+            },
+            {
+                columns: [
+                    {with: '60%', text: ''},
+                    {
+                        width: '40%',
+                        text: this.generateText(cycle),
+                        alignment: 'left',
+                        margin: [0, this.chart.lg * 1.5, 0, this.chart.lg * 2]
+                    }
+                ]
+            },
+            {
+                text: [
+                    'Directeur : ',
+                    {text: this.projet.directeur, style: 'gras'}, '\n\n',
+                    'Co-Directeur : ',
+                    {text: this.projet.co_directeur, style: 'gras'},,
+                ]
+            },
+            {
+                text: `Année Académique : ${this.student.annee == 'Non renseignee' ? '2024 - 2025' : this.student.annee}`,
+                style: 'gras',
+                fontSize: this.chart.lg,
+                italics: true,
+                alignment: 'center',
+                margin: [0, this.chart.lg * 3, 0, 0]
+            }
+        ]
     }
 
     async generate(
         verifyUrl: string,
-        type: 'Protocle' | 'Couverture'
+        type: 'Protocle' | 'Couverture',
+        cycle: string = 'Licence:Génie du Bâtiment et Travaux Public'
     ) {
         await this.buildFooter(verifyUrl);
 
@@ -286,7 +369,7 @@ class DocumentSujet extends Document {
             await this.background();
             this.adminLayout(this.generateProtocole());
         } else {
-            this.layout(this.generateCouverture());
+            this.layout(this.generateCouverture(cycle));
         }
     }
 }

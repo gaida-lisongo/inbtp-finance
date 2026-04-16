@@ -22,7 +22,7 @@ export async function GET(request: Request, context: { params: Promise<{ notific
   const redirectPath =
     type === "protocol"
       ? `/checking/protocol/${encodeURIComponent(notificationSujetId)}`
-      : `/notifications/sujets/${encodeURIComponent(notificationSujetId)}`;
+      : `/checking/cover/${encodeURIComponent(notificationSujetId)}`;
 
   const redirectUrl = new URL(redirectPath, request.url);
 
