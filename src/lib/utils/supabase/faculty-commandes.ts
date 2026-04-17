@@ -1,6 +1,6 @@
 import { getChef } from "@/lib/documents/layout";
 import { generateStageLetterPdfBufferFromCommandeId } from "@/lib/utils/supabase/stage-letter-generation";
-import { sendMicrosoft365Mail } from "@/lib/utils/microsoft-graph";
+import { sendMail } from "@/utils/mail";
 import { getActiveAutorisationCodesForAgent } from "@/lib/utils/supabase/autorisations";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 import { getDocumentCategory } from "@/lib/utils/supabase/documents-shared";
@@ -229,7 +229,7 @@ const insertCommandeSuccessNotification = async (commande: CommandeRow) => {
     return;
   }
 
-  await sendMicrosoft365Mail({
+  await sendMail({
     to: recipients,
     subject: `Commande ${orderRef} validee avec succes`,
     html: `

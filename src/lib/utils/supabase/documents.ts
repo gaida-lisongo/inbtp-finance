@@ -1,5 +1,5 @@
 import { getActiveAutorisationCodesForAgent } from "@/lib/utils/supabase/autorisations";
-import { sendMicrosoft365Mail } from "@/lib/utils/microsoft-graph";
+import { sendMail } from "@/utils/mail";
 import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 import { getDocumentCategory, type DocumentRecord } from "@/lib/utils/supabase/documents-shared";
@@ -200,7 +200,7 @@ export const notifyStudentsForDocument = async (
 
   const content = getDocumentNotificationContent(document as DocumentRecord);
 
-  await sendMicrosoft365Mail({
+  await sendMail({
     to: emails,
     subject: content.subject,
     html: content.html,

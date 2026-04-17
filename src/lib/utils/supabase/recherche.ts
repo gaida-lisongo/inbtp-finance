@@ -3,7 +3,7 @@ import { getActiveAutorisationCodesForAgent } from "@/lib/utils/supabase/autoris
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 import type { ResearchRecord, ResearchTableName } from "@/lib/utils/supabase/recherche-shared";
 import { formatResearchDescription } from "@/lib/utils/supabase/recherche-shared";
-import { sendMicrosoft365Mail } from "@/lib/utils/microsoft-graph";
+import { sendMail } from "@/utils/mail";
 
 const emptyToNull = (value: FormDataEntryValue | null) => {
   if (typeof value !== "string") {
@@ -312,7 +312,7 @@ export const notifyStudentsForResearchRecord = async (
   const emails = await gatherProgrammeStudentEmails(programmeId);
   const content = buildResearchNotificationContent(tableName, record as ResearchRecord, programmeLabel);
 
-  await sendMicrosoft365Mail({
+  await sendMail({
     to: emails,
     subject: content.subject,
     html: content.html,

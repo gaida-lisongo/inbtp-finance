@@ -1,4 +1,4 @@
-import { sendMicrosoft365Mail } from "@/lib/utils/microsoft-graph";
+import { sendMail } from "@/utils/mail";
 
 type ValidationEmailInput = {
   to: string;
@@ -39,7 +39,7 @@ export const sendPaymentValidationEmail = async (input: ValidationEmailInput) =>
     </div>
   `;
 
-  await sendMicrosoft365Mail({
+  await sendMail({
     to: input.to,
     subject,
     html,

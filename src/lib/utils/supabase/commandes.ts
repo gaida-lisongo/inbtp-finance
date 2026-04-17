@@ -5,7 +5,7 @@ import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 import type { StudentRecord } from "@/lib/utils/supabase/students-shared";
 import type { SessionRecord } from "@/lib/utils/supabase/appariteur";
 import type { ResearchRecord } from "@/lib/utils/supabase/recherche-shared";
-import { sendMicrosoft365Mail } from "@/lib/utils/microsoft-graph";
+import { sendMail } from "@/utils/mail";
 
 export type CommandeCategory = "documents" | "session" | "stages" | "sujets" | "laboratoire";
 export type PaymentChannel = "MOBILE_MONEY" | "CREDIT_CARD";
@@ -601,7 +601,7 @@ const notifyOrganizersWhenCommandeSuccess = async (commande: CommandeRecord) => 
     console.error("notification insert failed", notificationInsertError);
   }
 
-  await sendMicrosoft365Mail({
+  await sendMail({
     to: recipients,
     subject: `Commande ${orderRef} validee avec succes`,
     html: `

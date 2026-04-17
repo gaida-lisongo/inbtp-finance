@@ -1,6 +1,7 @@
 import { Client } from "@microsoft/microsoft-graph-client";
 import { cookies } from "next/headers";
 
+import { mailService } from "@/utils/mail";
 import { createClient as createServerSupabaseClient } from "@/lib/utils/supabase/server";
 
 export type Microsoft365Overview = {
@@ -297,7 +298,7 @@ type Microsoft365GraphUser = {
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export const sendMicrosoft365Mail = async (input: SendMicrosoft365MailInput) => {
-  await microsoftGraphService.sendMail(input);
+  await mailService.send(input);
 };
 
 export const getMicrosoft365OverviewUrl = () => `${microsoftGraphBaseUrl}/me`;

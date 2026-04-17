@@ -1,6 +1,6 @@
 import { getActiveAutorisationCodesForAgent } from "@/lib/utils/supabase/autorisations";
 import { getCurrentAgentAccess } from "@/lib/utils/supabase/agents";
-import { sendMicrosoft365Mail } from "@/lib/utils/microsoft-graph";
+import { sendMail } from "@/utils/mail";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 import type { StudentRecord } from "@/lib/utils/supabase/students-shared";
 
@@ -563,7 +563,7 @@ export const notifyStudentsForSession = async (programmeId: string, sessionId: s
 
   const content = getSessionNotificationContent(session as SessionRecord, (programme as { designation: string | null } | null)?.designation ?? null);
 
-  await sendMicrosoft365Mail({
+  await sendMail({
     to: emails,
     subject: content.subject,
     html: content.html,

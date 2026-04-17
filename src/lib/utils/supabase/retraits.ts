@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 
-import { sendMicrosoft365Mail } from "@/lib/utils/microsoft-graph";
+import { sendMail } from "@/utils/mail";
 import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 import { getActiveAutorisationCodesForAgent } from "@/lib/utils/supabase/autorisations";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
@@ -292,7 +292,7 @@ const sendRetraitDecisionMail = async ({
     throw new Error("retrait_requester_email_missing");
   }
 
-  await sendMicrosoft365Mail({
+  await sendMail({
     to: requester.email,
     subject: `${title} - ${retrait.designation ?? retrait.id}`,
     html,
@@ -618,7 +618,7 @@ export const confirmRetrait = async (id: string) => {
     </div>
   `;
 
-  await sendMicrosoft365Mail({
+  await sendMail({
     to: controlMailAddress,
     subject: `Validation retrait - ${reviewDetails.retrait.designation ?? reviewDetails.retrait.id}`,
     html,
