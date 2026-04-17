@@ -36,20 +36,20 @@
   --color-current: currentColor;
   --color-transparent: transparent;
   --color-white: #ffffff;
-  --color-black: #101828;
+  --color-black: #272826;
 
-  --color-brand-25: #f2f7ff;
-  --color-brand-50: #ecf3ff;
-  --color-brand-100: #dde9ff;
-  --color-brand-200: #c2d6ff;
-  --color-brand-300: #9cb9ff;
-  --color-brand-400: #7592ff;
-  --color-brand-500: #465fff;
-  --color-brand-600: #3641f5;
-  --color-brand-700: #2a31d8;
-  --color-brand-800: #252dae;
-  --color-brand-900: #262e89;
-  --color-brand-950: #161950;
+  --color-brand-25: #fffaf1;
+  --color-brand-50: #fff2df;
+  --color-brand-100: #ffe1b6;
+  --color-brand-200: #ffd08c;
+  --color-brand-300: #fdbd63;
+  --color-brand-400: #fbaf49;
+  --color-brand-500: #f7a73d;
+  --color-brand-600: #dd8d23;
+  --color-brand-700: #b56f14;
+  --color-brand-800: #8e570f;
+  --color-brand-900: #68400b;
+  --color-brand-950: #3d2506;
 
   --color-blue-light-25: #f5fbff;
   --color-blue-light-50: #f0f9ff;
@@ -64,18 +64,18 @@
   --color-blue-light-900: #0b4a6f;
   --color-blue-light-950: #062c41;
 
-  --color-gray-25: #fcfcfd;
-  --color-gray-50: #f9fafb;
-  --color-gray-100: #f2f4f7;
-  --color-gray-200: #e4e7ec;
-  --color-gray-300: #d0d5dd;
-  --color-gray-400: #98a2b3;
-  --color-gray-500: #667085;
-  --color-gray-600: #475467;
-  --color-gray-700: #344054;
-  --color-gray-800: #1d2939;
-  --color-gray-900: #101828;
-  --color-gray-950: #0c111d;
+  --color-gray-25: #fdfdfc;
+  --color-gray-50: #f7f7f5;
+  --color-gray-100: #ecece8;
+  --color-gray-200: #d4d6d3;
+  --color-gray-300: #bbbfba;
+  --color-gray-400: #989d97;
+  --color-gray-500: #747973;
+  --color-gray-600: #575b57;
+  --color-gray-700: #434643;
+  --color-gray-800: #323432;
+  --color-gray-900: #272826;
+  --color-gray-950: #1b1c1b;
   --color-gray-dark: #1a2231;
 
   --color-orange-25: #fffaf5;
@@ -91,31 +91,31 @@
   --color-orange-900: #7e2410;
   --color-orange-950: #511c10;
 
-  --color-success-25: #f6fef9;
-  --color-success-50: #ecfdf3;
-  --color-success-100: #d1fadf;
-  --color-success-200: #a6f4c5;
-  --color-success-300: #6ce9a6;
-  --color-success-400: #32d583;
-  --color-success-500: #12b76a;
-  --color-success-600: #039855;
-  --color-success-700: #027a48;
-  --color-success-800: #05603a;
-  --color-success-900: #054f31;
-  --color-success-950: #053321;
+  --color-success-25: #f7fff3;
+  --color-success-50: #efffe9;
+  --color-success-100: #d8f6ce;
+  --color-success-200: #b6eca5;
+  --color-success-300: #8edc72;
+  --color-success-400: #6ad055;
+  --color-success-500: #5ecb44;
+  --color-success-600: #46ac2f;
+  --color-success-700: #378823;
+  --color-success-800: #2d6c1f;
+  --color-success-900: #25561b;
+  --color-success-950: #112d0c;
 
-  --color-error-25: #fffbfa;
-  --color-error-50: #fef3f2;
-  --color-error-100: #fee4e2;
-  --color-error-200: #fecdca;
-  --color-error-300: #fda29b;
-  --color-error-400: #f97066;
-  --color-error-500: #f04438;
-  --color-error-600: #d92d20;
-  --color-error-700: #b42318;
-  --color-error-800: #912018;
-  --color-error-900: #7a271a;
-  --color-error-950: #55160c;
+  --color-error-25: #fff7f7;
+  --color-error-50: #ffebec;
+  --color-error-100: #ffd0d3;
+  --color-error-200: #f9adb2;
+  --color-error-300: #f58c94;
+  --color-error-400: #ee6f79;
+  --color-error-500: #e76067;
+  --color-error-600: #cb4552;
+  --color-error-700: #a6323f;
+  --color-error-800: #842731;
+  --color-error-900: #652028;
+  --color-error-950: #391114;
 
   --color-warning-25: #fffcf5;
   --color-warning-50: #fffaeb;
@@ -148,7 +148,7 @@
     0px 20px 24px -4px rgba(16, 24, 40, 0.08),
     0px 8px 8px -4px rgba(16, 24, 40, 0.03);
   --shadow-datepicker: -5px 0 0 #262d3c, 5px 0 0 #262d3c;
-  --shadow-focus-ring: 0px 0px 0px 4px rgba(70, 95, 255, 0.12);
+  --shadow-focus-ring: 0px 0px 0px 4px rgba(247, 167, 61, 0.18);
   --shadow-slider-navigation:
     0px 1px 2px 0px rgba(16, 24, 40, 0.1), 0px 1px 3px 0px rgba(16, 24, 40, 0.1);
   --shadow-tooltip:
@@ -189,6 +189,39 @@
   }
   body {
     @apply relative font-normal font-outfit z-1 bg-gray-50;
+  }
+}
+
+@layer utilities {
+  @keyframes fade-up {
+    0% {
+      opacity: 0;
+      transform: translateY(18px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes pulse-soft {
+    0%,
+    100% {
+      opacity: 0.55;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.95;
+      transform: scale(1.04);
+    }
+  }
+
+  .animate-fade-up {
+    animation: fade-up 0.7s ease-out both;
+  }
+
+  .animate-pulse-soft {
+    animation: pulse-soft 4s ease-in-out infinite;
   }
 }
 

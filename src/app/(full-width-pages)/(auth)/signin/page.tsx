@@ -5,8 +5,8 @@ import { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
-  title: "Next.js SignIn Page | TailAdmin - Next.js Dashboard Template",
-  description: "This is Next.js Signin Page TailAdmin Dashboard Template",
+  title: "Connexion",
+  description: "Connectez-vous a ELMESACAD pour acceder a l'espace numerique de travail de l'INBTP.",
 };
 
 type SignInPageProps = {

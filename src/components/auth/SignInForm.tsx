@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { signInAdminAction, signInStudentAction, signInTeacherAction } from "@/app/actions/auth";
+import AssetImage from "@/components/common/AssetImage";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
@@ -117,15 +118,14 @@ const getSignUpHref = (tab: Exclude<AuthTab, "admin">, nextPath: string) =>
   `/signup?tab=${tab}${nextPath !== "/" ? `&next=${encodeURIComponent(nextPath)}` : ""}`;
 
 const tabClassName = (isActive: boolean) =>
-  `flex-1 rounded-xl px-4 py-3 text-center text-sm font-medium transition ${
+  `flex-1 rounded-2xl px-4 py-3 text-center text-sm font-medium transition ${
     isActive
-      ? "bg-brand-500 text-white shadow-theme-xs"
-      : "text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5"
+      ? "bg-[#272826] text-white shadow-theme-xs dark:bg-white dark:text-[#272826]"
+      : "text-gray-600 hover:bg-white dark:text-white/70 dark:hover:bg-white/8"
   }`;
 
 export default function SignInForm({ error, message, nextPath, selectedTab }: SignInFormProps) {
   const signUpHref = selectedTab === "teacher" ? getSignUpHref("teacher", nextPath) : getSignUpHref("student", nextPath);
-  const isPasswordTab = true;
   const formAction =
     selectedTab === "teacher"
       ? signInTeacherAction
@@ -140,33 +140,42 @@ export default function SignInForm({ error, message, nextPath, selectedTab }: Si
         : "Connexion etudiant";
   const description =
     selectedTab === "teacher"
-      ? "Utilisez votre email enregistre dans la table agents et votre mot de passe Supabase."
+      ? "Utilisez votre email enseignant enregistre dans les agents et votre mot de passe."
       : selectedTab === "admin"
-        ? "Utilisez votre email administrateur (organisateur ou gestionnaire) et votre mot de passe."
-        : "Utilisez votre email institutionnel enregistre dans la base et votre mot de passe Supabase.";
+        ? "Utilisez votre email administrateur ou gestionnaire et votre mot de passe."
+        : "Utilisez votre email institutionnel enregistre dans la base et votre mot de passe.";
 
   return (
-    <div className="flex w-full flex-1 flex-col lg:w-1/2">
-      <div className="mx-auto mb-5 w-full max-w-md sm:pt-10">
+    <div className="flex w-full flex-1 flex-col justify-center px-5 py-8 sm:px-8 lg:w-1/2 lg:px-10 xl:px-14">
+      <div className="mx-auto mb-5 w-full max-w-xl animate-fade-up">
         <Link
           href="/"
-          className="inline-flex items-center text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+          className="inline-flex items-center text-sm font-medium text-gray-600 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white/90"
         >
           <ChevronLeftIcon />
-          Retour au dashboard
+          Retour vers ELMESACAD
         </Link>
       </div>
 
-      <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center">
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.03] sm:p-8">
-          <div className="mb-6">
-            <h1 className="mb-2 text-title-sm font-semibold text-gray-800 dark:text-white/90 sm:text-title-md">
-              {heading}
-            </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">{description}</p>
+      <div className="mx-auto flex w-full max-w-xl flex-1 flex-col justify-center">
+        <div className="animate-fade-up rounded-[32px] border border-white/60 bg-white/85 p-6 shadow-[0_30px_80px_rgba(39,40,38,0.10)] backdrop-blur-xl dark:border-white/10 dark:bg-[#272826]/72 sm:p-8 [animation-delay:120ms]">
+          <div className="mb-8 flex items-start justify-between gap-4">
+            <div>
+              <div className="mb-4 inline-flex items-center gap-3 rounded-full border border-[#f7a73d]/20 bg-[#f7a73d]/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-[#b56f14] dark:border-[#f7a73d]/15 dark:bg-[#f7a73d]/12 dark:text-[#ffd596]">
+                <AssetImage src="minLogo" alt="INBTP" width={18} height={18} className="h-[18px] w-[18px]" />
+                Acces securise
+              </div>
+              <h1 className="mb-2 text-title-sm font-semibold text-gray-900 dark:text-white sm:text-title-md">
+                {heading}
+              </h1>
+              <p className="max-w-lg text-sm leading-7 text-gray-600 dark:text-white/70">{description}</p>
+            </div>
+            <div className="hidden rounded-3xl border border-[#058AC5]/15 bg-[#058AC5]/8 p-3 sm:block dark:border-white/10 dark:bg-white/5">
+              <AssetImage src="elmes" alt="ELMESACAD" width={52} height={52} className="h-[52px] w-[52px] object-contain" />
+            </div>
           </div>
 
-          <div className="mb-6 flex rounded-2xl bg-gray-50 p-1 dark:bg-gray-900">
+          <div className="mb-6 grid gap-3 rounded-[26px] border border-gray-200/80 bg-[#f7f7f5] p-2 dark:border-white/10 dark:bg-black/15 sm:grid-cols-3">
             <Link href={getTabHref("student", nextPath)} className={tabClassName(selectedTab === "student")}>
               Etudiant
             </Link>
@@ -178,14 +187,29 @@ export default function SignInForm({ error, message, nextPath, selectedTab }: Si
             </Link>
           </div>
 
+          <div className="mb-6 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-gray-200/80 bg-white/70 px-4 py-3 dark:border-white/8 dark:bg-white/5">
+              <p className="text-xs uppercase tracking-[0.24em] text-gray-500 dark:text-white/50">Etape 1</p>
+              <p className="mt-2 text-sm font-medium text-gray-900 dark:text-white/90">Choisir un profil</p>
+            </div>
+            <div className="rounded-2xl border border-gray-200/80 bg-white/70 px-4 py-3 dark:border-white/8 dark:bg-white/5">
+              <p className="text-xs uppercase tracking-[0.24em] text-gray-500 dark:text-white/50">Etape 2</p>
+              <p className="mt-2 text-sm font-medium text-gray-900 dark:text-white/90">Saisir les identifiants</p>
+            </div>
+            <div className="rounded-2xl border border-gray-200/80 bg-white/70 px-4 py-3 dark:border-white/8 dark:bg-white/5">
+              <p className="text-xs uppercase tracking-[0.24em] text-gray-500 dark:text-white/50">Etape 3</p>
+              <p className="mt-2 text-sm font-medium text-gray-900 dark:text-white/90">Acceder au workspace</p>
+            </div>
+          </div>
+
           {error ? (
-            <div className="mb-5 rounded-xl border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400">
+            <div className="mb-5 rounded-2xl border border-error-200 bg-error-50 px-4 py-3 text-sm leading-6 text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-200">
               {getErrorMessage(error)}
             </div>
           ) : null}
 
           {message ? (
-            <div className="mb-5 rounded-xl border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-300">
+            <div className="mb-5 rounded-2xl border border-success-200 bg-success-50 px-4 py-3 text-sm leading-6 text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-100">
               {getMessage(message)}
             </div>
           ) : null}
@@ -193,21 +217,35 @@ export default function SignInForm({ error, message, nextPath, selectedTab }: Si
           <form action={formAction} className="space-y-5">
             <input type="hidden" name="next" value={nextPath} />
 
-            <div>
-              <Label htmlFor={`${selectedTab}-email`}>
-                Email<span className="text-error-500">*</span>
-              </Label>
-              <Input id={`${selectedTab}-email`} name="email" type="email" placeholder="prenom.nom@exemple.com" />
+            <div className="grid gap-5">
+              <div>
+                <Label htmlFor={`${selectedTab}-email`} className="mb-2 text-sm font-semibold text-gray-800 dark:text-white/80">
+                  Email<span className="text-error-500">*</span>
+                </Label>
+                <Input
+                  id={`${selectedTab}-email`}
+                  name="email"
+                  type="email"
+                  placeholder="prenom.nom@inbtp.ac.cd"
+                  className="h-[52px] rounded-2xl border-gray-200 bg-white/80 dark:border-white/10 dark:bg-white/5"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor={`${selectedTab}-password`} className="mb-2 text-sm font-semibold text-gray-800 dark:text-white/80">
+                  Mot de passe<span className="text-error-500">*</span>
+                </Label>
+                <Input
+                  id={`${selectedTab}-password`}
+                  name="password"
+                  type="password"
+                  placeholder="Votre mot de passe"
+                  className="h-[52px] rounded-2xl border-gray-200 bg-white/80 dark:border-white/10 dark:bg-white/5"
+                />
+              </div>
             </div>
 
-            <div>
-              <Label htmlFor={`${selectedTab}-password`}>
-                Mot de passe<span className="text-error-500">*</span>
-              </Label>
-              <Input id={`${selectedTab}-password`} name="password" type="password" placeholder="Votre mot de passe" />
-            </div>
-
-            <Button type="submit" className="w-full justify-center">
+            <Button type="submit" className="h-[52px] w-full justify-center rounded-2xl text-[15px] font-semibold">
               {selectedTab === "teacher"
                 ? "Se connecter comme enseignant"
                 : selectedTab === "admin"
@@ -216,15 +254,28 @@ export default function SignInForm({ error, message, nextPath, selectedTab }: Si
             </Button>
           </form>
 
-          <p className="mt-6 text-sm text-gray-600 dark:text-gray-300">
+          <p className="mt-6 text-sm leading-7 text-gray-600 dark:text-white/70">
             Vous n&apos;avez pas encore de mot de passe ?{" "}
-            <Link href={signUpHref} className="font-medium text-brand-500 hover:text-brand-600 dark:text-brand-400">
+            <Link href={signUpHref} className="font-semibold text-[#058AC5] hover:text-[#046b99] dark:text-[#6ec7ea]">
               {selectedTab === "teacher"
                 ? "Creer mon acces enseignant"
                 : selectedTab === "admin"
                   ? "Creer mon acces administrateur"
                   : "Creer mon acces etudiant"}
             </Link>
+          </p>
+        </div>
+
+        <div className="mt-6 animate-fade-up rounded-[28px] border border-gray-200/70 bg-white/70 p-5 backdrop-blur-md dark:border-white/10 dark:bg-white/4 [animation-delay:220ms]">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-500 dark:text-white/50">Workflow</p>
+              <p className="mt-2 text-base font-semibold text-gray-900 dark:text-white">Connexion structuree et progressive</p>
+            </div>
+            <span className="inline-flex h-3 w-3 rounded-full bg-[#5ECB44] animate-pulse-soft" />
+          </div>
+          <p className="mt-3 text-sm leading-7 text-gray-600 dark:text-white/70">
+            L'ecran d'acces a ete repense pour donner une lecture immediate du profil, des statuts de transaction et de la volumetrie academique de l'annee active.
           </p>
         </div>
       </div>

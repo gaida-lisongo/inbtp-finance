@@ -28,6 +28,7 @@
     "canvas": "^3.2.3",
     "exceljs": "^4.4.0",
     "flatpickr": "^4.6.13",
+    "mysql2": "^3.22.1",
     "next": "16.0.10",
     "nodemailer": "^8.0.5",
     "pdfmake": "^0.3.7",
@@ -38,7 +39,8 @@
     "react-dom": "^19.2.0",
     "react-dropzone": "^14.3.8",
     "swiper": "^11.2.10",
-    "tailwind-merge": "^2.6.0"
+    "tailwind-merge": "^2.6.0",
+    "unix-crypt-td-js": "^1.1.4"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
