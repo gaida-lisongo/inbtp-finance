@@ -34,6 +34,12 @@ declare module "nodemailer" {
     host: string;
     port: number;
     secure: boolean;
+    connectionTimeout?: number;
+    greetingTimeout?: number;
+    socketTimeout?: number;
+    tls?: {
+      servername?: string;
+    };
     auth: {
       user: string;
       pass: string;
