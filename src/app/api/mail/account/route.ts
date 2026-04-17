@@ -3,15 +3,17 @@ import mysql from "mysql2/promise";
 import crypt from "unix-crypt-td-js";
 import fs from "fs";
 
-const db = await mysql.createConnection({
-  host: process.env.DB_HOST ?? "localhost",
-  user: process.env.DB_USER ?? "mailuser",
-  password: process.env.DB_SECRET ?? "admin",
-  database: process.env.DB_NAME ?? "mailserver",
-});
+const getDb = () =>
+  mysql.createConnection({
+    host: process.env.DB_HOST ?? "localhost",
+    user: process.env.DB_USER ?? "mailuser",
+    password: process.env.DB_SECRET ?? "admin",
+    database: process.env.DB_NAME ?? "mailserver",
+  });
 
 export async function POST(req: Request) {
   const { email, password } = await req.json();
+  const db = await getDb();
 
   // hash compatible Dovecot
   const hash = crypt(password, "$6$randomsalt");
@@ -31,12 +33,14 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
+  const db = await getDb();
   const [rows] = await db.execute("SELECT * FROM users");
   return NextResponse.json(rows);
 }
 
 export async function DELETE(req: Request) {
   const { email } = await req.json();
+  const db = await getDb();
 
   await db.execute("DELETE FROM users WHERE email = ?", [email]);
 
@@ -45,6 +49,7 @@ export async function DELETE(req: Request) {
 
 export async function PUT(req: Request) {
   const { email, password } = await req.json();
+  const db = await getDb();
 
   const hash = crypt(password, "$6$randomsalt");
 

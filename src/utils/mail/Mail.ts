@@ -1,4 +1,4 @@
-import nodemailer from "nodemailer";
+import nodemailer, { type Transporter } from "nodemailer";
 
 type MailAttachment = {
   name: string;
@@ -70,7 +70,7 @@ const parseSecure = (value: string | null, port: number) => {
 export class Mail {
   private static instance: Mail | null = null;
 
-  private transporter: nodemailer.Transporter | null = null;
+  private transporter: Transporter | null = null;
 
   static getInstance() {
     if (!Mail.instance) {
@@ -100,13 +100,15 @@ export class Mail {
       throw new Error("mail_pass_missing");
     }
 
+    const sender = from ?? user;
+
     return {
       host,
       port,
       secure,
       user,
       pass,
-      from,
+      from: sender,
     };
   }
 
@@ -196,7 +198,7 @@ export class Mail {
     return {
       ok: true,
       to: recipient,
-      from: config.from ?? config.user,
+      from: config.from,
       messageId: info.messageId,
       accepted: info.accepted,
       rejected: info.rejected,

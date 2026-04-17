@@ -42,7 +42,7 @@ const parseObservationLines = (value: unknown): string[] => {
     .filter((item): item is string => Boolean(item));
 };
 
-const safeNumber = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : null);
+const safeNumber = (value: unknown): number | null => (typeof value === "number" && Number.isFinite(value) ? value : null);
 
 export async function GET(_request: Request, context: { params: Promise<{ notificationSujetId: string }> }) {
   try {
@@ -143,7 +143,10 @@ export async function GET(_request: Request, context: { params: Promise<{ notifi
       bonus: safeNumber(fiche?.bonus),
     };
 
-    const juryTotal = [jury.directeur, jury.lecteur1, jury.lecteur2, jury.bonus].reduce((sum, value) => sum + (value ?? 0), 0);
+    const juryTotal = [jury.directeur, jury.lecteur1, jury.lecteur2, jury.bonus].reduce<number>(
+      (sum, value) => sum + (value ?? 0),
+      0,
+    );
 
     return NextResponse.json({
       valid: true,
