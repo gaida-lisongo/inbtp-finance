@@ -63,33 +63,16 @@ const getDb = async () =>
     connectTimeout: 8000,
   });
 
-const isValidEmail = (email: string) => {
-  if (email.length < 3 || email.length > 254) {
-    return false;
-  }
-
-  const pattern = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+$/;
-  return pattern.test(email);
-};
-
 const parseMailbox = (email: string) => {
   const normalized = email.trim().toLowerCase();
 
-  if (!isValidEmail(normalized)) {
+  if (!normalized) {
     throw new Error("invalid_email");
   }
 
   const [localPart, domain] = normalized.split("@");
 
   if (!localPart || !domain) {
-    throw new Error("invalid_email");
-  }
-
-  if (!/^[a-z0-9][a-z0-9._-]*$/i.test(localPart)) {
-    throw new Error("invalid_email");
-  }
-
-  if (!/^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/i.test(domain)) {
     throw new Error("invalid_email");
   }
 
@@ -113,7 +96,7 @@ const randomSalt = (length = 16) => {
 };
 
 const buildDovecotHash = (password: string) => {
-  if (!password || password.length < 8) {
+  if (!password) {
     throw new Error("invalid_password");
   }
 
@@ -165,7 +148,7 @@ const normalizeError = (error: unknown): { code: ApiErrorCode; message: string }
     error.message === "invalid_password" ||
     error.message === "hash_generation_failed"
   ) {
-    return { code: "validation_error", message: "Invalid payload. Check email format and password length (min 8)." };
+    return { code: "validation_error", message: "Invalid payload. Provide non-empty email/password and an email with user@domain." };
   }
 
   if (error.message === "db_port_invalid") {
