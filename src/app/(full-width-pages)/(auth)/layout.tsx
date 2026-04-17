@@ -2,6 +2,8 @@ import AuthShowcasePanel from "@/components/auth/AuthShowcasePanel";
 import ThemeTogglerTwo from "@/components/common/ThemeTogglerTwo";
 import React from "react";
 
+export const dynamic = "force-dynamic";
+
 export default function AuthLayout({
   children,
 }: {

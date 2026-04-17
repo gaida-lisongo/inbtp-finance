@@ -6,6 +6,8 @@ import { getTeacherRecoursNotificationSnapshot } from "@/lib/utils/supabase/teac
 import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 import AdminShell from "@/layout/AdminShell";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminLayout({
   children,
 }: {
