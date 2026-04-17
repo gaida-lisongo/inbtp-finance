@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import mysql from "mysql2/promise";
-import crypt from "unix-crypt-td-js";
 import { mkdir } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
@@ -95,13 +94,24 @@ const randomSalt = (length = 16) => {
   return Array.from(bytes, (value) => alphabet[value % alphabet.length]).join("");
 };
 
-const buildDovecotHash = (password: string) => {
+const buildDovecotHash = async (password: string) => {
   if (!password) {
     throw new Error("invalid_password");
   }
 
   const salt = randomSalt();
-  const raw = crypt(password, `$6$${salt}`);
+  let raw = "";
+
+  try {
+    const { stdout } = await execFileAsync("openssl", ["passwd", "-6", "-salt", salt, password]);
+    raw = stdout.trim();
+  } catch (error) {
+    const commandError = error as Error & { code?: string };
+    if (commandError.code === "ENOENT") {
+      throw new Error("openssl_missing");
+    }
+    throw new Error("hash_generation_failed");
+  }
 
   if (!raw || !raw.startsWith("$6$")) {
     throw new Error("hash_generation_failed");
@@ -146,7 +156,8 @@ const normalizeError = (error: unknown): { code: ApiErrorCode; message: string }
   if (
     error.message === "invalid_email" ||
     error.message === "invalid_password" ||
-    error.message === "hash_generation_failed"
+    error.message === "hash_generation_failed" ||
+    error.message === "openssl_missing"
   ) {
     return { code: "validation_error", message: "Invalid payload. Provide non-empty email/password and an email with user@domain." };
   }
@@ -208,7 +219,7 @@ export async function POST(req: Request) {
   return withErrorHandling(async () => {
     const payload = (await req.json().catch(() => ({}))) as { email?: string; password?: string };
     const mailbox = parseMailbox(payload.email ?? "");
-    const hash = buildDovecotHash(payload.password ?? "");
+    const hash = await buildDovecotHash(payload.password ?? "");
     const db = await getDb();
 
     try {
@@ -268,7 +279,7 @@ export async function PUT(req: Request) {
   return withErrorHandling(async () => {
     const payload = (await req.json().catch(() => ({}))) as { email?: string; password?: string };
     const mailbox = parseMailbox(payload.email ?? "");
-    const hash = buildDovecotHash(payload.password ?? "");
+    const hash = await buildDovecotHash(payload.password ?? "");
     const db = await getDb();
 
     try {
