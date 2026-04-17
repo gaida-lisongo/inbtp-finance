@@ -117,7 +117,6 @@ export class Mail {
       host: config.host,
       port: config.port,
       secure: config.secure,
-      requireTLS: true,
       connectionTimeout: 10000,
       greetingTimeout: 10000,
       socketTimeout: 20000,
@@ -128,8 +127,6 @@ export class Mail {
       tls: {
         servername: config.host,
       },
-      logger: true,
-      debug: true,
     });
   }
 
