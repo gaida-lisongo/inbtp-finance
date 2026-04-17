@@ -1,4 +1,4 @@
-import nodemailer, { type Transporter } from "nodemailer";
+import nodemailer from "nodemailer";
 
 type MailAttachment = {
   name: string;
@@ -22,8 +22,6 @@ export type MailSendInput = {
   from?: string;
   attachments?: MailAttachment[];
 };
-
-type MailConfigOverride = Partial<Pick<MailConfig, "port" | "secure">>;
 
 const readEnv = (...keys: string[]) => {
   for (const key of keys) {
@@ -51,9 +49,9 @@ const parsePort = (value: string | null) => {
   return parsedValue;
 };
 
-const parseSecure = (value: string | null, port: number) => {
+const parseSecure = (value: string | null) => {
   if (!value) {
-    return port === 465;
+    return false;
   }
 
   const normalizedValue = value.toLowerCase();
@@ -83,7 +81,7 @@ export class Mail {
   getConfig(): MailConfig {
     const host = readEnv("MAIL_HOST");
     const port = parsePort(readEnv("MAIL_PORT", "MAIL-PORT"));
-    const secure = parseSecure(readEnv("MAIL_SECURE"), port);
+    const secure = parseSecure(readEnv("MAIL_SECURE"));
     const user = readEnv("MAIL_USER");
     const pass = readEnv("MAIL_PASS");
     const from = readEnv("MAIL_FROM", "MAIL_USER");
@@ -112,13 +110,14 @@ export class Mail {
     };
   }
 
-  createTransporter(override?: MailConfigOverride) {
-    const config = this.getEffectiveConfig(override);
+  createTransporter() {
+    const config = this.getConfig();
 
     return nodemailer.createTransport({
       host: config.host,
       port: config.port,
       secure: config.secure,
+      requireTLS: true,
       connectionTimeout: 10000,
       greetingTimeout: 10000,
       socketTimeout: 20000,
@@ -129,77 +128,9 @@ export class Mail {
       tls: {
         servername: config.host,
       },
+      logger: true,
+      debug: true,
     });
-  }
-
-  private getEffectiveConfig(override?: MailConfigOverride): MailConfig {
-    const config = this.getConfig();
-    return {
-      ...config,
-      ...override,
-    };
-  }
-
-  private getRetryCandidates(config: MailConfig): MailConfigOverride[] {
-    const rawSecure = readEnv("MAIL_SECURE");
-    const candidates: MailConfigOverride[] = [];
-
-    if (rawSecure === null) {
-      candidates.push({ port: config.port, secure: !config.secure });
-    }
-
-    if (config.port === 587) {
-      candidates.push({ port: 465, secure: true });
-    } else if (config.port === 465) {
-      candidates.push({ port: 587, secure: false });
-    }
-
-    return candidates;
-  }
-
-  private isConnectionError(error: unknown): boolean {
-    if (!(error instanceof Error)) {
-      return false;
-    }
-
-    const smtpError = error as Error & { code?: string; command?: string };
-    const retryableCodes = new Set(["ETIMEDOUT", "ECONNREFUSED", "EHOSTUNREACH", "ENOTFOUND", "ESOCKET"]);
-    const message = smtpError.message.toLowerCase();
-
-    if (smtpError.command === "CONN") {
-      return true;
-    }
-
-    if (retryableCodes.has(smtpError.code ?? "")) {
-      return true;
-    }
-
-    return message.includes("greeting never received");
-  }
-
-  private async runWithFallback<T>(operation: (transporter: Transporter, config: MailConfig) => Promise<T>) {
-    const baseConfig = this.getConfig();
-    const attempts: MailConfigOverride[] = [{}, ...this.getRetryCandidates(baseConfig)];
-    let lastError: unknown = null;
-
-    for (let index = 0; index < attempts.length; index += 1) {
-      const override = attempts[index];
-      const effectiveConfig = this.getEffectiveConfig(override);
-      const transporter = this.createTransporter(override);
-
-      try {
-        return await operation(transporter, effectiveConfig);
-      } catch (error) {
-        lastError = error;
-        const canRetry = index < attempts.length - 1 && this.isConnectionError(error);
-
-        if (!canRetry) {
-          throw error;
-        }
-      }
-    }
-
-    throw lastError;
   }
 
   async send({ to, subject, html, from, attachments }: MailSendInput) {
@@ -209,34 +140,35 @@ export class Mail {
       throw new Error("mail_recipient_missing");
     }
 
-    return this.runWithFallback((transporter, config) =>
-      transporter.sendMail({
-        from: from ?? config.from ?? config.user,
-        to: recipients.join(", "),
-        subject,
-        html,
-        attachments:
-          attachments?.map((attachment) => ({
-            filename: attachment.name,
-            content: Buffer.from(attachment.contentBytes, "base64"),
-            contentType: attachment.contentType,
-          })) ?? [],
-      }),
-    );
+    const config = this.getConfig();
+    const transporter = this.createTransporter();
+
+    return transporter.sendMail({
+      from: from ?? config.from ?? config.user,
+      to: recipients.join(", "),
+      subject,
+      html,
+      attachments:
+        attachments?.map((attachment) => ({
+          filename: attachment.name,
+          content: Buffer.from(attachment.contentBytes, "base64"),
+          contentType: attachment.contentType,
+        })) ?? [],
+    });
   }
 
   async test() {
-    return this.runWithFallback(async (transporter, config) => {
-      await transporter.verify();
+    const config = this.getConfig();
+    const transporter = this.createTransporter();
+    await transporter.verify();
 
-      return {
-        ok: true,
-        host: config.host,
-        port: config.port,
-        secure: config.secure,
-        from: config.from,
-      };
-    });
+    return {
+      ok: true,
+      host: config.host,
+      port: config.port,
+      secure: config.secure,
+      from: config.from,
+    };
   }
 
   async sendTestMail(to?: string) {
