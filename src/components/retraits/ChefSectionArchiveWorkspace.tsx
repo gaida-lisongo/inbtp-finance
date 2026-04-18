@@ -110,12 +110,16 @@ export default function ChefSectionArchiveWorkspace({ anneeId, programmeId, snap
   const lectureRows = useMemo(
     () =>
       snapshot.students.map((row) => {
-        const noteValues = Object.values(row.notesByMatiereId)
-          .map((item) => item.rattrapage)
+        const finalValues = Object.values(row.notesByMatiereId)
+          .map((item) => {
+            const session = (item.cc ?? 0) + (item.examen ?? 0);
+            const final = item.rachat ?? (item.rattrapage ?? session);
+            return Number.isFinite(final) ? Number(final) : null;
+          })
           .filter((item): item is number => typeof item === "number");
-        const avgRattrapage =
-          noteValues.length > 0
-            ? Math.round((noteValues.reduce((sum, item) => sum + item, 0) / noteValues.length) * 100) / 100
+        const studentPercentage =
+          finalValues.length > 0
+            ? Math.round(((finalValues.reduce((sum, item) => sum + item, 0) / (finalValues.length * 20)) * 100) * 100) / 100
             : null;
 
         const selectedNote =
@@ -126,8 +130,8 @@ export default function ChefSectionArchiveWorkspace({ anneeId, programmeId, snap
           studentName: buildStudentName(row.student),
           email: row.student.email ?? "",
           reference: row.reference ?? "",
-          notesCount: noteValues.length,
-          avgRattrapage,
+          notesCount: finalValues.length,
+          studentPercentage,
           selectedNote,
         };
       }),
@@ -175,10 +179,10 @@ export default function ChefSectionArchiveWorkspace({ anneeId, programmeId, snap
         render: (item: (typeof lectureRows)[number]) => item.notesCount,
       },
       {
-        key: "avgRattrapage",
-        label: "Moy. Rattrapage",
+        key: "studentPercentage",
+        label: "Pourcentage",
         render: (item: (typeof lectureRows)[number]) =>
-          item.avgRattrapage === null ? "—" : `${item.avgRattrapage.toFixed(2)} / 20`,
+          item.studentPercentage === null ? "—" : `${item.studentPercentage.toFixed(2)}%`,
       },
       {
         key: "selectedNote",
