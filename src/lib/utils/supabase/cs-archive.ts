@@ -322,18 +322,20 @@ export const saveCsBulkRattrapageRows = async (
     throw new Error(existingError.message);
   }
 
-  const existingByPair = new Map(
-    ((existingData ?? []) as Array<{
-      id: string;
-      student_id: string | null;
-      matiere_id: string | null;
-      cc: number | null;
-      examen: number | null;
-      rattrapage: number | null;
-      rachat: number | null;
-    }>)
+  type ExistingRow = {
+    id: string;
+    student_id: string | null;
+    matiere_id: string | null;
+    cc: number | null;
+    examen: number | null;
+    rattrapage: number | null;
+    rachat: number | null;
+  };
+
+  const existingByPair = new Map<string, ExistingRow>(
+    ((existingData ?? []) as ExistingRow[])
       .filter((row) => row.student_id && row.matiere_id)
-      .map((row) => [`${row.student_id}:${row.matiere_id}`, row] as const),
+      .map((row) => [`${row.student_id}:${row.matiere_id}`, row]),
   );
 
   let matchedStudents = 0;

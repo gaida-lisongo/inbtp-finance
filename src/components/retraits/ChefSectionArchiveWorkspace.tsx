@@ -291,13 +291,14 @@ export default function ChefSectionArchiveWorkspace({ anneeId, programmeId, snap
         };
 
         const maxAttempts = 3;
-        let payload: {
+        type BulkResponse = {
           error?: string;
           matchedStudents?: number;
           upserts?: number;
           skippedUnknownStudents?: number;
           skippedUnknownMatieres?: number;
-        } | null = null;
+        };
+        let payload: BulkResponse | null = null;
         let success = false;
 
         for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -311,7 +312,7 @@ export default function ChefSectionArchiveWorkspace({ anneeId, programmeId, snap
           let errorCode = "bulk_import_failed";
 
           if (contentType.includes("application/json")) {
-            payload = (await response.json()) as typeof payload;
+            payload = (await response.json()) as BulkResponse;
             errorCode = payload?.error || errorCode;
           } else {
             const text = await response.text();
