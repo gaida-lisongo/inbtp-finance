@@ -17,7 +17,7 @@ type ApiErrorCode =
   | "internal_error";
 
 const execFileAsync = promisify(execFile);
-const MAIL_ROOT = process.env.MAIL_VHOST_ROOT?.trim() || "/var/mail/vhosts";
+const MAIL_ROOT = process.env.MAIL_VHOST_ROOT?.trim() || "";
 
 const readEnv = (...keys: string[]) => {
   for (const key of keys) {
@@ -75,15 +75,7 @@ const parseMailbox = (email: string) => {
   }
 
   const relativeMaildir = `${domain}/${localPart}/`;
-  const absoluteMaildir = join(MAIL_ROOT, domain, localPart);
-
-  return {
-    email: normalized,
-    localPart,
-    domain,
-    relativeMaildir,
-    absoluteMaildir,
-  };
+  return { email: normalized, localPart, domain, relativeMaildir };
 };
 
 const randomSalt = (length = 16) => {
