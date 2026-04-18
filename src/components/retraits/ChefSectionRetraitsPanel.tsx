@@ -3,11 +3,13 @@
 import { useMemo, useState } from "react";
 
 import ComponentCard from "@/components/common/ComponentCard";
+import ChefSectionArchiveWorkspace from "@/components/retraits/ChefSectionArchiveWorkspace";
 import Button from "@/components/ui/button/Button";
 import { useModal } from "@/hooks/useModal";
 import { Modal } from "@/components/ui/modal";
 import Pagination from "@/components/tables/Pagination";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
+import type { CsArchiveSnapshot } from "@/lib/utils/supabase/cs-archive";
 import RetraitsRealtimeSync from "@/components/retraits/RetraitsRealtimeSync";
 import type { RetraitRecord } from "@/lib/utils/supabase/retraits";
 
@@ -18,6 +20,7 @@ type ChefSectionRetraitsPanelProps = {
   promotionId: string;
   programmeDesignation: string;
   anneeDesignation: string;
+  archiveSnapshot: CsArchiveSnapshot;
   createAction: (formData: FormData) => Promise<void>;
   deleteAction: (formData: FormData) => Promise<void>;
   confirmAction: (formData: FormData) => Promise<void>;
@@ -100,11 +103,13 @@ export default function ChefSectionRetraitsPanel({
   promotionId,
   programmeDesignation,
   anneeDesignation,
+  archiveSnapshot,
   createAction,
   deleteAction,
   confirmAction,
 }: ChefSectionRetraitsPanelProps) {
   const { isOpen, openModal, closeModal } = useModal();
+  const [activeTab, setActiveTab] = useState<"retraits" | "archives">("retraits");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
@@ -153,10 +158,37 @@ export default function ChefSectionRetraitsPanel({
 
       <ComponentCard
         title="Retraits"
-        desc="Consultez, filtrez et confirmez les demandes de retrait liees a cette promotion. La creation se fait via une modale afin de garder la table au premier plan."
+        desc="Chef de section: retraits et archivage des resultats par CSV."
       >
         <div className="space-y-5">
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_220px_auto]">
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab("retraits")}
+              className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                activeTab === "retraits"
+                  ? "bg-brand-500 text-white"
+                  : "border border-gray-300 text-gray-700 hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300"
+              }`}
+            >
+              Retraits
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("archives")}
+              className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                activeTab === "archives"
+                  ? "bg-brand-500 text-white"
+                  : "border border-gray-300 text-gray-700 hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:text-gray-300"
+              }`}
+            >
+              Archivage des resultats
+            </button>
+          </div>
+
+          {activeTab === "retraits" ? (
+            <>
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_220px_auto]">
             <div>
               <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400" htmlFor="retrait-search">
                 Recherche
@@ -201,9 +233,9 @@ export default function ChefSectionRetraitsPanel({
                 Ajouter un retrait
               </Button>
             </div>
-          </div>
+              </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-3">
             <div className="rounded-2xl bg-gray-50 p-4 dark:bg-white/[0.03]">
               <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Promotion</p>
               <p className="mt-2 text-sm font-medium text-gray-800 dark:text-white/90">{programmeDesignation}</p>
@@ -219,9 +251,9 @@ export default function ChefSectionRetraitsPanel({
               <p className="mt-2 text-2xl font-semibold text-gray-800 dark:text-white/90">{pendingCount}</p>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Demandes supprimables tant qu&apos;elles restent pending</p>
             </div>
-          </div>
+              </div>
 
-          <div className="overflow-x-auto">
+              <div className="overflow-x-auto">
             <Table className="min-w-full">
               <TableHeader className="border-y border-gray-100 dark:border-gray-800">
                 <TableRow>
@@ -323,9 +355,9 @@ export default function ChefSectionRetraitsPanel({
                 ) : null}
               </TableBody>
             </Table>
-          </div>
+              </div>
 
-          {filteredRetraits.length > PAGE_SIZE ? (
+              {filteredRetraits.length > PAGE_SIZE ? (
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Affichage de {startIndex + 1} a {Math.min(startIndex + PAGE_SIZE, filteredRetraits.length)} sur {filteredRetraits.length}
@@ -339,7 +371,15 @@ export default function ChefSectionRetraitsPanel({
                 }}
               />
             </div>
-          ) : null}
+              ) : null}
+            </>
+          ) : (
+            <ChefSectionArchiveWorkspace
+              anneeId={anneeId}
+              programmeId={promotionId}
+              snapshot={archiveSnapshot}
+            />
+          )}
         </div>
       </ComponentCard>
 

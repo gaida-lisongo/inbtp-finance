@@ -7,7 +7,9 @@ import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import ChefSectionRetraitsPanel from "@/components/retraits/ChefSectionRetraitsPanel";
 import { getActiveAutorisationCodesForAgent } from "@/lib/utils/supabase/autorisations";
 import { getAnnees } from "@/lib/utils/supabase/annees";
+import { getCsArchiveSnapshot } from "@/lib/utils/supabase/cs-archive";
 import { getProgrammeById, getProgrammes } from "@/lib/utils/supabase/programmes";
+import { getSemestresByProgramme, getUnitesBySemestreIds } from "@/lib/utils/supabase/enseignement";
 import { getRetraitsForAgent } from "@/lib/utils/supabase/retraits";
 import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 
@@ -111,12 +113,12 @@ export default async function ChefSectionPage({ searchParams }: ChefSectionPageP
     redirect("/");
   }
 
-  const [activeCodes, annees, programme, programmes, retraits] = await Promise.all([
+  const [activeCodes, annees, programme, retraits, archiveSnapshot] = await Promise.all([
     getActiveAutorisationCodesForAgent(user.agentId),
     getAnnees(),
     getProgrammeById(promotionId),
-    getProgrammes(),
     getRetraitsForAgent(user.agentId, anneeId, promotionId),
+    getCsArchiveSnapshot(anneeId, promotionId),
   ]);
 
   if (!activeCodes.includes("CS")) {
@@ -124,16 +126,15 @@ export default async function ChefSectionPage({ searchParams }: ChefSectionPageP
   }
 
   const annee = annees.find((item) => item.id === anneeId) ?? null;
-  const programmeDetails = programmes.find((item) => item.id === promotionId && item.annee_id === anneeId) ?? null;
   const feedbackMessage = getFeedbackMessage(queryParams.status, queryParams.message);
 
-  if (!annee || !programme || !programmeDetails) {
+  if (!annee || !programme) {
     redirect("/");
   }
 
   return (
     <div>
-      <PageBreadcrumb pageTitle={`Chef de Section - ${programmeDetails.designation || "Promotion"}`} />
+      <PageBreadcrumb pageTitle={`Chef de Section - ${programme.designation || "Promotion"}`} />
 
       <div className="space-y-6">
         {queryParams.status === "success" && feedbackMessage ? (
@@ -149,7 +150,7 @@ export default async function ChefSectionPage({ searchParams }: ChefSectionPageP
         ) : null}
 
         <ComponentCard
-          title={programmeDetails.designation || "Promotion"}
+          title={programme.designation || "Promotion"}
           desc="Le chef de section peut creer ses retraits, les consulter en temps reel et supprimer uniquement ceux qui sont encore en pending."
         >
           <div className="grid gap-4 sm:grid-cols-2">
@@ -161,9 +162,9 @@ export default async function ChefSectionPage({ searchParams }: ChefSectionPageP
             </div>
 
             <div className="rounded-xl bg-gray-50 p-4 dark:bg-white/[0.03]">
-              <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Filiere</p>
+              <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Système</p>
               <p className="mt-2 text-sm font-medium text-gray-800 dark:text-white/90">
-                {programmeDetails.filiereDesignation || "Non renseignee"}
+                {programme.systeme || "Non renseignee"}
               </p>
             </div>
           </div>
@@ -174,8 +175,9 @@ export default async function ChefSectionPage({ searchParams }: ChefSectionPageP
           agentId={user.agentId}
           anneeId={anneeId}
           promotionId={promotionId}
-          programmeDesignation={programmeDetails.designation || "Promotion"}
+          programmeDesignation={programme.designation || "Promotion"}
           anneeDesignation={annee.designation || "Annee academique"}
+          archiveSnapshot={archiveSnapshot}
           createAction={createRetraitAction}
           deleteAction={deleteRetraitAction}
           confirmAction={confirmRetraitAction}
