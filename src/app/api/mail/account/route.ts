@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import mysql from "mysql2/promise";
-import { mkdir } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
@@ -120,20 +119,6 @@ const buildDovecotHash = async (password: string) => {
   return `{SHA512-CRYPT}${raw}`;
 };
 
-const chownVmail = async (absolutePath: string) => {
-  try {
-    await execFileAsync("chown", ["-R", "vmail:vmail", absolutePath]);
-  } catch (error) {
-    const commandError = error as Error & { code?: string };
-
-    if (commandError.code === "ENOENT") {
-      throw new Error("chown_command_missing");
-    }
-
-    throw new Error("maildir_chown_failed");
-  }
-};
-
 const getStatusFromCode = (code: ApiErrorCode) => {
   if (code === "validation_error") {
     return 400;
@@ -186,13 +171,6 @@ const normalizeError = (error: unknown): { code: ApiErrorCode; message: string }
     return { code: "maildir_permission_failed", message: "Maildir created but chown to vmail:vmail failed." };
   }
 
-  if (mysqlError.code === "ENOENT" || mysqlError.code === "EACCES" || mysqlError.code === "EPERM") {
-    return {
-      code: "maildir_creation_failed",
-      message: "Unable to create maildir on filesystem. Verify path and permissions.",
-    };
-  }
-
   return { code: "internal_error", message: error.message || "Unexpected server error" };
 };
 
@@ -232,9 +210,6 @@ export async function POST(req: Request) {
     } finally {
       await db.end();
     }
-
-    await mkdir(mailbox.absoluteMaildir, { recursive: true, mode: 0o770 });
-    await chownVmail(mailbox.absoluteMaildir);
 
     return NextResponse.json({
       ok: true,
