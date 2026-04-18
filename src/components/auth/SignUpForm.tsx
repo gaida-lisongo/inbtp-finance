@@ -93,7 +93,7 @@ export default function SignUpForm({ error, nextPath, selectedTab }: SignUpFormP
       </div>
 
       <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center">
-        <div className="animate-fade-up rounded-[32px] border border-white/60 bg-white/85 p-6 shadow-[0_30px_80px_rgba(39,40,38,0.10)] backdrop-blur-xl dark:border-white/10 dark:bg-[#272826]/72 sm:p-8 [animation-delay:120ms]">
+        <div className="animate-fade-up rounded-[32px] border border-white/40 bg-white/30 p-6 shadow-[0_30px_80px_rgba(39,40,38,0.10)] backdrop-blur-xl dark:border-white/10 dark:bg-white/5 sm:p-8 [animation-delay:120ms]">
           <div className="mb-8 flex items-start justify-between gap-4">
             <div>
               <div className="mb-4 inline-flex items-center gap-3 rounded-full border border-[#058AC5]/15 bg-[#058AC5]/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-[#046b99] dark:border-[#058AC5]/15 dark:bg-[#058AC5]/12 dark:text-[#8ed8f1]">
@@ -120,7 +120,7 @@ export default function SignUpForm({ error, nextPath, selectedTab }: SignUpFormP
             </Link>
           </div>
 
-          <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
+          <div className="mt-6">
             {selectedTab === "student" ? (
               <StudentSignUpWizard nextPath={nextPath} />
             ) : (
@@ -190,19 +190,10 @@ export default function SignUpForm({ error, nextPath, selectedTab }: SignUpFormP
               </p>
               </>
             )}
-            <div className="hidden lg:block rounded-2xl border border-gray-200/60 bg-white/70 p-5 dark:border-white/10 dark:bg-white/5">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-500 dark:text-white/50">Workflow</p>
-              <p className="mt-2 text-base font-semibold text-gray-900 dark:text-white">
-                Connexion guidee pour étudiants et enseignants
-              </p>
-              <p className="mt-3 text-sm leading-7 text-gray-600 dark:text-white/70">
-                Etape 1: rechercher le profil etudiant. Etape 2: saisir les identites. Etape 3: securite, mail et photo.
-              </p>
-            </div>
           </div>
         </div>
 
-        <div className="mt-6 animate-fade-up rounded-[28px] border border-gray-200/70 bg-white/70 p-5 backdrop-blur-md dark:border-white/10 dark:bg-white/4 [animation-delay:220ms]">
+        <div className="mt-6 animate-fade-up rounded-[28px] border border-white/40 bg-white/25 p-5 backdrop-blur-xl dark:border-white/10 dark:bg-white/5 [animation-delay:220ms]">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-500 dark:text-white/50">Prevalidation</p>
           <p className="mt-2 text-base font-semibold text-gray-900 dark:text-white">Acces conditionne par les donnees academiques</p>
           <p className="mt-3 text-sm leading-7 text-gray-600 dark:text-white/70">

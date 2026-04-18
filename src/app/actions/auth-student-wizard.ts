@@ -35,10 +35,19 @@ const createMailAccount = async (email: string, password: string) => {
     body: JSON.stringify({ email, password }),
   });
 
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new Error(payload?.message ?? "mail_account_failed");
+  if (response.ok) {
+    return;
   }
+
+  const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+  const message = payload?.message ?? "";
+
+  // Si le compte existe déjà, on considère que c'est acceptable et on continue.
+  if (message.toLowerCase().includes("already exists")) {
+    return;
+  }
+
+  throw new Error(message || "mail_account_failed");
 };
 
 export async function signUpStudentWizardAction(formData: FormData) {
