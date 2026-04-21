@@ -2,24 +2,29 @@
 
 import React, { useState } from "react";
 
-import AdminNotificationsRealtimeSync from "@/components/header/AdminNotificationsRealtimeSync";
-import TeacherNotificationsRealtimeSync from "@/components/header/TeacherNotificationsRealtimeSync";
 import type { AuthenticatedUser } from "@/lib/utils/supabase/session";
-import type { AdminDashboardNotificationItem, Notification } from "@/lib/utils/supabase/admin-notifications";
-import type { TeacherRecoursNotificationItem } from "@/lib/utils/supabase/teacher-notifications";
+import type { Notification } from "@/lib/utils/supabase/admin-notifications";
 
 import { Dropdown } from "../ui/dropdown/Dropdown";
-import { DropdownItem } from "../ui/dropdown/DropdownItem";
-import NotificationCard from "../notification/NotificationCard";
+import NotificationItem from "../notification/NotificationItem";
+import { useRouter } from "next/navigation";
+import SchemaRealtimeSync from "../common/TableReatimeSync";
 
-type NotificationDropdownProps = {
+const teacherTables = ["notification_recours"];
+const gestionnaireTables = ["notification_payment"];
+const organisateurTables = ["notification_stage", "notification_sujet", "notification_releve"];
+
+export default function NotificationDropdown({
+  notifcations,
+  user,
+  onNotificationsChange,
+}: {
+  notifcations: Notification[];
   user: AuthenticatedUser;
-  teacherItems: TeacherRecoursNotificationItem[];
-  adminItems: AdminDashboardNotificationItem[];
-  pendingCount: number;
-};
-export default function NotificationDropdown({notifcations, user}: {notifcations: Notification[], user: AuthenticatedUser}) {
+  onNotificationsChange?: () => void;
+}) {
   const [isOpen, setIsOpen] = useState(false);
+  const router = useRouter();
 
   function toggleDropdown() {
     setIsOpen((current) => !current);
@@ -30,13 +35,17 @@ export default function NotificationDropdown({notifcations, user}: {notifcations
   }
 
   const isTeacher = user.activePersona === "teacher";
-  const isAdmin = user.activePersona === "admin";
-  const hasPendingItems = notifcations?.length > 0;
+  const isOrganisateur = user.role === "organisateur";
+  const isGestionnaire = user.role === "gestionnaire";
+  const pendingCount = notifcations.filter((item) => item.status !== true).length;
+  const hasPendingItems = pendingCount > 0;
 
   return (
     <div className="relative">
-      {isTeacher ? <TeacherNotificationsRealtimeSync /> : null}
-      {isAdmin ? <AdminNotificationsRealtimeSync /> : null}
+      {isTeacher ? <SchemaRealtimeSync tables={teacherTables} onChange={onNotificationsChange} /> : null}
+      {isGestionnaire ? <SchemaRealtimeSync tables={gestionnaireTables} onChange={onNotificationsChange} /> : null}
+      {isOrganisateur ? <SchemaRealtimeSync tables={organisateurTables} onChange={onNotificationsChange} /> : null}
+      
       <button
         className="relative dropdown-toggle flex items-center justify-center text-gray-500 transition-colors bg-white border border-gray-200 rounded-full hover:text-gray-700 h-11 w-11 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
         onClick={toggleDropdown}
@@ -66,23 +75,31 @@ export default function NotificationDropdown({notifcations, user}: {notifcations
       <Dropdown
         isOpen={isOpen}
         onClose={closeDropdown}
-        className="absolute -right-[240px] mt-[17px] flex h-[480px] w-[350px] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark sm:w-[361px] lg:right-0"
+        className="absolute -right-[240px] mt-[17px] flex h-[540px] w-[380px] flex-col rounded-3xl border border-gray-200 bg-white p-2 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark sm:w-[400px] lg:right-0"
       >
-        <div className="flex items-center justify-between pb-3 mb-3 border-b border-gray-100 dark:border-gray-700">
-          <h5 className="text-lg font-semibold text-gray-800 dark:text-gray-200">Notification</h5>
+        <div className="mb-2 flex items-center justify-between border-b border-gray-100 px-3 pb-3 pt-2 dark:border-gray-700">
+          <div>
+            <h5 className="text-lg font-semibold text-gray-800 dark:text-gray-200">Notifications</h5>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Centre de suivi en temps reel</p>
+          </div>
           <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-            {notifcations.length} en attente
+            {pendingCount} en attente
           </span>
         </div>
 
-        <ul className="flex h-auto flex-col overflow-y-auto custom-scrollbar">
+        <ul className="flex h-auto flex-col gap-1 overflow-y-auto px-1 pb-1 custom-scrollbar">
           {notifcations.length > 0 ? (
             notifcations.map((notifcation: Notification) => (
-              <NotificationCard 
-                key={notifcation.id}
-                item={notifcation}
-                compact={true}
-              />
+              <li key={notifcation.id}>
+                <NotificationItem
+                  item={notifcation}
+                  onClick={() => {
+                    closeDropdown();
+                    const path = notifcation.categorie.split("_");
+                    router.push(`/${path[0]}/${path[1]}/${notifcation.id}`);
+                  }}
+                />
+              </li>
             ))
           ) : (
             <li className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
@@ -90,18 +107,15 @@ export default function NotificationDropdown({notifcations, user}: {notifcations
             </li>
           )}
         </ul>
-
-        {isAdmin ? (
-          <div className="mt-3 border-t border-gray-100 pt-3 dark:border-gray-800">
-            <a
-              href="/notifications"
-              onClick={closeDropdown}
-              className="block rounded-lg px-3 py-2 text-center text-sm font-medium text-brand-600 transition hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-500/10"
-            >
-              Voir toutes les notifications
-            </a>
-          </div>
-        ) : null}
+        <div className="mt-3 border-t border-gray-100 pt-3 dark:border-gray-800">
+          <a
+            href={`/notifications`}
+            onClick={closeDropdown}
+            className="block rounded-lg px-3 py-2 text-center text-sm font-medium text-brand-600 transition hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-500/10"
+          >
+            Voir toutes les notifications
+          </a>
+        </div>
       </Dropdown>
     </div>
   );

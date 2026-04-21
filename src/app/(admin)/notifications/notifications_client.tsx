@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Notification } from "@/lib/utils/supabase/admin-notifications";
 import NotificationCard from "@/components/notification/NotificationCard";
+import { useRouter } from "next/navigation";
 
 export default function NotificationsClient({
   initialNotifications,
@@ -13,6 +14,7 @@ export default function NotificationsClient({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
 
   // 🔍 Filtrage
   const filteredNotifications = notifications.filter((notification) => {
@@ -85,6 +87,14 @@ export default function NotificationsClient({
             onDelete={() => handleDelete(item.id)}
             onUpdateStatus={handleUpdateStatus}
             compact={false}
+            onClick={() => {
+                const path = item?.categorie.split('_')
+                console.log(path)
+
+                //Redirect to Notification Page
+                router.push(`/${path[0]}/${path[1]}/${item?.id}`)
+
+            }}
           />
         ))}
       </div>

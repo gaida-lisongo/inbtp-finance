@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { formatDate } from "../education/faculty-dashboard/utils";
 import {
-  deleteNotification,
   Notification,
-  updateNotification,
 } from "@/lib/utils/supabase/admin-notifications";
+import Button from "../ui/button/Button";
+import Badge from "../ui/badge/Badge";
+import { BoltIcon, CheckCircleIcon, InfoIcon, TrashBinIcon } from "@/icons";
 
 export interface NotificationCardProps {
   item: Notification;
@@ -12,36 +12,8 @@ export interface NotificationCardProps {
   compact?: boolean;
   onDelete?: () => void;
   onUpdateStatus?: (data: any) => void;
+  onClick?: () => void;
 }
-
-const formatRelativeTime = (value: string) => {
-  const date = new Date(value);
-  const diffInSeconds = Math.round((date.getTime() - Date.now()) / 1000);
-  const absoluteSeconds = Math.abs(diffInSeconds);
-  const formatter = new Intl.RelativeTimeFormat("fr-FR", { numeric: "auto" });
-
-  if (absoluteSeconds < 60) {
-    return formatter.format(diffInSeconds, "second");
-  }
-
-  const diffInMinutes = Math.round(diffInSeconds / 60);
-
-  if (Math.abs(diffInMinutes) < 60) {
-    return formatter.format(diffInMinutes, "minute");
-  }
-
-  const diffInHours = Math.round(diffInMinutes / 60);
-
-  if (Math.abs(diffInHours) < 24) {
-    return formatter.format(diffInHours, "hour");
-  }
-
-  const diffInDays = Math.round(diffInHours / 24);
-  return formatter.format(diffInDays, "day");
-};
-
-const getStatusLabel = (value: boolean | null) => (value === true ? "Traite" : "En attente");
-
 
 export default function NotificationCard({
   item,
@@ -49,30 +21,35 @@ export default function NotificationCard({
   compact = false,
   onDelete,
   onUpdateStatus,
+  onClick=()=>{
+    console.log('Clicked')
+  }
 }: NotificationCardProps) {
-  const actionHref = () => {
-    switch (item.categorie) {
-      case "notification_paiement":
-        return `/notifications/paiements/${item.id}`;
-      case "notification_sujet":
-        return `/notifications/sujets/${item.id}`;
-      case "notification_releve":
-        return `/notifications/releves/${item.id}`;
-      case "notification_stage":
-        return `/notifications/stages/${item.id}`;
-      default:
-        return "#";
-    }
-  };
 
   const handleUpdateNotificationStatus = async () => {
     try {
       const payload = {
+        schema: item?.categorie,
         key: "status",
-        value: true,
-      };
-      const data = await updateNotification(item.categorie, item.id, payload);
-      if (data) onUpdateStatus?.(data);
+        value: item?.status !== "pending" ? "pending" : "completed",
+      };    
+      console.log(payload);
+      
+      const req = await fetch(`/api/header-notifications?id=${item.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (req.ok) {
+        const resp = await req.json();
+        console.log("Response", resp);
+        onUpdateStatus?.(payload);
+      } else {
+        console.error("Failed to update status");
+      }
     } catch (error) {
       console.log("Error updating notification status:", error);
     }
@@ -80,11 +57,29 @@ export default function NotificationCard({
 
   const handleDeleteNotification = async () => {
     try {
-      const data = await deleteNotification(item.categorie, item.id);
-      if (data) onDelete?.();
+      const req = await fetch(`/api/header-notifications?id=${item.id}&schema=${item.categorie}`, {
+        method: "DELETE",
+      });
+      if (req.ok) {
+        onDelete?.();
+      } else {
+        console.error("Failed to delete notification");
+      }
     } catch (error) {
       console.log("Error deleting notification:", error);
     }
+  };
+
+  const getStatusText = (status: Notification["status"]) => {
+    if (status === 'completed') {
+      return <Badge variant="solid" endIcon={<BoltIcon />} color="success">Traite</Badge>;
+    }
+
+    if (status === 'pending') {
+      return <Badge variant="solid" endIcon={<InfoIcon />} color="warning">En cours</Badge>;
+    }
+
+    return <Badge variant="solid" endIcon={<TrashBinIcon />} color="info">Annule</Badge>;
   };
 
   return (
@@ -94,7 +89,7 @@ export default function NotificationCard({
         
         {/* 📸 Avatar */}
         <img
-          src={item.students?.photo || "/images/avatar/default.png"}
+          src={item.students?.photo || "/images/inbtp/logo_inbtp.jpg"}
           alt="student"
           className="h-12 w-12 rounded-full object-cover border"
         />
@@ -130,42 +125,39 @@ export default function NotificationCard({
           <div className="mt-4 flex items-center justify-between gap-2 flex-wrap">
             
             {/* Status */}
-            <span
-              className={`rounded-full px-3 py-1 text-xs font-medium ${
-                item.status
-                  ? "bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-300"
-                  : "bg-yellow-100 text-yellow-700 dark:bg-yellow-500/10 dark:text-yellow-300"
-              }`}
-            >
-              {item.status ? "Traité" : "En attente"}
-            </span>
+            {getStatusText(item.status as string)}
 
             {/* Actions */}
             <div className="flex items-center gap-3">
               
               {/* Voir */}
-              <Link
-                href={actionHref()}
+              <Button
+                variant={"outline"}
+                onClick={onClick}
                 className="text-sm font-medium text-brand-600 hover:underline dark:text-brand-300"
               >
                 {!compact ? "Voir" : actionLabel}
-              </Link>
+              </Button>
               {
                 !compact ? (
                 <>
-                    <button
-                    onClick={handleUpdateNotificationStatus}
-                    className="text-sm text-green-600 hover:underline"
+                    <Button
+                        variant={"outline"}
+                        endIcon={<CheckCircleIcon />}
+                        onClick={handleUpdateNotificationStatus}
+                        className="text-sm text-green-600 hover:underline"
                     >
-                    Valider
-                    </button>
+                        Valider
+                    </Button>
 
-                    <button
+                    <Button
+                        variant={"outline"}
+                        endIcon={<TrashBinIcon />}
                         onClick={handleDeleteNotification}
                         className="text-sm text-red-600 hover:underline"
                     >
                         Supprimer
-                    </button>
+                    </Button>
                 </>
                 ) : null
               }

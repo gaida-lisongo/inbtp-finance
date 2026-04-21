@@ -4,7 +4,7 @@ import AssetImage from "@/components/common/AssetImage";
 import NotificationDropdown from "@/components/header/NotificationDropdown";
 import UserDropdown from "@/components/header/UserDropdown";
 import { useSidebar } from "@/context/SidebarContext";
-import type { AdminDashboardNotificationItem } from "@/lib/utils/supabase/admin-notifications";
+import type { Notification, AdminDashboardNotificationItem } from "@/lib/utils/supabase/admin-notifications";
 import type { AuthenticatedUser } from "@/lib/utils/supabase/session";
 import type { TeacherRecoursNotificationItem } from "@/lib/utils/supabase/teacher-notifications";
 import Link from "next/link";
@@ -23,12 +23,32 @@ type AppHeaderProps = {
   };
 };
 
-const AppHeader: React.FC<AppHeaderProps> = ({ user, teacherNotifications, adminNotifications }) => {
+const AppHeader: React.FC<AppHeaderProps> = ({ user }) => {
   const [isApplicationMenuOpen, setApplicationMenuOpen] = useState(false);
   const [orderNumberQuery, setOrderNumberQuery] = useState("");
 
   const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const router = useRouter();
+
+  const fetchNotifications = async () => {
+    try {
+      const response = await fetch("/api/header-notifications", {
+        method: "GET",
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error(`header_notifications_${response.status}`);
+      }
+
+      const payload = await response.json();
+      const data = Array.isArray(payload) ? (payload as Notification[]) : [];
+      setNotifications(data);
+    } catch (error) {
+      console.error("Error when fetching: ", error);
+    }
+  };
 
   const handleToggle = () => {
     if (window.innerWidth >= 1024) {
@@ -51,12 +71,14 @@ const AppHeader: React.FC<AppHeaderProps> = ({ user, teacherNotifications, admin
       }
     };
 
+    fetchNotifications();
+
     document.addEventListener("keydown", handleKeyDown);
 
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, []);
+  }, [user.activePersona, user.role]);
 
   const handleOrderSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -187,17 +209,24 @@ const AppHeader: React.FC<AppHeaderProps> = ({ user, teacherNotifications, admin
             <ThemeToggleButton />
             {/* <!-- Dark Mode Toggler --> */}
 
+            {/* <!-- Notification Menu Area --> */}
+           
+          </div>
+          <div className="flex items-center gap-2 2xsm:gap-3">
+
+            <UserDropdown user={user} />
            <NotificationDropdown
              user={user}
-             notifcations={[]}
+             notifcations={notifications}
+             onNotificationsChange={() => {
+               void fetchNotifications();
+             }}
             //  teacherItems={teacherNotifications?.items ?? []}
             //  adminItems={adminNotifications?.items ?? []}
             //  pendingCount={user.activePersona === "admin" ? (adminNotifications?.pendingCount ?? 0) : (teacherNotifications?.pendingCount ?? 0)}
            />
-            {/* <!-- Notification Menu Area --> */}
           </div>
           {/* <!-- User Area --> */}
-          <UserDropdown user={user} />
         </div>
       </div>
     </header>

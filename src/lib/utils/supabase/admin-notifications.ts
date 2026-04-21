@@ -6,7 +6,7 @@ export type Notification = {
   created_at: string;
   object: string | null;
   description: string | null;
-  status: boolean | null;
+  status: string | boolean;
   student_id: any;
   students: {
     id: string;
@@ -77,10 +77,14 @@ const getNotifications = async (
   showAll: boolean = false
 ): Promise<Notification[]> => {
   try {
+    await getAdminAgentId();
     const admin = createAdminClient();
+
+    console.log("Schemas =>", schemas)
 
     const results = await Promise.all(
       schemas.map(async (schema) => {
+        console.log('schema', schema);
         let query = admin
           .from(schema)
           .select(`
@@ -99,7 +103,7 @@ const getNotifications = async (
               photo
             )
           `)
-          .eq("status", false) // ⚠️ adapte selon ta DB
+          .eq("status", 'pending') // ⚠️ adapte selon ta DB
           .order("created_at", { ascending: false });
 
         // 🔥 limite uniquement si PAS showAll
@@ -135,7 +139,7 @@ export const updateNotification = async (schema: string, id: string, payload: {k
 
     const { data, error } = await admin
       .from(schema)
-      .update(payload)
+      .update({ [payload.key]: payload.value })
       .eq("id", id)
       .select("*")
       .single();
@@ -203,7 +207,7 @@ export const createNotification = async (schema: string, payload: Pick<Notificat
 export const getNotificationsGestionnaire = async (showAll = false) => {
   try {
     const schemas = [
-      "notification_paiement",
+      "notification_payment",
     ];
 
     const notifications = await getNotifications(schemas, showAll);
