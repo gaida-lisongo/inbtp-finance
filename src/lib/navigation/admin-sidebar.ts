@@ -121,7 +121,7 @@ export const getAdminSidebarMenu = async (user: AuthenticatedUser): Promise<Side
             return rightActive - leftActive;
           }
 
-          return (left.designation ?? "").localeCompare(right.designation ?? "");
+          return (right.designation ?? "").localeCompare(left.designation ?? "");
         })
         .map((annee) => ({
           name: annee.designation || "Annee sans designation",
@@ -179,7 +179,7 @@ export const getAdminSidebarMenu = async (user: AuthenticatedUser): Promise<Side
     return {
       name: authorizationLabel,
       iconKey: "folder",
-      subItems: Array.from(years.values()),
+      subItems: Array.from(years.values()).sort((a, b) => (b.name || "").localeCompare(a.name || "")),
     };
   };
 

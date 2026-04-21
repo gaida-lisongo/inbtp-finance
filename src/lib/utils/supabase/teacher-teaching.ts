@@ -438,7 +438,7 @@ export const getTeacherProgrammeMenuData = async (): Promise<TeacherProgrammeMen
         return rightActive - leftActive;
       }
 
-      return (left.designation ?? "").localeCompare(right.designation ?? "");
+      return (right.designation ?? "").localeCompare(left.designation ?? "");
     })
     .map((year) => ({
       ...year,
