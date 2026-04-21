@@ -18,3 +18,7 @@ pnpm-debug.log*
 
 tsconfig.tsbuildinfo
 
+Dockerfile
+docker-compose.yml
+README.md
+

@@ -1,6 +1,24 @@
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 
+export type Notification = {
+  id: string;
+  created_at: string;
+  object: string | null;
+  description: string | null;
+  status: boolean | null;
+  student_id: any;
+  students: {
+    id: string;
+    nom: string;
+    post_nom: string;
+    prenom: string;
+    email: string;
+    photo: string;
+  };
+  categorie: 'notification_paiement' | 'notification_sujet' | 'notification_releve' | 'notification_stage' | 'notification_recours';
+}
+
 type AdminNotificationRecord = {
   id: string;
   created_at: string;
@@ -54,6 +72,168 @@ const getAdminAgentId = async (agentId?: string) => {
   return user.agentId;
 };
 
+const getNotifications = async (
+  schemas: string[],
+  showAll: boolean = false
+): Promise<Notification[]> => {
+  try {
+    const admin = createAdminClient();
+
+    const results = await Promise.all(
+      schemas.map(async (schema) => {
+        let query = admin
+          .from(schema)
+          .select(`
+            id,
+            created_at,
+            object,
+            description,
+            status,
+            student_id,
+            students (
+              id,
+              nom,
+              post_nom,
+              prenom,
+              email,
+              photo
+            )
+          `)
+          .eq("status", false) // ⚠️ adapte selon ta DB
+          .order("created_at", { ascending: false });
+
+        // 🔥 limite uniquement si PAS showAll
+        if (!showAll) {
+          query = query.limit(20);
+        }
+
+        const { data, error } = await query;
+
+        if (error) {
+          console.error(`Error in ${schema}:`, error);
+          return [];
+        }
+
+        return (data || []).map((item: any) => ({
+          ...item,
+          categorie: schema,
+        }));
+      })
+    );
+
+    return results.flat();
+
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
+};
+
+export const updateNotification = async (schema: string, id: string, payload: {key: string, value: any}) => {
+  try {
+    const admin = createAdminClient();
+
+    const { data, error } = await admin
+      .from(schema)
+      .update(payload)
+      .eq("id", id)
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error(`Error in ${schema}:`, error);
+      return null;
+    }
+
+    return data;
+
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
+}
+
+export const deleteNotification = async (schema: string, id: string) => {
+  try {
+    const admin = createAdminClient();
+
+    const { data, error } = await admin
+      .from(schema)
+      .delete()
+      .eq("id", id)
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error(`Error in ${schema}:`, error);
+      return null;
+    }
+
+    return data;
+
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
+}
+
+export const createNotification = async (schema: string, payload: Pick<Notification, "student_id" | "object" | "description" | "status">) => {
+  try {
+    const admin = createAdminClient();
+
+    const { data, error } = await admin
+      .from(schema)
+      .insert(payload)
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error(`Error in ${schema}:`, error);
+      return null;
+    }
+
+    return data;
+
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
+}
+
+export const getNotificationsGestionnaire = async (showAll = false) => {
+  try {
+    const schemas = [
+      "notification_paiement",
+    ];
+
+    const notifications = await getNotifications(schemas, showAll);
+
+    return notifications;
+
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
+}
+
+export const getNotificationsOrganisateur = async (showAll = false) => {
+  try {
+    const schemas = [
+      "notification_stage",
+      "notification_sujet",
+      "notification_releve",
+    ];
+
+    const notifications = await getNotifications(schemas, showAll);
+
+    return notifications;
+
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
+};
+
 export const getAdminNotifications = async ({
   agentId,
   limit = 30,
@@ -81,6 +261,8 @@ export const getAdminNotifications = async ({
     path: row.path,
     status: row.status,
   }));
+
+  console.log("Items : ", items); 
 
   const stageNotificationIds = items
     .filter((item) => item.category === "stages")

@@ -189,9 +189,10 @@ const AppHeader: React.FC<AppHeaderProps> = ({ user, teacherNotifications, admin
 
            <NotificationDropdown
              user={user}
-             teacherItems={teacherNotifications?.items ?? []}
-             adminItems={adminNotifications?.items ?? []}
-             pendingCount={user.activePersona === "admin" ? (adminNotifications?.pendingCount ?? 0) : (teacherNotifications?.pendingCount ?? 0)}
+             notifcations={[]}
+            //  teacherItems={teacherNotifications?.items ?? []}
+            //  adminItems={adminNotifications?.items ?? []}
+            //  pendingCount={user.activePersona === "admin" ? (adminNotifications?.pendingCount ?? 0) : (teacherNotifications?.pendingCount ?? 0)}
            />
             {/* <!-- Notification Menu Area --> */}
           </div>

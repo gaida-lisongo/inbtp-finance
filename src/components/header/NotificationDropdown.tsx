@@ -5,11 +5,12 @@ import React, { useState } from "react";
 import AdminNotificationsRealtimeSync from "@/components/header/AdminNotificationsRealtimeSync";
 import TeacherNotificationsRealtimeSync from "@/components/header/TeacherNotificationsRealtimeSync";
 import type { AuthenticatedUser } from "@/lib/utils/supabase/session";
-import type { AdminDashboardNotificationItem } from "@/lib/utils/supabase/admin-notifications";
+import type { AdminDashboardNotificationItem, Notification } from "@/lib/utils/supabase/admin-notifications";
 import type { TeacherRecoursNotificationItem } from "@/lib/utils/supabase/teacher-notifications";
 
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
+import NotificationCard from "../notification/NotificationCard";
 
 type NotificationDropdownProps = {
   user: AuthenticatedUser;
@@ -17,36 +18,7 @@ type NotificationDropdownProps = {
   adminItems: AdminDashboardNotificationItem[];
   pendingCount: number;
 };
-
-const formatRelativeTime = (value: string) => {
-  const date = new Date(value);
-  const diffInSeconds = Math.round((date.getTime() - Date.now()) / 1000);
-  const absoluteSeconds = Math.abs(diffInSeconds);
-  const formatter = new Intl.RelativeTimeFormat("fr-FR", { numeric: "auto" });
-
-  if (absoluteSeconds < 60) {
-    return formatter.format(diffInSeconds, "second");
-  }
-
-  const diffInMinutes = Math.round(diffInSeconds / 60);
-
-  if (Math.abs(diffInMinutes) < 60) {
-    return formatter.format(diffInMinutes, "minute");
-  }
-
-  const diffInHours = Math.round(diffInMinutes / 60);
-
-  if (Math.abs(diffInHours) < 24) {
-    return formatter.format(diffInHours, "hour");
-  }
-
-  const diffInDays = Math.round(diffInHours / 24);
-  return formatter.format(diffInDays, "day");
-};
-
-const getStatusLabel = (value: boolean | null) => (value === true ? "Traite" : "En attente");
-
-export default function NotificationDropdown({ user, teacherItems, adminItems, pendingCount }: NotificationDropdownProps) {
+export default function NotificationDropdown({notifcations, user}: {notifcations: Notification[], user: AuthenticatedUser}) {
   const [isOpen, setIsOpen] = useState(false);
 
   function toggleDropdown() {
@@ -59,7 +31,7 @@ export default function NotificationDropdown({ user, teacherItems, adminItems, p
 
   const isTeacher = user.activePersona === "teacher";
   const isAdmin = user.activePersona === "admin";
-  const hasPendingItems = pendingCount > 0;
+  const hasPendingItems = notifcations?.length > 0;
 
   return (
     <div className="relative">
@@ -99,80 +71,18 @@ export default function NotificationDropdown({ user, teacherItems, adminItems, p
         <div className="flex items-center justify-between pb-3 mb-3 border-b border-gray-100 dark:border-gray-700">
           <h5 className="text-lg font-semibold text-gray-800 dark:text-gray-200">Notification</h5>
           <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-            {pendingCount} en attente
+            {notifcations.length} en attente
           </span>
         </div>
 
         <ul className="flex h-auto flex-col overflow-y-auto custom-scrollbar">
-          {isTeacher && teacherItems.length === 0 ? (
-            <li className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-              Aucun recours recu pour le moment.
-            </li>
-          ) : isTeacher ? (
-            teacherItems.map((item) => (
-              <li key={item.id}>
-                <DropdownItem
-                  tag="a"
-                  href={item.path || "/#historique-recours"}
-                  onItemClick={closeDropdown}
-                  className="flex rounded-lg border-b border-gray-100 p-3 px-4.5 py-3 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-white/5"
-                >
-                  <span className="block">
-                    <span className="mb-1.5 block text-theme-sm text-gray-500 dark:text-gray-400">
-                      <span className="font-medium text-gray-800 dark:text-white/90">
-                        {item.student?.displayName || "Etudiant inconnu"}
-                      </span>{" "}
-                      a soumis un recours pour{" "}
-                      <span className="font-medium text-gray-800 dark:text-white/90">
-                        {item.matiere?.designation || "une matiere"}
-                      </span>
-                    </span>
-
-                    {item.observation ? (
-                      <span className="line-clamp-2 block text-theme-xs text-gray-500 dark:text-gray-400">
-                        {item.observation}
-                      </span>
-                    ) : null}
-
-                    <span className="mt-2 flex items-center gap-2 text-gray-500 text-theme-xs dark:text-gray-400">
-                      <span>{getStatusLabel(item.recoursStatus)}</span>
-                      <span className="h-1 w-1 rounded-full bg-gray-400"></span>
-                      <span>{formatRelativeTime(item.createdAt)}</span>
-                    </span>
-                  </span>
-                </DropdownItem>
-              </li>
-            ))
-          ) : isAdmin && adminItems.length === 0 ? (
-            <li className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-              Aucune notification administrateur disponible.
-            </li>
-          ) : isAdmin ? (
-            adminItems.map((item) => (
-              <li key={item.id}>
-                <DropdownItem
-                  tag="a"
-                  href={item.path || "/"}
-                  onItemClick={closeDropdown}
-                  className="flex rounded-lg border-b border-gray-100 p-3 px-4.5 py-3 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-white/5"
-                >
-                  <span className="block">
-                    <span className="mb-1.5 block text-theme-sm text-gray-500 dark:text-gray-400">
-                      <span className="font-medium text-gray-800 dark:text-white/90">{item.object || "Notification"}</span>
-                    </span>
-
-                    {item.description ? (
-                      <span className="line-clamp-2 block text-theme-xs text-gray-500 dark:text-gray-400">{item.description}</span>
-                    ) : null}
-
-                    <span className="mt-2 flex items-center gap-2 text-gray-500 text-theme-xs dark:text-gray-400">
-                      <span>{getStatusLabel(item.status)}</span>
-                      <span className="h-1 w-1 rounded-full bg-gray-400"></span>
-                      <span>{formatRelativeTime(item.createdAt)}</span>
-                    </span>
-                  </span>
-                </DropdownItem>
-              </li>
+          {notifcations.length > 0 ? (
+            notifcations.map((notifcation: Notification) => (
+              <NotificationCard 
+                key={notifcation.id}
+                item={notifcation}
+                compact={true}
+              />
             ))
           ) : (
             <li className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">

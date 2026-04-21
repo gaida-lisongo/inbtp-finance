@@ -59,23 +59,23 @@ export async function GET(_request: Request, context: { params: Promise<{ produc
     const verificationUrl = `${verificationBaseUrl}/api/verify/validation/${productId}?student_id=${encodeURIComponent(productData.student.id)}&order=${encodeURIComponent(orderReference)}`;
 
     const bulletinNotes: Note[] = studentResult.semestres.flatMap((semestre) =>
-      semestre.unites.map((unite) => {
-        const noteValue = unite.isValide ? 20 : 0;
+      semestre.unites.map((unite) => ({
+        code: unite.code,
+        unite: `${semestre.designation} - ${unite.designation}`,
+        credit: unite.credit,
+        moyenne: unite.sessions.best.moyenne,
+        elements: unite.elements.map((element) => {
+          const bestSecondChance = Math.max(element.rattrapage ?? 0, element.rachat ?? 0);
 
-        return {
-          code: unite.code,
-          unite: `${semestre.designation} - ${unite.designation}`,
-          credit: unite.credit,
-          moyenne: noteValue,
-          elements: unite.elements.map((element) => ({
+          return {
             designation: element.designation,
-            cc: 0,
-            examen: 0,
-            rattrage: noteValue,
+            cc: element.cc,
+            examen: element.examen,
+            rattrage: bestSecondChance,
             credit: element.credit,
-          })),
-        };
-      }),
+          };
+        }),
+      })),
     );
 
     const admin = createAdminClient();

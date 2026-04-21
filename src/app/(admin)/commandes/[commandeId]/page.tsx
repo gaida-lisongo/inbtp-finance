@@ -6,6 +6,7 @@ import {
   getFacultyCommandeDetail,
   type FacultyCommandeDetail,
 } from "@/lib/utils/supabase/faculty-commandes";
+import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 
 type FacultyCommandePageProps = {
   params: Promise<{
@@ -72,17 +73,12 @@ export default async function FacultyCommandeDetailPage({ params }: FacultyComma
 
   return (
     <main className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase tracking-[0.24em] text-gray-500 dark:text-gray-400">Page metier commande</p>
-          <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white/90">
-            {orderNumber ?? detail.commande.id}
-          </h1>
-        </div>
-        <Link href="/" className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 dark:border-gray-700 dark:text-gray-200">
-          Retour dashboard
-        </Link>
-      </div>
+      <PageBreadcrumb 
+        pageRoot="Notifications"
+        pageTitle="Commande"
+        detailPage={orderNumber ?? detail.commande.id}
+        path="/notifications"
+      />
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">

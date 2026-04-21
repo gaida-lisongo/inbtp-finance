@@ -25,7 +25,11 @@ export default async function EducationDashboardPage() {
 
     return (
       <div className="space-y-6">
-        <PageBreadcrumb pageTitle="Dashboard Etudiant" />
+        <PageBreadcrumb 
+          detailPage="Notifications" 
+          pageTitle="Notifications" 
+          pageRoot="Dashboard"
+          path="/"/>
         <StudentDashboardSnapshot snapshot={snapshot} />
       </div>
     );
@@ -36,7 +40,11 @@ export default async function EducationDashboardPage() {
 
     return (
       <div className="space-y-6">
-        <PageBreadcrumb pageTitle="Dashboard Enseignant" />
+        <PageBreadcrumb 
+          detailPage="Dashboard" 
+          pageTitle="Dashboard Enseignant" 
+          pageRoot="Dashboard"
+          path="/"/>
         <TeacherDashboardSnapshot snapshot={snapshot} />
       </div>
     );
@@ -50,7 +58,11 @@ export default async function EducationDashboardPage() {
 
       return (
         <div className="space-y-6">
-          <PageBreadcrumb pageTitle="Dashboard Faculte" />
+          <PageBreadcrumb 
+          detailPage="Dashboard" 
+          pageTitle="Dashboard Faculte" 
+          pageRoot="Dashboard"
+          path="/"/>
           <FacultyDashboardSnapshot snapshot={facultySnapshot} />
         </div>
       );
@@ -60,7 +72,11 @@ export default async function EducationDashboardPage() {
 
     return (
       <div className="space-y-6">
-        <PageBreadcrumb pageTitle="Dashboard Parcours" />
+        <PageBreadcrumb 
+          detailPage="Dashboard" 
+          pageTitle="Dashboard Parcours" 
+          pageRoot="Dashboard"
+          path="/"/>
         <ParcoursDashboardSnapshot snapshot={parcoursSnapshot} />
       </div>
     );
@@ -70,7 +86,11 @@ export default async function EducationDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <PageBreadcrumb pageTitle="Dashboard Faculte" />
+      <PageBreadcrumb 
+          detailPage="Dashboard" 
+          pageTitle="Dashboard Faculte" 
+          pageRoot="Dashboard"
+          path="/"/>
       <FacultyDashboardSnapshot snapshot={facultySnapshot} />
     </div>
   );

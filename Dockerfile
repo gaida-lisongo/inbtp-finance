@@ -1,32 +1,68 @@
-# 1. Base image
+# 1. Base
 FROM node:20-alpine AS base
+WORKDIR /app
 
 # 2. Dependencies
 FROM base AS deps
-WORKDIR /app
-
-COPY package.json package-lock.json* ./
-COPY .env.local .env.local
-RUN npm install --frozen-lockfile
+# libc6-compat est souvent requis pour Next.js sur Alpine
+RUN apk add --no-cache libc6-compat
+COPY package.json package-lock.json ./
+RUN npm ci
 
 # 3. Build
 FROM base AS builder
 WORKDIR /app
-
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Déclaration des variables build-time (frontend)
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
+ARG NEXT_PUBLIC_HOST_URL
+ARG NEXT_PUBLIC_SSO_URL
+ARG NEXT_PUBLIC_GROUP
+ARG NEXT_PUBLIC_SCHOOL_NAME
+ARG NEXT_PUBLIC_INSTITUT
+ARG NEXT_PUBLIC_SECTION
+ARG NEXT_PUBLIC_SHORT_SECTION
+ARG NEXT_PUBLIC_SECTION_REF
+ARG NEXT_PUBLIC_CHEF
+ARG NEXT_PUBLIC_CONTACT
+ARG NEXT_PUBLIC_EMAIL
+ARG NEXT_PUBLIC_ADRESS
+
+# Injection dans l’environnement
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
+ENV NEXT_PUBLIC_HOST_URL=$NEXT_PUBLIC_HOST_URL
+ENV NEXT_PUBLIC_SSO_URL=$NEXT_PUBLIC_SSO_URL
+ENV NEXT_PUBLIC_GROUP=$NEXT_PUBLIC_GROUP
+ENV NEXT_PUBLIC_SCHOOL_NAME=$NEXT_PUBLIC_SCHOOL_NAME
+ENV NEXT_PUBLIC_INSTITUT=$NEXT_PUBLIC_INSTITUT
+ENV NEXT_PUBLIC_SECTION=$NEXT_PUBLIC_SECTION
+ENV NEXT_PUBLIC_SHORT_SECTION=$NEXT_PUBLIC_SHORT_SECTION
+ENV NEXT_PUBLIC_SECTION_REF=$NEXT_PUBLIC_SECTION_REF
+ENV NEXT_PUBLIC_CHEF=$NEXT_PUBLIC_CHEF
+ENV NEXT_PUBLIC_CONTACT=$NEXT_PUBLIC_CONTACT
+ENV NEXT_PUBLIC_EMAIL=$NEXT_PUBLIC_EMAIL
+ENV NEXT_PUBLIC_ADRESS=$NEXT_PUBLIC_ADRESS
 RUN npm run build
 
-# 4. Production image
-FROM base AS runner
+# 4. Production image (L'étape qui change tout)
+FROM node:20-alpine AS runner
 WORKDIR /app
-
+RUN apk add --no-cache libc6-compat
 ENV NODE_ENV=production
+ENV PORT 3000
+# Important pour que Next.js sache qu'il est en container
+ENV HOSTNAME "0.0.0.0"
 
-# Copier uniquement ce qui est nécessaire
-COPY --from=builder /app ./
+# On ne copie que le strict minimum
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
 
 EXPOSE 3000
 
-CMD ["npm", "run", "start"]
+# On lance server.js directement (généré par le mode standalone)
+CMD ["node", "server.js"]
