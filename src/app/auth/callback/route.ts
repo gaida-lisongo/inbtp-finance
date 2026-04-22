@@ -11,6 +11,7 @@ import { syncAuthenticatedUser } from "@/lib/utils/supabase/session";
 import { createClient as createServerSupabaseClient } from "@/lib/utils/supabase/server";
 
 export async function GET(request: NextRequest) {
+  console.log("GET", request);
   const code = request.nextUrl.searchParams.get("code");
   const nextPath = getSafeNextPath(request.nextUrl.searchParams.get("next"));
   const loginMode = normalizeLoginMode(request.nextUrl.searchParams.get("login_mode"));

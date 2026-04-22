@@ -187,6 +187,7 @@ export async function signInStudentAction(formData: FormData) {
 
 export async function signInTeacherAction(formData: FormData) {
   const nextPath = getSafeNextPath(getFormValue(formData, "next") || null);
+  console.log("Next Path = ", nextPath)
   const email = getFormValue(formData, "email").toLowerCase();
   const password = getFormValue(formData, "password");
 
@@ -215,6 +216,7 @@ export async function signInTeacherAction(formData: FormData) {
 }
 
 export async function signInAdminAction(formData: FormData) {
+  console.log("signInAdminAction", formData);
   const nextPath = getSafeNextPath(getFormValue(formData, "next") || null);
   const email = getFormValue(formData, "email").toLowerCase();
   const password = getFormValue(formData, "password");
