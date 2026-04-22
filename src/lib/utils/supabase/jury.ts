@@ -178,6 +178,39 @@ export const getJuryById = async (juryId: string) => {
   return mapJuryMembers(jury, agentsMap, anneesMap);
 };
 
+export const getAllJuries = async () => {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("jury")
+    .select(JURY_FIELDS.join(","))
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const juries = (data ?? []) as unknown as JuryRow[];
+  const agentIds = Array.from(
+    new Set(
+      juries.flatMap((jury) =>
+        [jury.president_id, jury.secretaire_id].filter(
+          (value): value is string => Boolean(value),
+        ),
+      ),
+    ),
+  );
+  const anneeIds = Array.from(
+    new Set(juries.map((jury) => jury.annee_id).filter((value): value is string => Boolean(value))),
+  );
+
+  const [agentsMap, anneesMap] = await Promise.all([
+    fetchAgentsByIds(agentIds),
+    fetchAnneesByIds(anneeIds),
+  ]);
+
+  return juries.map((jury) => mapJuryMembers(jury, agentsMap, anneesMap));
+}
+
 export const getJuriesForAgent = async (agentId: string) => {
   const admin = createAdminClient();
   const { data, error } = await admin

@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import ComponentCard from "@/components/common/ComponentCard";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
-import { getJuriesByYear, getJuriesForAgent, getProgrammesByYear } from "@/lib/utils/supabase/jury";
+import { getAllJuries, getJuriesByYear, getJuriesForAgent, getProgrammesByYear } from "@/lib/utils/supabase/jury";
 import { getActiveAnnee } from "@/lib/utils/supabase/annees";
 import JuryPromotionCard from "@/components/jury/JuryPromotionCard";
 import type { ProgrammeRecord } from "@/lib/utils/supabase/programmes";
@@ -83,7 +83,7 @@ export default async function JuryAssignmentsPage() {
     redirect("/annees?error=annee_inactive");
   }
 
-  const juries = await getJuriesByYear(annee.id);
+  const juries = await getAllJuries();
 
   return (
     <div className="space-y-6">
