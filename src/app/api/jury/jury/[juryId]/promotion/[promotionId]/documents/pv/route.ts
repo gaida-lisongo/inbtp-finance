@@ -67,10 +67,6 @@ export async function GET(
     return NextResponse.json({ error: "Promotion introuvable." }, { status: 404 });
   }
 
-  if (jury.annee_id && programme.annee_id && jury.annee_id !== programme.annee_id) {
-    return NextResponse.json({ error: "Promotion invalide pour ce jury." }, { status: 403 });
-  }
-
   const notes = await getNotesForProgramme(promotionId);
   const resultats = NoteManager.classerParPourcentage(
     NoteManager.calculerResultatsPromotion(notes),

@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useTransition } from "react";
-import Button from "@/components/ui/button/Button";
 import type { AnneeRecord } from "@/lib/utils/supabase/annees";
 import Switch from "@/components/form/switch/Switch";
 import { toggleAnneeActiveAction } from "@/app/actions/annees";
@@ -14,7 +13,7 @@ interface AnneeItemProps {
 
 export default function AnneeItem({ item, onDetail, onDelete }: AnneeItemProps) {
   const [isPending, startTransition] = useTransition();
-  const isActivate = item.active === true || item.active === "true";
+  const isActivate = item.active === "true";
 
   const handleToggle = () => {
     startTransition(async () => {

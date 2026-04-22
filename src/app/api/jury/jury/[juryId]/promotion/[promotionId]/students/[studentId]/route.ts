@@ -55,10 +55,6 @@ export async function GET(
     return NextResponse.json({ error: "Promotion introuvable." }, { status: 404 });
   }
 
-  if (jury.annee_id && programme.annee_id && jury.annee_id !== programme.annee_id) {
-    return NextResponse.json({ error: "Promotion invalide pour ce jury." }, { status: 403 });
-  }
-
   const admin = createAdminClient();
 
   const [{ data: parcoursRow, error: parcoursError }, { data: studentRow, error: studentError }] =
@@ -296,10 +292,6 @@ export async function POST(
   const programme = await getProgrammeById(promotionId);
   if (!programme) {
     return NextResponse.json({ error: "Promotion introuvable." }, { status: 404 });
-  }
-
-  if (jury.annee_id && programme.annee_id && jury.annee_id !== programme.annee_id) {
-    return NextResponse.json({ error: "Promotion invalide pour ce jury." }, { status: 403 });
   }
 
   const items = Array.isArray(body?.items) ? body?.items ?? [] : [];

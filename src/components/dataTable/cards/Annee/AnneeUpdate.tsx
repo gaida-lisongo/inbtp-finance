@@ -6,8 +6,8 @@ import type { AnneeRecord } from "@/lib/utils/supabase/annees";
 
 interface AnneeUpdateProps {
   item: AnneeRecord;
-  onUpdate: (payload: any) => void;
-  onClose: () => void;
+  onUpdate?: (payload: any) => void;
+  onClose?: () => void;
 }
 
 export default function AnneeUpdate({ item, onUpdate, onClose }: AnneeUpdateProps) {
@@ -18,7 +18,7 @@ export default function AnneeUpdate({ item, onUpdate, onClose }: AnneeUpdateProp
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onUpdate({
+    onUpdate?.({
       id: item.id,
       designation,
       date_debut: dateDebut || null,

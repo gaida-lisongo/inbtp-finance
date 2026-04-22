@@ -4,8 +4,8 @@ import React, { useState } from "react";
 import Button from "@/components/ui/button/Button";
 
 interface AnneeCreateProps {
-  onCreate: (payload: any) => void;
-  onClose: () => void;
+  onCreate?: (payload: any) => void;
+  onClose?: () => void;
 }
 
 export default function AnneeCreate({ onCreate, onClose }: AnneeCreateProps) {
@@ -16,7 +16,7 @@ export default function AnneeCreate({ onCreate, onClose }: AnneeCreateProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onCreate({
+    onCreate?.({
       designation,
       date_debut: dateDebut || null,
       date_fin: dateFin || null,

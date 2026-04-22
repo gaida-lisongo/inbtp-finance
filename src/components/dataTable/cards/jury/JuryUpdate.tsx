@@ -8,8 +8,8 @@ import type { AgentRecord } from "@/lib/utils/supabase/agents-shared";
 
 interface JuryUpdateProps {
   item: JuryWithMembers;
-  onUpdate: (payload: any) => void;
-  onClose: () => void;
+  onUpdate?: (payload: any) => void;
+  onClose?: () => void;
 }
 
 export default function JuryUpdate({ item, onUpdate, onClose }: JuryUpdateProps) {
@@ -21,7 +21,7 @@ export default function JuryUpdate({ item, onUpdate, onClose }: JuryUpdateProps)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onUpdate({
+    onUpdate?.({
       id: item.id,
       designation,
       president_id: president?.id || null,

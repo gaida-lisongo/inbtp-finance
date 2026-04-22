@@ -8,8 +8,8 @@ import type { AnneeRecord } from "@/lib/utils/supabase/annees";
 import type { AgentRecord } from "@/lib/utils/supabase/agents-shared";
 
 interface JuryCreateProps {
-  onCreate: (payload: any) => void;
-  onClose: () => void;
+  onCreate?: (payload: any) => void;
+  onClose?: () => void;
 }
 
 const STEPS = ["Année académique", "Composition du Bureau", "Confirmation"];
@@ -31,7 +31,7 @@ export default function JuryCreate({ onCreate, onClose }: JuryCreateProps) {
   const canGoNextStep2 = !!president && !!secretaire;
 
   const handleSubmit = () => {
-    onCreate({
+    onCreate?.({
       designation,
       annee_id: annee!.id,
       president_id: president?.id || null,

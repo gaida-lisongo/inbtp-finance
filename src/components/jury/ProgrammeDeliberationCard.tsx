@@ -14,6 +14,7 @@ type ProgrammeStudent = {
 type ProgrammeDeliberationCardProps = {
   juryId: string;
   basePath?: string;
+  showOpenLink?: boolean;
   programme: {
     id: string;
     designation: string | null;
@@ -28,6 +29,7 @@ type ProgrammeDeliberationCardProps = {
 export default function ProgrammeDeliberationCard({
   juryId,
   basePath = "/jury",
+  showOpenLink = true,
   programme,
   onRequestDocument,
 }: ProgrammeDeliberationCardProps) {
@@ -97,12 +99,14 @@ export default function ProgrammeDeliberationCard({
             {programme.designation ?? "Programme sans titre"}
           </h3>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <Link
-              href={`${basePath}/${juryId}/promotion/${programme.id}`}
-              className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-gray-600 shadow-sm transition hover:border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-            >
-              Ouvrir
-            </Link>
+            {showOpenLink ? (
+              <Link
+                href={`${basePath}/${juryId}/promotion/${programme.id}`}
+                className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-gray-600 shadow-sm transition hover:border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              >
+                Ouvrir
+              </Link>
+            ) : null}
             <span className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">
               {programme.annee_id ? "Année liée" : "Année manquante"}
             </span>

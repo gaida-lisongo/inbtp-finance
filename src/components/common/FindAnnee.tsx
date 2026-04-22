@@ -97,7 +97,7 @@ export default function FindAnnee({
           ) : (
             filteredAnnees.map((annee) => {
               const designation = annee.designation || "Année sans nom";
-              const isActivate = annee.active === "true" || annee.active === true;
+              const isActivate = annee.active === "true";
               
               return (
                 <li

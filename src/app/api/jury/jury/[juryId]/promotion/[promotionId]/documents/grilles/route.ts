@@ -69,10 +69,6 @@ export async function POST(
     return NextResponse.json({ error: "Promotion introuvable." }, { status: 404 });
   }
 
-  if (jury.annee_id && programme.annee_id && jury.annee_id !== programme.annee_id) {
-    return NextResponse.json({ error: "Promotion invalide pour ce jury." }, { status: 403 });
-  }
-
   const body = (await request.json().catch(() => null)) as
     | { selectedGrids?: string[] }
     | null;

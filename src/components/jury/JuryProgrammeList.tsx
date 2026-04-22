@@ -18,9 +18,15 @@ type JuryProgrammeListProps = {
   jury: JuryWithMembers;
   programmes: JuryProgramme[];
   basePath?: string;
+  showOpenLink?: boolean;
 };
 
-export default function JuryProgrammeList({ jury, programmes, basePath = "/jury" }: JuryProgrammeListProps) {
+export default function JuryProgrammeList({
+  jury,
+  programmes,
+  basePath = "/jury",
+  showOpenLink = true,
+}: JuryProgrammeListProps) {
   const [activeProgramme, setActiveProgramme] = useState<JuryProgramme | null>(null);
   const [isModalOpen, setModalOpen] = useState(false);
   const [isGenerating, setGenerating] = useState(false);
@@ -134,6 +140,7 @@ export default function JuryProgrammeList({ jury, programmes, basePath = "/jury"
                 key={programme.id}
                 juryId={jury.id}
                 basePath={basePath}
+                showOpenLink={showOpenLink}
                 programme={programme}
                 onRequestDocument={handleDocumentRequest}
               />
