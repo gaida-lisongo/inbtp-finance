@@ -40,8 +40,6 @@ export async function PUT(request: Request){
 
     const res = await updateNotification(schema, id, {key, value});
 
-    console.log(res);
-
     return NextResponse.json(res);
   } catch (error) {
     const message = error instanceof Error ? error.message : "header_notifications_failed";

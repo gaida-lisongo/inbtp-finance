@@ -150,7 +150,6 @@ class Document {
     }
 
     async background(){
-        console.log("Dessign image de fond");
 
         const { fond } = await getSchoolPdfBrandingAssets();
         this.docDefinition = {

@@ -80,11 +80,8 @@ const getNotifications = async (
     await getAdminAgentId();
     const admin = createAdminClient();
 
-    console.log("Schemas =>", schemas)
-
     const results = await Promise.all(
       schemas.map(async (schema) => {
-        console.log('schema', schema);
         let query = admin
           .from(schema)
           .select(`
@@ -265,8 +262,6 @@ export const getAdminNotifications = async ({
     path: row.path,
     status: row.status,
   }));
-
-  console.log("Items : ", items); 
 
   const stageNotificationIds = items
     .filter((item) => item.category === "stages")

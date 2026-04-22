@@ -314,8 +314,6 @@ export const getFacultyCommandeDetail = async (commandeId: string): Promise<Facu
     programme = (programmeData ?? null) as ProgrammeRow | null;
   }
 
-  console.log("Student record :", studentRecord);
-  
   return {
     commande: {
       ...commande,
@@ -675,7 +673,6 @@ export const generateReleveForFaculty = async (commandeId: string) => {
     rawStudentRecord && typeof rawStudentRecord.ville === "string" && rawStudentRecord.ville.trim().length > 0
       ? rawStudentRecord.ville.trim()
       : "Non renseigne";
-  console.log("Ville: ", detail.student);
   const studentDateNaiss = rawStudentRecord ? parseBirthDate(rawStudentRecord) : null;
   const anneeAcad =
     typeof (anneeData as { designation?: string | null } | null)?.designation === "string" &&

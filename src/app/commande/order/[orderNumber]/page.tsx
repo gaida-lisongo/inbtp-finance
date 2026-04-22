@@ -53,7 +53,7 @@ export default async function OrderSearchPage({ params }: OrderSearchPageProps) 
   }
 
   const commande = data?.[0];
-  console.log("Commande search result:", { data, error });
+  
   const commandeId = typeof commande?.id === "string" ? commande.id : null;
   const category = commande?.categorie ?? null;
   const productId = commande?.product ?? null;

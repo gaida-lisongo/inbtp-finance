@@ -17,7 +17,6 @@ export default async function NotificationsPage() {
   let notifications: Notification[] = [];
   const accountType = await getCurrentAccountType();
 
-  console.log("Current User auth : ", user)
 
   try {
     notifications = user?.role == 'gestionnaire'
@@ -26,7 +25,6 @@ export default async function NotificationsPage() {
         ? await getNotificationsOrganisateur(true)
         : [];
     
-    console.log("Notifications : ", notifications)
   } catch (error) {
     errorMessage = error instanceof Error ? error.message : "Erreur de chargement des notifications.";
   }

@@ -89,7 +89,6 @@ export default function NotificationsClient({
             compact={false}
             onClick={() => {
                 const path = item?.categorie.split('_')
-                console.log(path)
 
                 //Redirect to Notification Page
                 router.push(`/${path[0]}/${path[1]}/${item?.id}`)

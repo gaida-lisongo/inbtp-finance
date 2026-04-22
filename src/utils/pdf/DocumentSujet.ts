@@ -296,7 +296,6 @@ class DocumentSujet extends Document {
     }
 
     generateCouverture(cycle: string){
-        console.log("Creating document mono page with data :", cycle)
         return [
             {
                 table: {
