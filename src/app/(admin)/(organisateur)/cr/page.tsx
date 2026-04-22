@@ -98,7 +98,13 @@ export default async function ChargeRecherchePage({ searchParams }: ChargeRecher
 
   return (
     <div>
-      <PageBreadcrumb pageTitle={`Charge de la Recherche - ${programmeDetails.designation || "Promotion"}`} />
+
+      <PageBreadcrumb 
+        pageRoot={"Dashboard"}
+        path={"/"}
+        detailPage={`Recherche | ${programmeDetails?.designation}`}
+        pageTitle={"Promotion"} 
+      />
 
       <div className="space-y-6">
         {queryParams.status === "success" && feedbackMessage ? (

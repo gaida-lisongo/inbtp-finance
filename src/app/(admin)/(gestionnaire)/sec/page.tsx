@@ -55,7 +55,12 @@ export default async function SecretairePage({ searchParams }: SecretairePagePro
 
   return (
     <div>
-      <PageBreadcrumb pageTitle={`Secretaire - ${programmeDetails.designation || "Promotion"}`} />
+      <PageBreadcrumb 
+        pageRoot={"Dashboard"}
+        path={"/"}
+        detailPage={`Secretariat | ${programmeDetails?.designation}`}
+        pageTitle={"Promotion"} 
+      />
 
       <div className="space-y-6">
         <ComponentCard

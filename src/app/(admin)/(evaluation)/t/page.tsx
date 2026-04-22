@@ -54,7 +54,13 @@ export default async function TitulairePage({ searchParams }: TitulairePageProps
 
   return (
     <div>
-      <PageBreadcrumb pageTitle={`Titulaire - ${programmeDetails.designation || "Promotion"}`} />
+
+      <PageBreadcrumb 
+        pageRoot={"Dashboard"}
+        path={"/"}
+        detailPage={`Titulaire | ${programmeDetails?.designation}`}
+        pageTitle={"Promotion"} 
+      />
 
       <div className="space-y-6">
         <ComponentCard

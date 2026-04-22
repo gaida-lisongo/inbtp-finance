@@ -134,7 +134,13 @@ export default async function ChefSectionPage({ searchParams }: ChefSectionPageP
 
   return (
     <div>
-      <PageBreadcrumb pageTitle={`Chef de Section - ${programme.designation || "Promotion"}`} />
+      
+      <PageBreadcrumb 
+        pageRoot={"Dashboard"}
+        path={"/"}
+        detailPage={`Chef de Section | ${programme?.designation}`}
+        pageTitle={"Promotion"} 
+      />
 
       <div className="space-y-6">
         {queryParams.status === "success" && feedbackMessage ? (

@@ -54,7 +54,13 @@ export default async function JuryPage({ searchParams }: JuryPageProps) {
 
   return (
     <div>
-      <PageBreadcrumb pageTitle={`Jury - ${programmeDetails.designation || "Promotion"}`} />
+
+      <PageBreadcrumb 
+        pageRoot={"Dashboard"}
+        path={"/"}
+        detailPage={`Jury | ${programmeDetails?.designation}`}
+        pageTitle={"Promotion"} 
+      />
 
       <div className="space-y-6">
         <ComponentCard title={programmeDetails.designation || "Promotion"} desc="Point d'entree du metier Jury.">

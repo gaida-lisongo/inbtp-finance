@@ -33,7 +33,14 @@ export default async function JuryAssignmentsPage() {
 
     return (
       <div className="space-y-6">
-        <PageBreadcrumb pageTitle="Jury" />
+        
+      <PageBreadcrumb 
+        pageRoot={"Dashboard"}
+        path={"/"}
+        detailPage={`Gestion du Jury`}
+        pageTitle={"Jury"} 
+      />
+
 
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {juriesWithProgrammes.length === 0 ? (
@@ -79,7 +86,12 @@ export default async function JuryAssignmentsPage() {
 
   return (
     <div className="space-y-6">
-      <PageBreadcrumb pageTitle="Jury" />
+      <PageBreadcrumb 
+        pageRoot={"Dashboard"}
+        path={"/"}
+        detailPage={`Gestion du Jury`}
+        pageTitle={"Jury"} 
+      />
 
       <ComponentCard
         title={`Jury - ${annee.designation ?? "Année académique"}`}

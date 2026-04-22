@@ -73,7 +73,12 @@ export default async function AppariteurPage({ searchParams }: AppariteurPagePro
 
   return (
     <div>
-      <PageBreadcrumb pageTitle={`Appariteur - ${programmeDetails.designation || "Promotion"}`} />
+      <PageBreadcrumb 
+        pageRoot={"Dashboard"}
+        path={"/"}
+        detailPage={`Appariteur | ${programmeDetails?.designation}`}
+        pageTitle={"Promotion"} 
+      />
 
       <div className="space-y-6">
         <ComponentCard
@@ -98,6 +103,7 @@ export default async function AppariteurPage({ searchParams }: AppariteurPagePro
         </ComponentCard>
 
         <AppManagementPanel
+          key={promotionId}
           anneeId={anneeId}
           programmeId={promotionId}
           sessions={sessions}

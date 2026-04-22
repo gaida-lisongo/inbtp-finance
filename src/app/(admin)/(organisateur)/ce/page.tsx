@@ -106,7 +106,13 @@ export default async function ChargeEnseignementPage({ searchParams }: ChargeEns
 
   return (
     <div>
-      <PageBreadcrumb pageTitle={`Charge de l'enseignement - ${programmeDetails.designation || "Promotion"}`} />
+
+      <PageBreadcrumb 
+        pageRoot={"Dashboard"}
+        path={"/"}
+        detailPage={`Enseignement | ${programmeDetails?.designation}`}
+        pageTitle={"Promotion"} 
+      />
 
       <div className="space-y-6">
         {queryParams.status === "success" && feedbackMessage ? (

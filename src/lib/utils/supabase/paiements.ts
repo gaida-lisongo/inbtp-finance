@@ -92,9 +92,22 @@ export const getPaiementsForSecretaryProgramme = async (programmeId: string): Pr
   }
 
   const admin = createAdminClient();
-  const [{ data: paiementsData, error: paiementsError }, { data: studentsData, error: studentsError }] = await Promise.all([
-    admin.from("paiements").select('*').in("student_id", studentIds).order("created_at", { ascending: false }).limit(200),
+  const [
+    { data: paiementsData, error: paiementsError },
+    { data: studentsData, error: studentsError },
+    { data: docs },
+    { data: sessions },
+    { data: stages },
+    { data: sujets },
+    { data: labos }
+  ] = await Promise.all([
+    admin.from("paiements").select('*').in("student_id", studentIds).order("created_at", { ascending: false }).limit(500),
     admin.from("students").select("id, nom, post_nom, prenom, email, telephone").in("id", studentIds),
+    admin.from("documents").select("id").eq("programme_id", programmeId),
+    admin.from("session").select("id").eq("programme_id", programmeId),
+    admin.from("stages").select("id").eq("programme_id", programmeId),
+    admin.from("sujets").select("id").eq("programme_id", programmeId),
+    admin.from("laboratoires").select("id").eq("programme_id", programmeId),
   ]);
 
   if (paiementsError) {
@@ -105,10 +118,20 @@ export const getPaiementsForSecretaryProgramme = async (programmeId: string): Pr
     throw new Error(studentsError.message);
   }
 
+  const validProductIds = new Set([
+    ...(docs ?? []).map((d) => d.id),
+    ...(sessions ?? []).map((s) => s.id),
+    ...(stages ?? []).map((s) => s.id),
+    ...(sujets ?? []).map((s) => s.id),
+    ...(labos ?? []).map((l) => l.id),
+  ]);
+
   const studentsById = new Map(((studentsData ?? []) as StudentRow[]).map((student) => [student.id, student] as const));
   const rows = (paiementsData ?? []) as PaiementRow[];
 
-  return rows.map((row) => {
+  const filteredRows = rows.filter((row) => row.produc_id && validProductIds.has(row.produc_id));
+
+  return filteredRows.map((row) => {
     const student = row.student_id ? studentsById.get(row.student_id) ?? null : null;
     const fullName = student ? [student.prenom, student.post_nom, student.nom].filter(Boolean).join(" ").trim() || "Etudiant" : "Etudiant";
 
