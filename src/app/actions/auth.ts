@@ -128,11 +128,14 @@ const signInWithPasswordAndSync = async ({
     password,
   });
 
+  console.log('Error : ', error)
+
   if (error) {
     throw error;
   }
 
   const { data: userData } = await supabase.auth.getUser();
+  console.log('User Data : ', userData)
 
   if (!userData.user?.email) {
     await supabase.auth.signOut();
@@ -140,6 +143,8 @@ const signInWithPasswordAndSync = async ({
   }
 
   try {
+    console.log('userData.user.email : ', userData.user.email)
+    console.log('userData.user.id : ', userData.user.id)
     await attachUser(userData.user.email, userData.user.id);
     await syncAuthenticatedUser();
   } catch (syncError) {
