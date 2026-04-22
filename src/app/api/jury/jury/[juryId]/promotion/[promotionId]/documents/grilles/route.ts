@@ -46,7 +46,7 @@ export async function POST(
   }
 
   const user = await getAuthenticatedUser();
-  if (!user || !user.canManageCharges || !user.agentId || user.role !== "titulaire") {
+  if (!user || !user.agentId) {
     return NextResponse.json({ error: "Accès refusé." }, { status: 403 });
   }
 

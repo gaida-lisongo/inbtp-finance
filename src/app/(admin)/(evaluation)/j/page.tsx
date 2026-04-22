@@ -26,7 +26,7 @@ type JuryPageProps = {
 export default async function JuryPage({ searchParams }: JuryPageProps) {
   const [user, queryParams] = await Promise.all([getAuthenticatedUser(), searchParams]);
 
-  if (!user || !user.canAccessAdmin || !user.agentId) {
+  if (!user || !user.agentId) {
     redirect("/signin?error=access_denied");
   }
 
