@@ -42,7 +42,12 @@ export default async function ProgrammesPage({ searchParams }: ProgrammesPagePro
 
   return (
     <div>
-      <PageBreadcrumb pageTitle="Programmes" />
+      <PageBreadcrumb
+        pageRoot="Dashboard"
+        path="/"
+        detailPage={`Gestion des Programmes`}
+        pageTitle={`Gestion des Programmes`}
+      />
       <ProgrammesManagementPanel
         programmes={programmes}
         filieres={filieres}

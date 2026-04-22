@@ -11,7 +11,12 @@ export const metadata: Metadata = {
 export default function MailAccountsPage() {
   return (
     <div className="p-6 md:p-10 xl:p-15">
-      <PageBreadcrumb pageTitle="Mail Accounts" />
+      <PageBreadcrumb 
+        pageRoot="Dashboard"
+        path="/"
+        detailPage={`Mail Accounts`}
+        pageTitle={`Mail Accounts`} 
+      />
       <MailAccountsCrudPanel />
     </div>
   );

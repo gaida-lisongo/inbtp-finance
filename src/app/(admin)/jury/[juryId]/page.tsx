@@ -41,7 +41,12 @@ export default async function JuryDetailPage({ params }: JuryDetailPageProps) {
 
   return (
     <div className="space-y-6">
-      <PageBreadcrumb pageTitle={`Jury - ${jury.designation ?? "Détail"}`} />
+       <PageBreadcrumb 
+          pageRoot="Jury"
+          path="/jury"
+          detailPage={`Jury - ${jury.designation ?? "Détail"}`}
+          pageTitle={`Jury - ${jury.designation ?? "Détail"}`} 
+        />
       <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>

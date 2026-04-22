@@ -39,7 +39,12 @@ export default async function QcmActivityPage({ params }: ActivityPageProps) {
 
   return (
     <div className="space-y-6">
-      <PageBreadcrumb pageTitle={loadResult.data.activity.designation || "QCM"} />
+      <PageBreadcrumb 
+        pageRoot="Cours"
+        path={`/cours/${matiereId}`}
+        detailPage={`QCM | ${loadResult.data.activity.designation}`}
+        pageTitle={`QCM`} 
+      />
       <StudentCourseActivityPage category="qcm" matiereId={matiereId} data={loadResult.data} />
     </div>
   );

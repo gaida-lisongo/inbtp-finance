@@ -33,7 +33,12 @@ export default async function FilieresPage({ searchParams }: FilieresPageProps) 
 
   return (
     <div>
-      <PageBreadcrumb pageTitle="Filieres" />
+      <PageBreadcrumb
+        pageRoot="Dashboard"
+        path="/"
+        detailPage={`Filieres`}
+        pageTitle={`Filieres`}
+      />
 
       <div className="space-y-6">
         {params.status === "success" ? (

@@ -60,7 +60,12 @@ export default async function StudentProgrammePage({ params }: StudentProgrammeP
 
   return (
     <div className="space-y-6">
-      <PageBreadcrumb pageTitle={loadResult.data.programme.designation || "Promotion"} />
+      <PageBreadcrumb 
+        pageRoot="Dashboard"
+        path="/"
+        detailPage={`Programme : ${loadResult.data.programme.designation || "Promotion"}`}
+        pageTitle={`Programme`}
+      />
       <StudentProgrammePanel data={loadResult.data} />
     </div>
   );

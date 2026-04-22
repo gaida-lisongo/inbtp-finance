@@ -9,8 +9,12 @@ export const metadata: Metadata = {
 export default async function FormElements() {
   return (
     <div className="p-15">
-      <PageBreadcrumb pageTitle="PDF Test" />
-
+      <PageBreadcrumb 
+        pageRoot="Dashboard"
+        path="/"
+        detailPage={`PDF Test`}
+        pageTitle={`PDF Test`} 
+      />
       <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/[0.03]">
         <p className="text-sm text-gray-600 dark:text-gray-300">
           Utilise le endpoint ci-dessous pour generer un PDF en nouvel onglet.

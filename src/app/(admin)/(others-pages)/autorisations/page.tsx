@@ -67,7 +67,12 @@ export default async function AutorisationsPage({ searchParams }: AutorisationsP
   return (
     <div>
       <AutorisationsRealtimeSync />
-      <PageBreadcrumb pageTitle="Autorisations" />
+      <PageBreadcrumb
+        pageRoot="Dashboard"
+        path="/"
+        detailPage={`Autorisations`}
+        pageTitle={`Autorisations`}
+      />
 
       <div className="space-y-6">
         {params.status === "success" ? (

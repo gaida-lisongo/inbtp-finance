@@ -33,7 +33,12 @@ export default async function StudentParcoursPage() {
 
   return (
     <div className="space-y-6">
-      <PageBreadcrumb pageTitle="Mes Parcours" />
+      <PageBreadcrumb 
+        pageRoot="Dashboard"
+        path="/"
+        detailPage={`Mes inscriptions`}
+        pageTitle={`Mes inscriptions`} 
+      />
 
       <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-theme-sm dark:border-gray-800 dark:bg-white/[0.03]">
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-white/90">Mes inscriptions</h1>

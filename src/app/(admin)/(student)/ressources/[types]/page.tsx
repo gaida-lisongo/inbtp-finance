@@ -27,7 +27,12 @@ export default async function StudentResourcesByTypePage({ params }: StudentReso
 
   return (
     <div className="space-y-6">
-      <PageBreadcrumb pageTitle="Mes ressources" />
+      <PageBreadcrumb 
+        pageRoot="Dashboard"
+        path="/"
+        detailPage={`Mes ressources`}
+        pageTitle={`Ressources`} 
+      />
       <StudentResourcesWorkspace snapshot={snapshot} initialType={types} />
     </div>
   );

@@ -20,7 +20,13 @@ export default async function StudentResourcesPage() {
 
   return (
     <div className="space-y-6">
-      <PageBreadcrumb pageTitle="Mes ressources" />
+      
+      <PageBreadcrumb 
+        pageRoot="Dashboard"
+        path="/"
+        detailPage={`Mes ressources`}
+        pageTitle={`Mes ressources`} 
+      />
       <StudentResourcesWorkspace snapshot={snapshot} />
     </div>
   );

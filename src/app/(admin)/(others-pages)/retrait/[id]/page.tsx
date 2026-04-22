@@ -98,7 +98,12 @@ export default async function RetraitDetailPage({ params, searchParams }: Retrai
 
   return (
     <div>
-      <PageBreadcrumb pageTitle={`Retrait - ${reviewDetails.retrait.designation || reviewDetails.retrait.id}`} />
+      <PageBreadcrumb
+        pageRoot="Dashboard"
+        path="/"
+        detailPage={`Retrait - ${reviewDetails.retrait.designation || reviewDetails.retrait.id}`}
+        pageTitle={`Retrait - ${reviewDetails.retrait.designation || reviewDetails.retrait.id}`}
+      />
 
       <div className="space-y-6">
         {queryParams.status === "success" && feedbackMessage ? (

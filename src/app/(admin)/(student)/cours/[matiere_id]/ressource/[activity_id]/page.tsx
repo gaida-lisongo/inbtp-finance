@@ -39,7 +39,12 @@ export default async function RessourceActivityPage({ params }: ActivityPageProp
 
   return (
     <div className="space-y-6">
-      <PageBreadcrumb pageTitle={loadResult.data.activity.designation || "Ressource"} />
+      <PageBreadcrumb 
+        pageRoot="Cours"
+        path={`/cours/${matiereId}`}
+        detailPage={`Ressource | ${loadResult.data.activity.designation}`}
+        pageTitle={`Ressource`} 
+      />
       <StudentCourseActivityPage category="ressource" matiereId={matiereId} data={loadResult.data} />
     </div>
   );

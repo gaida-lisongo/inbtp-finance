@@ -22,7 +22,12 @@ export default async function StudentsPage() {
 
   return (
     <div>
-      <PageBreadcrumb pageTitle="Etudiants" />
+      <PageBreadcrumb
+        pageRoot="Dashboard"
+        path="/"
+        detailPage={`Etudiants`}
+        pageTitle={`Etudiants`}
+      />
       <StudentsManagementPanel initialStudents={students} />
     </div>
   );

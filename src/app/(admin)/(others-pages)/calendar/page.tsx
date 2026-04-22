@@ -12,7 +12,12 @@ export const metadata: Metadata = {
 export default function page() {
   return (
     <div>
-      <PageBreadcrumb pageTitle="Calendar" />
+      <PageBreadcrumb
+        pageRoot="Dashboard"
+        path="/"
+        detailPage={`Calendrier`}
+        pageTitle={`Calendrier`}
+      />
       <Calendar />
     </div>
   );

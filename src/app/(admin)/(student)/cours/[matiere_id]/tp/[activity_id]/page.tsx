@@ -39,7 +39,12 @@ export default async function TpActivityPage({ params }: ActivityPageProps) {
 
   return (
     <div className="space-y-6">
-      <PageBreadcrumb pageTitle={loadResult.data.activity.designation || "TP"} />
+      <PageBreadcrumb 
+        pageRoot="Cours"
+        detailPage={`TP | ${loadResult.data.activity.designation}`}
+        pageTitle={`Travail Pratique`} 
+        path={`/cours/${matiereId}`} 
+      />
       <StudentCourseActivityPage category="tp" matiereId={matiereId} data={loadResult.data} />
     </div>
   );

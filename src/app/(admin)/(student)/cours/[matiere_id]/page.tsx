@@ -60,7 +60,12 @@ export default async function StudentCoursePage({ params }: StudentCoursePagePro
 
   return (
     <div className="space-y-6">
-      <PageBreadcrumb pageTitle={loadResult.data.matiere.designation || "Cours"} />
+      <PageBreadcrumb 
+        pageRoot="Cours"
+        path={`/cours/${matiereId}`}
+        detailPage={`Cours de ${loadResult?.data?.matiere?.designation}`}
+        pageTitle={loadResult.data.matiere.designation || "Cours"} 
+      />
       <StudentCourseOverview data={loadResult.data} />
     </div>
   );

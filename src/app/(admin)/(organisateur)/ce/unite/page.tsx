@@ -137,7 +137,12 @@ export default async function UnitePage({ searchParams }: UnitePageProps) {
 
   return (
     <div>
-      <PageBreadcrumb pageTitle={`Unite - ${unite.designation || "Detail"}`} />
+      <PageBreadcrumb 
+        pageTitle={'Unité d\'enseignement'}
+        pageRoot="Dashboard"
+        detailPage={`Unite - ${unite.designation || "Detail"}`}
+        path="/"
+      />
 
       <div className="space-y-6">
         {queryParams.status === "success" && feedbackMessage ? (

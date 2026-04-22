@@ -20,7 +20,12 @@ export default async function AgentsPage() {
 
   return (
     <div>
-      <PageBreadcrumb pageTitle="Gestion des Agents" />
+      <PageBreadcrumb 
+        path="/"
+        pageRoot="Dashboard"
+        detailPage={`Gestion des Agents`}
+        pageTitle={`Gestion des Agents`} 
+      />
 
       <div className="space-y-6">
         <ComponentCard

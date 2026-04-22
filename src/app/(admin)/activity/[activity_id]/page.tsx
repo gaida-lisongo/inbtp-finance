@@ -65,25 +65,30 @@ export default async function ActivityCommandesPage({ params, searchParams }: Ac
 
   return (
     <div className="space-y-6">
-      <PageBreadcrumb pageTitle={data.activity.designation || "Activite"} />
+      <PageBreadcrumb 
+        path="/"
+        pageRoot="Dashboard"
+        detailPage={`Activites`} 
+        pageTitle={data.activity.designation || "Activite"} 
+      />
 
       <section className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/[0.03]">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-xl bg-gray-50 px-4 py-3 dark:bg-white/5">
-            <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Matiere</div>
-            <div className="mt-1 font-semibold text-gray-900 dark:text-white/90">{data.assignment.matiere.designation || "Matiere"}</div>
+            <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Matiere</p>
+            <p className="mt-1 font-semibold text-gray-900 dark:text-white/90">{data.assignment.matiere.designation || "Matiere"}</p>
           </div>
           <div className="rounded-xl bg-gray-50 px-4 py-3 dark:bg-white/5">
-            <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Categorie</div>
-            <div className="mt-1 font-semibold text-gray-900 dark:text-white/90">{data.activity.category.toUpperCase()}</div>
+            <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Categorie</p>
+            <p className="mt-1 font-semibold text-gray-900 dark:text-white/90">{data.activity.category.toUpperCase()}</p>
           </div>
           <div className="rounded-xl bg-gray-50 px-4 py-3 dark:bg-white/5">
-            <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Montant</div>
-            <div className="mt-1 font-semibold text-gray-900 dark:text-white/90">{typeof data.activity.montant === "number" ? `${data.activity.montant} USD` : "-"}</div>
+            <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Montant</p>
+            <p className="mt-1 font-semibold text-gray-900 dark:text-white/90">{typeof data.activity.montant === "number" ? `${data.activity.montant} USD` : "-"}</p>
           </div>
           <div className="rounded-xl bg-gray-50 px-4 py-3 dark:bg-white/5">
-            <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Date limite</div>
-            <div className="mt-1 font-semibold text-gray-900 dark:text-white/90">{data.activity.date_limite || "-"}</div>
+            <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Date limite</p>
+            <p className="mt-1 font-semibold text-gray-900 dark:text-white/90">{data.activity.date_limite || "-"}</p>
           </div>
         </div>
 

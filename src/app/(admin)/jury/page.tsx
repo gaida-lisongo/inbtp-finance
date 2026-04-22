@@ -8,6 +8,7 @@ import { getJuriesByYear, getJuriesForAgent, getProgrammesByYear } from "@/lib/u
 import { getActiveAnnee } from "@/lib/utils/supabase/annees";
 import JuryPromotionCard from "@/components/jury/JuryPromotionCard";
 import type { ProgrammeRecord } from "@/lib/utils/supabase/programmes";
+import JuryClientWrapper from "./JuryClientWrapper";
 
 export const metadata: Metadata = {
   title: "Jury",
@@ -93,51 +94,7 @@ export default async function JuryAssignmentsPage() {
         pageTitle={"Jury"} 
       />
 
-      <ComponentCard
-        title={`Jury - ${annee.designation ?? "Année académique"}`}
-        desc="Espace organisateur : aperçu des jurys de l'année courante."
-      >
-        {juries.length === 0 ? (
-          <p className="text-sm text-gray-600 dark:text-gray-300">Aucun jury n’est configuré pour cette année.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full table-auto text-sm">
-              <thead>
-                <tr className="border-b border-gray-200 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:text-gray-400">
-                  <th className="px-3 py-2">Jury</th>
-                  <th className="px-3 py-2">Président</th>
-                  <th className="px-3 py-2">Secrétaire</th>
-                  <th className="px-3 py-2">Statut</th>
-                </tr>
-              </thead>
-              <tbody>
-                {juries.map((jury) => (
-                  <tr key={jury.id} className="border-b border-gray-100 dark:border-gray-900">
-                    <td className="px-3 py-2 font-medium text-gray-900 dark:text-white/90">{jury.designation ?? "—"}</td>
-                    <td className="px-3 py-2 text-gray-700 dark:text-gray-300">
-                      {[jury.president?.prenom, jury.president?.post_nom, jury.president?.nom].filter(Boolean).join(" ") || "—"}
-                    </td>
-                    <td className="px-3 py-2 text-gray-700 dark:text-gray-300">
-                      {[jury.secretaire?.prenom, jury.secretaire?.post_nom, jury.secretaire?.nom].filter(Boolean).join(" ") || "—"}
-                    </td>
-                    <td className="px-3 py-2">
-                      <span
-                        className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
-                          jury.isActivate === true
-                            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200"
-                            : "bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-gray-300"
-                        }`}
-                      >
-                        {jury.isActivate === true ? "Actif" : "Inactif"}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </ComponentCard>
+      <JuryClientWrapper juries={juries} anneeId={annee.id} />
     </div>
   );
 }

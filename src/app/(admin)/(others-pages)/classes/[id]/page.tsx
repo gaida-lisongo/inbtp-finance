@@ -33,7 +33,12 @@ export default async function ClassePage({ params }: ClassePageProps) {
 
   return (
     <div>
-      <PageBreadcrumb pageTitle={programmeDetails.designation || "Classe"} />
+      <PageBreadcrumb
+        pageRoot="Dashboard"
+        path="/"
+        detailPage={programmeDetails.designation || "Classe"}
+        pageTitle={programmeDetails.designation || "Classe"}
+      />
 
       <div className="space-y-6">
         <ComponentCard
