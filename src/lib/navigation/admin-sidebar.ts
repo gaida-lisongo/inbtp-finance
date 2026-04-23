@@ -1,4 +1,8 @@
-import { autorisationLabels, getActiveAutorisationCodesForAgent, type AutorisationCode } from "@/lib/utils/supabase/autorisations";
+import { 
+  getAutorisationLabels, 
+  getActiveAutorisationCodesForAgent, 
+  type AutorisationCode 
+} from "@/lib/utils/supabase/autorisations";
 import { getProgrammes } from "@/lib/utils/supabase/programmes";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 import { getCurrentAuthenticatedStudent } from "@/lib/utils/supabase/commandes";
@@ -27,9 +31,9 @@ export const getAdminSidebarMenu = async (user: AuthenticatedUser): Promise<Side
     },
   ];
 
+  // --- LOGIQUE ENSEIGNANT ---
   if (user.activePersona === "teacher") {
     const years = await getTeacherProgrammeMenuData();
-
     items.push({
       name: "Enseignement",
       iconKey: "folder",
@@ -41,53 +45,30 @@ export const getAdminSidebarMenu = async (user: AuthenticatedUser): Promise<Side
         })),
       })),
     });
-
     return items;
   }
 
+  // --- LOGIQUE ÉTUDIANT ---
   if (user.activePersona === "student") {
     const admin = createAdminClient();
     const student = await getCurrentAuthenticatedStudent();
-    const [{ data: parcoursData, error: parcoursError }, { data: programmesData, error: programmesError }, { data: anneesData, error: anneesError }] =
-      await Promise.all([
-        admin.from("parcours").select("programme_id").eq("student_id", student.id),
-        admin
-          .from("programmes")
-          .select("id, designation, annee_id")
-          .order("designation", { ascending: true }),
-        admin
-          .from("annees")
-          .select("id, designation, active, date_debut, created_at")
-          .order("date_debut", { ascending: false, nullsFirst: false })
-          .order("created_at", { ascending: false }),
-      ]);
+    
+    const [parcoursRes, programmesRes, anneesRes] = await Promise.all([
+      admin.from("parcours").select("programme_id").eq("student_id", student.id),
+      admin.from("programmes").select("id, designation, annee_id").order("designation", { ascending: true }),
+      admin.from("annees").select("id, designation, active, date_debut, created_at")
+        .order("date_debut", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false }),
+    ]);
 
-    if (parcoursError) {
-      throw new Error(parcoursError.message);
-    }
-
-    if (programmesError) {
-      throw new Error(programmesError.message);
-    }
-
-    if (anneesError) {
-      throw new Error(anneesError.message);
-    }
-
-    const programmeIds = new Set(
-      ((parcoursData ?? []) as Array<{ programme_id: string | null }>).map((item) => item.programme_id).filter(Boolean),
-    );
-    const programmes = ((programmesData ?? []) as Array<{ id: string; designation: string | null; annee_id: string | null }>).filter((programme) =>
-      programmeIds.has(programme.id),
-    );
-    const annees = (anneesData ?? []) as Array<{ id: string; designation: string | null; active: string | null }>;
+    const programmeIds = new Set((parcoursRes.data ?? []).map(item => item.programme_id).filter(Boolean));
+    const programmes = (programmesRes.data ?? []).filter(p => programmeIds.has(p.id));
+    const annees = anneesRes.data ?? [];
+    
     const programmesByYear = new Map<string, SidebarMenuSubItem[]>();
 
     for (const programme of programmes) {
-      if (!programme.annee_id) {
-        continue;
-      }
-
+      if (!programme.annee_id) continue;
       const itemsForYear = programmesByYear.get(programme.annee_id) ?? [];
       itemsForYear.push({
         name: programme.designation || "Promotion sans designation",
@@ -96,34 +77,15 @@ export const getAdminSidebarMenu = async (user: AuthenticatedUser): Promise<Side
       programmesByYear.set(programme.annee_id, itemsForYear);
     }
 
-    items.push({
-      name: "Parcours",
-      path: "/parcours",
-      iconKey: "folder",
-    });
-
-    items.push({
-      name: "Mes ressources",
-      path: "/ressources",
-      iconKey: "folder",
-    });
+    items.push({ name: "Parcours", path: "/parcours", iconKey: "folder" });
+    items.push({ name: "Mes ressources", path: "/ressources", iconKey: "folder" });
 
     items.push({
       name: "Enseignement",
       iconKey: "folder",
       subItems: annees
-        .filter((annee) => programmesByYear.has(annee.id))
-        .sort((left, right) => {
-          const leftActive = left.active === "true" ? 1 : 0;
-          const rightActive = right.active === "true" ? 1 : 0;
-
-          if (leftActive !== rightActive) {
-            return rightActive - leftActive;
-          }
-
-          return (right.designation ?? "").localeCompare(left.designation ?? "");
-        })
-        .map((annee) => ({
+        .filter(annee => programmesByYear.has(annee.id))
+        .map(annee => ({
           name: annee.designation || "Annee sans designation",
           subItems: programmesByYear.get(annee.id) ?? [],
         })),
@@ -132,59 +94,51 @@ export const getAdminSidebarMenu = async (user: AuthenticatedUser): Promise<Side
     return items;
   }
 
-  // Ajouter l'élément Agents pour les gestionnaires
+  // --- LOGIQUE GESTIONNAIRE / ADMIN ---
   if (user.role === "gestionnaire") {
-    items.push({
-      name: "Agents",
-      path: "/agents",
-      iconKey: "user",
-    });
+    items.push({ name: "Agents", path: "/agents", iconKey: "user" });
   }
 
-  if (!user.agentId) {
-    return items;
-  }
+  if (!user.agentId) return items;
 
-  const autorisationCodes = await getActiveAutorisationCodesForAgent(user.agentId);
-  const programmes = await getProgrammes();
-  const activeYearId = programmes.find((programme) => programme.annee_id && programme.anneeActive)?.annee_id ?? null;
-  const renderMenu = (
-    authorizationLabel: string,
-    authorizationCode: AutorisationCode,
-  ): SidebarMenuItem => {
-    const years = new Map<string, SidebarMenuSubItem>();
+  // Récupération des autorisations et des labels (via la nouvelle fonction async)
+  const [autorisationCodes, allLabels, programmes] = await Promise.all([
+    getActiveAutorisationCodesForAgent(user.agentId),
+    getAutorisationLabels(),
+    getProgrammes()
+  ]);
 
-    for (const programme of programmes) {
-      if (!programme.annee_id || (activeYearId && programme.annee_id !== activeYearId)) {
-        continue;
-      }
+  const activeYearId = programmes.find(p => p.annee_id && p.anneeActive)?.annee_id ?? null;
 
-      const existingYear = years.get(programme.annee_id);
+  // Boucle sur les codes d'autorisation pour construire le menu
+  for (const code of autorisationCodes) {
+    const label = allLabels[code] || code;
+    const yearsMap = new Map<string, SidebarMenuSubItem>();
+
+    for (const p of programmes) {
+      if (!p.annee_id || (activeYearId && p.annee_id !== activeYearId)) continue;
+
       const promotionItem = {
-        name: programme.designation || programme.slug || "Promotion sans designation",
-        path: `/${authorizationCode.toLowerCase()}?annee=${programme.annee_id}&promotion=${programme.id}`,
+        name: p.designation || p.slug || "Promotion sans designation",
+        path: `/${code.toLowerCase()}?annee=${p.annee_id}&promotion=${p.id}`,
       };
 
+      const existingYear = yearsMap.get(p.annee_id);
       if (existingYear) {
         existingYear.subItems = [...(existingYear.subItems ?? []), promotionItem];
-        continue;
+      } else {
+        yearsMap.set(p.annee_id, {
+          name: p.anneeDesignation || "Annee sans designation",
+          subItems: [promotionItem],
+        });
       }
-
-      years.set(programme.annee_id, {
-        name: programme.anneeDesignation || "Annee sans designation",
-        subItems: [promotionItem],
-      });
     }
 
-    return {
-      name: authorizationLabel,
+    items.push({
+      name: label,
       iconKey: "folder",
-      subItems: Array.from(years.values()).sort((a, b) => (b.name || "").localeCompare(a.name || "")),
-    };
-  };
-
-  for (const code of autorisationCodes) {
-    items.push(renderMenu(autorisationLabels[code], code));
+      subItems: Array.from(yearsMap.values()).sort((a, b) => (b.name || "").localeCompare(a.name || "")),
+    });
   }
 
   return items;

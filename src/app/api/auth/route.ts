@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 // 2. VÉRIFIER LE TOKEN / LOGIN (POST)
 export async function POST(request: NextRequest) {
   try {
-    const { otp, email, table, role } = await request.json();
+    const { otp, email, table } = await request.json();
     
     const isValid = await auth.verifyOtp(otp, email);
     if (!isValid) return NextResponse.json({ error: "OTP invalide ou expiré" }, { status: 401 });
@@ -30,7 +30,6 @@ export async function POST(request: NextRequest) {
     const formData = new FormData();
     formData.append("email", email);
     formData.append("table", table);
-    formData.append("role", role);
 
     await auth.signUserAction(formData);
 

@@ -10,10 +10,10 @@ import { useSidebar } from "@/context/SidebarContext";
 import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
 import Backdrop from "@/layout/Backdrop";
+import { useUserStore } from "@/store/useUserStore";
 
 type AdminShellProps = {
   children: React.ReactNode;
-  user: AuthenticatedUser;
   sidebarMenu: SidebarMenuItem[];
   teacherNotifications?: {
     items: TeacherRecoursNotificationItem[];
@@ -25,7 +25,8 @@ type AdminShellProps = {
   };
 };
 
-export default function AdminShell({ children, user, sidebarMenu, teacherNotifications, adminNotifications }: AdminShellProps) {
+export default function AdminShell({ children, sidebarMenu, teacherNotifications, adminNotifications }: AdminShellProps) {
+  const { user, isLoading } = useUserStore();
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
 
   const mainContentMargin = isMobileOpen
@@ -33,6 +34,14 @@ export default function AdminShell({ children, user, sidebarMenu, teacherNotific
     : isExpanded || isHovered
       ? "lg:ml-[290px]"
       : "lg:ml-[90px]";
+
+  if (isLoading || !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-theme-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen xl:flex">

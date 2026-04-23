@@ -54,27 +54,6 @@ export default async function AuthShowcasePanel() {
             <h1 className="mt-6 max-w-xl text-4xl font-semibold leading-tight text-white xl:text-5xl">
               Pilotez les traitements administratifs et la vie academique depuis un seul espace.
             </h1>
-            <p className="mt-5 max-w-2xl text-base leading-8 text-white/88">
-              ELMESACAD centralise les operations academiques, les validations, les ressources et le suivi des transactions avec une experience plus lisible et plus rapide.
-            </p>
-          </div>
-
-          <div className="mt-8 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-[24px] border border-white/18 bg-white/92 p-4 shadow-[0_18px_40px_rgba(39,40,38,0.14)]">
-              <p className="text-xs uppercase tracking-[0.24em] text-gray-500">Workflow</p>
-              <p className="mt-3 text-lg font-semibold text-[#272826]">Connexion guidee</p>
-              <p className="mt-2 text-sm leading-6 text-gray-600">Entree claire selon votre profil etudiant, enseignant ou administration.</p>
-            </div>
-            <div className="rounded-[24px] border border-white/18 bg-white/92 p-4 shadow-[0_18px_40px_rgba(39,40,38,0.14)]">
-              <p className="text-xs uppercase tracking-[0.24em] text-gray-500">Pilotage</p>
-              <p className="mt-3 text-lg font-semibold text-[#272826]">Vision academique</p>
-              <p className="mt-2 text-sm leading-6 text-gray-600">Lecture immediate des programmes, unites et elements constitutifs de l'annee active.</p>
-            </div>
-            <div className="rounded-[24px] border border-white/18 bg-white/92 p-4 shadow-[0_18px_40px_rgba(39,40,38,0.14)]">
-              <p className="text-xs uppercase tracking-[0.24em] text-gray-500">Experience</p>
-              <p className="mt-3 text-lg font-semibold text-[#272826]">Acces plus lisible</p>
-              <p className="mt-2 text-sm leading-6 text-gray-600">Une entree plus claire pour lancer rapidement le bon workflow administratif.</p>
-            </div>
           </div>
         </div>
 

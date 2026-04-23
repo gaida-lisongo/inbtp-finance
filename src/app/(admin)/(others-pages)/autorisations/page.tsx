@@ -7,7 +7,7 @@ import ComponentCard from "@/components/common/ComponentCard";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  autorisationLabels,
+  getAutorisationLabels,
   getAutorisationById,
   getAutorisations,
   getAgentsForRoleAssignment,
@@ -31,9 +31,9 @@ type AutorisationsPageProps = {
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 
-const formatAutorisationDesignation = (value: string | null | undefined) => {
-  const code = normalizeAutorisationCode(value);
-  return code ? autorisationLabels[code] : value;
+const formatAutorisationDesignation = async (value: string | null | undefined) => {
+  const code = await normalizeAutorisationCode(value);
+  return code ? (await getAutorisationLabels())[code] : value;
 };
 
 const getMessage = (status?: string, message?: string) => {
@@ -143,7 +143,7 @@ export default async function AutorisationsPage({ searchParams }: AutorisationsP
                 className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
               >
                 <option value="">Selectionner une autorisation</option>
-                {Object.entries(autorisationLabels).map(([code, label]) => (
+                {Object.entries(await getAutorisationLabels()).map(([code, label]) => (
                   <option key={code} value={code}>
                     {label}
                   </option>

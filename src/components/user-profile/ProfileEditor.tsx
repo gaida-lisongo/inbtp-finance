@@ -1,7 +1,9 @@
 /* eslint-disable @next/next/no-img-element */
-
+"use client";
 import { updateProfileAction } from "@/app/(admin)/(others-pages)/profile/actions";
 import type { AgentProfile } from "@/lib/utils/supabase/agents-shared";
+import { AuthenticatedUser } from "@/lib/utils/supabase/session";
+import { useUserStore } from "@/store/useUserStore";
 
 type ProfileEditorProps = {
   agent: AgentProfile;
@@ -16,8 +18,23 @@ const textareaClassName =
   "w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800";
 
 export default function ProfileEditor({ agent, status, message }: ProfileEditorProps) {
+
+  const {user, setUser} = useUserStore()
+
+  const handleUpdateProfile = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const data = new FormData(e.currentTarget);
+    const updatedUser = await updateProfileAction(data);
+    console.log("User updated : ", updatedUser)
+    if(updatedUser.success){
+      setUser(updatedUser.user as any)
+    }else{
+      console.log(updatedUser.error)
+    }
+  }
+
   return (
-    <form action={updateProfileAction} className="space-y-6">
+    <form onSubmit={handleUpdateProfile} className="space-y-6">
       {status === "success" ? (
         <div className="rounded-xl border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400">
           Profil mis a jour avec succes.
@@ -33,10 +50,10 @@ export default function ProfileEditor({ agent, status, message }: ProfileEditorP
       <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] lg:p-6">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-col items-center gap-5 xl:flex-row">
-            {agent.photoUrl ? (
+            {user?.avatarUrl ? (
               <img
-                src={agent.photoUrl}
-                alt={agent.displayName}
+                src={user?.avatarUrl}
+                alt={user.name}
                 className="h-24 w-24 rounded-full border border-gray-200 object-cover dark:border-gray-800"
               />
             ) : (

@@ -1,8 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getAllAgents, createAgent, updateAgent, deleteAgent, normalizeAgentRole } from "@/lib/utils/supabase/agents";
-import type { AgentRole, AgentRecord } from "@/lib/utils/supabase/agents-shared";
+import { getAllAgents, createAgent, updateAgent, deleteAgent, } from "@/lib/utils/supabase/agents";
+// import { normalizeAgentRole, isAdminAgentRole, type AgentRecord, type AgentRole } from "./agents-shared";
+import { type AgentRole, type AgentRecord, normalizeAgentRole } from "@/lib/utils/supabase/agents-shared";
 
 export async function getAgentsAction() {
   try {

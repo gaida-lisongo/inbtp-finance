@@ -28,3 +28,14 @@ export type AgentProfile = AgentRecord & {
   displayName: string;
   photoUrl: string | null;
 };
+
+const allowedAgentRoles = new Set<AgentRole>(["organisateur", "titulaire", "gestionnaire"]);
+const adminAgentRoles = new Set<AgentRole>(["organisateur", "gestionnaire"]);
+
+export const normalizeAgentRole = (value: string | null | undefined): AgentRole | null => {
+  if (!value) return null;
+  const normalizedValue = value.trim().toLowerCase();
+  return allowedAgentRoles.has(normalizedValue as AgentRole) ? (normalizedValue as AgentRole) : null;
+};
+
+export const isAdminAgentRole = (role: AgentRole | null) => Boolean(role && adminAgentRoles.has(role));

@@ -10,8 +10,3 @@ export async function getUser() {
   return user;
 }
 
-// Set User Current Auth
-export async function setCurrentUser(user: any) {
-  const response = await auth.setCurrentUser(user);
-  return response;
-}

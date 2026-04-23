@@ -1,71 +1,21 @@
-import { cookies } from "next/headers";
-import { type User } from "@supabase/supabase-js";
+'use server'
 
-import type { AgentProfile, AgentRecord, AgentRole } from "@/lib/utils/supabase/agents-shared";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
-import { getCurrentLoginMode } from "@/lib/utils/supabase/auth";
-import { createClient as createServerSupabaseClient } from "@/lib/utils/supabase/server";
-
+import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
+import { type AgentRecord, AgentProfile } from "./agents-shared";
 export type AccountType = "agent" | "student";
-export type { AgentProfile, AgentRecord, AgentRole } from "@/lib/utils/supabase/agents-shared";
 
-export type AgentAccess = {
-  accountType: AccountType;
-  agent: AgentRecord | null;
-  role: AgentRole | null;
-  canAccessAdmin: boolean;
-  canManageYears: boolean;
-  canManageAuthorizations: boolean;
-  canManageStudents: boolean;
-  canManageFiliere: boolean;
-  canManageProgramme: boolean;
-  canManageCharges: boolean;
-};
+// --- Configuration & Constantes Internes (Non exportées) ---
 
 const supabaseBucket = process.env.SUPABASE_BUCKET;
 const signedUrlExpiresInSeconds = 60 * 60;
-const allowedAgentRoles = new Set<AgentRole>(["organisateur", "titulaire", "gestionnaire"]);
-const adminAgentRoles = new Set<AgentRole>(["organisateur", "gestionnaire"]);
+
+// --- Helpers Internes (Non exportés) ---
 
 const emptyToNull = (value: FormDataEntryValue | null) => {
-  if (typeof value !== "string") {
-    return null;
-  }
-
+  if (typeof value !== "string") return null;
   const trimmedValue = value.trim();
   return trimmedValue.length > 0 ? trimmedValue : null;
-};
-
-export const normalizeAgentRole = (value: string | null | undefined): AgentRole | null => {
-  if (!value) {
-    return null;
-  }
-
-  const normalizedValue = value.trim().toLowerCase();
-
-  if (allowedAgentRoles.has(normalizedValue as AgentRole)) {
-    return normalizedValue as AgentRole;
-  }
-
-  return null;
-};
-
-export const isAdminAgentRole = (role: AgentRole | null) => Boolean(role && adminAgentRoles.has(role));
-
-const getIdentityData = (user: User) => {
-  const identity = user.identities?.[0];
-  return typeof identity?.identity_data === "object" && identity.identity_data ? identity.identity_data : null;
-};
-
-const getEntraId = (user: User) => {
-  const identityData = getIdentityData(user);
-  const entraId =
-    identityData?.sub ??
-    identityData?.oid ??
-    identityData?.user_id ??
-    user.app_metadata?.provider_id;
-
-  return typeof entraId === "string" && entraId.length > 0 ? entraId : null;
 };
 
 const buildDisplayName = (agent: Pick<AgentRecord, "prenom" | "post_nom" | "nom">, email: string) => {
@@ -76,356 +26,91 @@ const buildDisplayName = (agent: Pick<AgentRecord, "prenom" | "post_nom" | "nom"
 const isAbsoluteUrl = (value: string) => /^https?:\/\//i.test(value);
 
 const extractStoragePath = (value: string) => {
-  if (!supabaseBucket || !isAbsoluteUrl(value)) {
-    return value;
-  }
-
+  if (!supabaseBucket || !isAbsoluteUrl(value)) return value;
   const publicSegment = `/storage/v1/object/public/${supabaseBucket}/`;
   const signSegment = `/storage/v1/object/sign/${supabaseBucket}/`;
 
-  if (value.includes(publicSegment)) {
-    return value.split(publicSegment)[1]?.split("?")[0] ?? value;
-  }
-
-  if (value.includes(signSegment)) {
-    return value.split(signSegment)[1]?.split("?")[0] ?? value;
-  }
-
+  if (value.includes(publicSegment)) return value.split(publicSegment)[1]?.split("?")[0] ?? value;
+  if (value.includes(signSegment)) return value.split(signSegment)[1]?.split("?")[0] ?? value;
   return value;
 };
 
 const resolvePhotoUrl = async (photo: string | null) => {
-  if (!photo) {
+  if (!photo) return null;
+  if (!supabaseBucket || (isAbsoluteUrl(photo) && !photo.includes(`/storage/v1/object/`))) return photo;
+
+  try {
+    const photoPath = extractStoragePath(photo);
+    const admin = createAdminClient();
+    const { data, error } = await admin.storage
+      .from(supabaseBucket)
+      .createSignedUrl(photoPath, signedUrlExpiresInSeconds);
+    return error || !data?.signedUrl ? null : data.signedUrl;
+  } catch {
     return null;
   }
-
-  if (!supabaseBucket || isAbsoluteUrl(photo) && !photo.includes(`/storage/v1/object/`)) {
-    return photo;
-  }
-
-  const photoPath = extractStoragePath(photo);
-  const admin = createAdminClient();
-  const { data, error } = await admin.storage
-    .from(supabaseBucket)
-    .createSignedUrl(photoPath, signedUrlExpiresInSeconds);
-
-  if (error || !data?.signedUrl) {
-    return null;
-  }
-
-  return data.signedUrl;
 };
 
-const mapAgentProfile = async (agent: AgentRecord, email: string): Promise<AgentProfile> => ({
-  ...agent,
-  email,
-  displayName: buildDisplayName(agent, email),
-  photoUrl: await resolvePhotoUrl(agent.photo),
-});
-
-const getCurrentAuthUser = async () => {
-  const cookieStore = await cookies();
-  const supabase = createServerSupabaseClient(cookieStore);
-  const { data, error } = await supabase.auth.getUser();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  if (!data.user || !data.user.email) {
-    throw new Error("No authenticated user found.");
-  }
-
-  return data.user;
+const mapAgentProfile = async (agent: AgentRecord, email: string): Promise<AgentProfile> => {
+  const newAgent = {
+    ...agent,
+    email,
+    displayName: buildDisplayName(agent, email),
+    photoUrl: await resolvePhotoUrl(agent.photo),
+    avatarUrl: await resolvePhotoUrl(agent.photo),
+  };
+  return newAgent;
 };
 
-const getAgentByUserId = async (userId: string) => {
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("agents")
-    .select("*")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+// --- Server Actions Exportées (Toutes obligatoirement ASYNC) ---
 
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data as AgentRecord | null;
-};
-
-const getAgentByEntraId = async (entraId: string) => {
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("agents")
-    .select("*")
-    .eq("entra_id", entraId)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data as AgentRecord | null;
-};
-
-const getAgentByNormalizedEmail = async (email: string) => {
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("agents")
-    .select("*")
-    .ilike("email", email)
-    .order("created_at", { ascending: true })
-    .limit(2);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  const agents = (data ?? []) as AgentRecord[];
-
-  if (agents.length > 1) {
-    throw new Error("teacher_email_conflict");
-  }
-
-  return agents[0] ?? null;
-};
-
-const attachAgentToUser = async (agent: AgentRecord, user: User) => {
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("agents")
-    .update({
-      user_id: user.id,
-      entra_id: getEntraId(user),
-    })
-    .select("*")
-    .eq("id", agent.id)
-    .single();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data as AgentRecord;
-};
-
-export const findAgentRecordForUser = async (user: User) => {
-  const agentByUserId = await getAgentByUserId(user.id);
-
-  if (agentByUserId) {
-    return agentByUserId;
-  }
-
-  const entraId = getEntraId(user);
-
-  if (!entraId) {
-    return null;
-  }
-
-  const agentByEntraId = await getAgentByEntraId(entraId);
-
-  if (!agentByEntraId) {
-    return null;
-  }
-
-  if (!agentByEntraId.user_id) {
-    return attachAgentToUser(agentByEntraId, user);
-  }
-
-  return agentByEntraId.user_id === user.id ? agentByEntraId : null;
-};
-
-export const assertTeacherCanAuthenticate = async (email: string) => {
-  const normalizedEmail = email.trim().toLowerCase();
-
-  if (!normalizedEmail) {
-    throw new Error("teacher_email_required");
-  }
-
-  const agent = await getAgentByNormalizedEmail(normalizedEmail);
-
-  if (!agent || normalizeAgentRole(agent.role) !== "titulaire") {
-    throw new Error("teacher_not_found");
-  }
-
-  return agent;
-};
-
-export const assertAdminCanAuthenticate = async (email: string) => {
-  const normalizedEmail = email.trim().toLowerCase();
-
-  if (!normalizedEmail) {
-    throw new Error("admin_email_required");
-  }
-  console.log("normalizedEmail =====> ", normalizedEmail)
-  const agent = await getAgentByNormalizedEmail(normalizedEmail);
-  console.log("AGENT =====> ", agent)
-  if (!agent || !isAdminAgentRole(normalizeAgentRole(agent.role))) {
-    throw new Error("admin_not_found");
-  }
-  console.log("role =====> ", normalizeAgentRole(agent.role))
-
-  return agent;
-};
-
-export const attachTeacherUserByEmail = async (email: string, userId: string) => {
-  const normalizedEmail = email.trim().toLowerCase();
-
-  if (!normalizedEmail) {
-    throw new Error("teacher_email_required");
-  }
-
-  const agent = await getAgentByNormalizedEmail(normalizedEmail);
-
-  if (!agent || normalizeAgentRole(agent.role) !== "titulaire") {
-    throw new Error("teacher_not_found");
-  }
-
-  if (agent.user_id && agent.user_id !== userId) {
-    throw new Error("teacher_already_linked");
-  }
-
-  if (agent.user_id === userId) {
-    return agent;
-  }
-
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("agents")
-    .update({ user_id: userId })
-    .eq("id", agent.id)
-    .select("*")
-    .single();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data as AgentRecord;
-};
-
-export const attachAdminUserByEmail = async (email: string, userId: string) => {
-  const normalizedEmail = email.trim().toLowerCase();
-
-  if (!normalizedEmail) {
-    throw new Error("admin_email_required");
-  }
-
-  const agent = await getAgentByNormalizedEmail(normalizedEmail);
-
-  if (!agent || !isAdminAgentRole(normalizeAgentRole(agent.role))) {
-    throw new Error("admin_not_found");
-  }
-
-  if (agent.user_id && agent.user_id !== userId) {
-    throw new Error("admin_already_linked");
-  }
-
-  if (agent.user_id === userId) {
-    return agent;
-  }
-
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("agents")
-    .update({ user_id: userId })
-    .eq("id", agent.id)
-    .select("*")
-    .single();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data as AgentRecord;
-};
-
-export const getCurrentAccountType = async (): Promise<AccountType> => {
-  const user = await getCurrentAuthUser();
-  const agent = await findAgentRecordForUser(user);
-  return agent ? "agent" : "student";
-};
-
-export const getCurrentAgentAccess = async (): Promise<AgentAccess> => {
-  const user = await getCurrentAuthUser();
-  const agent = await findAgentRecordForUser(user);
-  const role = normalizeAgentRole(agent?.role);
-  const loginMode = await getCurrentLoginMode();
-  const canAccessAdmin = Boolean(
-    agent &&
-      isAdminAgentRole(role) &&
-      (loginMode === "faculty_sso" || loginMode === "admin_password" || loginMode === null),
-  );
-  const isOrganizer = role === "organisateur";
-  const isGestionnaire = role === "gestionnaire";
-  const isTitulaire = role === "titulaire";
+export async function getCurrentAgentAccess() {
+  const user = await getAuthenticatedUser();
+  if (!user) throw new Error("access_denied");
 
   return {
-    accountType: agent ? "agent" : "student",
-    agent,
-    role,
-    canAccessAdmin,
-    canManageYears: isOrganizer,
-    canManageAuthorizations: isOrganizer,
-    canManageStudents: isGestionnaire,
-    canManageFiliere: isGestionnaire,
-    canManageProgramme: isGestionnaire,
-    canManageCharges: isTitulaire,
+    accountType: user.accountType,
+    role: user.role,
+    canAccessAdmin: user.canAccessAdmin,
+    canManageYears: user.canManageYears,
+    canManageAuthorizations: user.canManageAuthorizations,
+    canManageStudents: user.canManageStudents,
+    canManageFiliere: user.canManageFiliere,
+    canManageProgramme: user.canManageProgramme,
+    canManageCharges: user.canManageCharges,
   };
-};
+}
 
-export const getCurrentAgentProfile = async () => {
-  const user = await getCurrentAuthUser();
-  const agent = await findAgentRecordForUser(user);
+export async function getCurrentAgentProfile() {
+  const user = await getAuthenticatedUser();
+  if (!user || user.accountType !== "agent") return null;
 
-  if (!agent) {
-    return null;
-  }
-
-  return mapAgentProfile(agent, user.email!);
-};
-
-export const uploadAgentPhoto = async (userId: string, file: File) => {
-  if (!supabaseBucket) {
-    throw new Error("SUPABASE_BUCKET is not configured.");
-  }
-
-  const extension = file.name.includes(".") ? file.name.split(".").pop() : "bin";
-  const safeExtension = typeof extension === "string" ? extension.toLowerCase() : "bin";
-  const filePath = `agents/${userId}/profile-${Date.now()}.${safeExtension}`;
   const admin = createAdminClient();
-  const arrayBuffer = await file.arrayBuffer();
+  const { data: agent } = await admin.from("agents").select("*").eq("id", user.agentId).maybeSingle();
+  
+  if (!agent) return null;
+  return mapAgentProfile(agent, user.email);
+}
 
-  const { error } = await admin.storage.from(supabaseBucket).upload(filePath, arrayBuffer, {
-    contentType: file.type || undefined,
-    upsert: true,
-  });
+export async function updateCurrentAgentProfile(formData: FormData) {
+  const user = await getAuthenticatedUser();
+  if (!user || !user.agentId) throw new Error("access_denied");
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  const admin = createAdminClient();
+  const { data: currentAgent } = await admin.from("agents").select("photo").eq("id", user.agentId).single();
 
-  return filePath;
-};
-
-export const updateCurrentAgentProfile = async (formData: FormData) => {
-  const user = await getCurrentAuthUser();
-  const agent = await findAgentRecordForUser(user);
-
-  if (!agent) {
-    throw new Error("access_denied");
-  }
-
-  let photoPath = agent.photo;
+  let photoPath = currentAgent?.photo;
   const uploadedPhoto = formData.get("photo");
 
   if (uploadedPhoto instanceof File && uploadedPhoto.size > 0) {
-    photoPath = await uploadAgentPhoto(user.id, uploadedPhoto);
+    const arrayBuffer = await uploadedPhoto.arrayBuffer();
+    const extension = uploadedPhoto.name.split(".").pop() || "bin";
+    photoPath = `agents/${user.id}/profile-${Date.now()}.${extension}`;
+    
+    await admin.storage.from(supabaseBucket!).upload(photoPath, arrayBuffer, {
+      contentType: uploadedPhoto.type,
+      upsert: true,
+    });
   }
 
   const updates = {
@@ -443,107 +128,43 @@ export const updateCurrentAgentProfile = async (formData: FormData) => {
     ville: emptyToNull(formData.get("ville")),
     adresse: emptyToNull(formData.get("adresse")),
     commune: emptyToNull(formData.get("commune")),
-    entra_id: emptyToNull(formData.get("entra_id")) ?? agent.entra_id,
   };
 
-  const admin = createAdminClient();
   const { data, error } = await admin
     .from("agents")
     .update(updates)
-    .eq("id", agent.id)
+    .eq("id", user.agentId)
     .select("*")
     .single();
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  if (error) throw new Error(error.message);
 
-  const fullName = [updates.prenom, updates.post_nom, updates.nom].filter(Boolean).join(" ").trim();
-  const metadata: Record<string, string | null> = {
-    full_name: fullName.length > 0 ? fullName : user.email!,
-    avatar_url: photoPath,
-  };
+  return mapAgentProfile(data as AgentRecord, user.email);
+}
 
-  const cookieStore = await cookies();
-  const supabase = createServerSupabaseClient(cookieStore);
-  await supabase.auth.updateUser({
-    data: metadata,
-  });
-
-  return mapAgentProfile(data as AgentRecord, user.email!);
-};
-
-export const getAllAgents = async (): Promise<AgentRecord[]> => {
-  const supabase = createAdminClient();
-
-  const { data, error } = await supabase
-    .from("agents")
-    .select("*")
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    throw new Error(`Failed to fetch agents: ${error.message}`);
-  }
-
+export async function getAllAgents(): Promise<AgentRecord[]> {
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("agents").select("*").order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
   return data || [];
-};
+}
 
-export const createAgent = async (agentData: {
-  nom: string;
-  post_nom: string | null;
-  prenom: string;
-  email: string;
-  grade: string | null;
-  role?: string | null;
-}): Promise<AgentRecord> => {
-  const supabase = createAdminClient();
-
-  const { data, error } = await supabase
-    .from("agents")
-    .insert({
-      nom: agentData.nom,
-      post_nom: agentData.post_nom,
-      prenom: agentData.prenom,
-      email: agentData.email,
-      grade: agentData.grade,
-      role: agentData.role,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    throw new Error(`Failed to create agent: ${error.message}`);
-  }
-
+export async function createAgent(agentData: any): Promise<AgentRecord> {
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("agents").insert(agentData).select().single();
+  if (error) throw new Error(error.message);
   return data;
-};
+}
 
-export const updateAgent = async (id: string, updates: Partial<AgentRecord>): Promise<AgentRecord> => {
-  const supabase = createAdminClient();
-
-  const { data, error } = await supabase
-    .from("agents")
-    .update(updates)
-    .eq("id", id)
-    .select()
-    .single();
-
-  if (error) {
-    throw new Error(`Failed to update agent: ${error.message}`);
-  }
-
+export async function updateAgent(id: string, updates: Partial<AgentRecord>): Promise<AgentRecord> {
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("agents").update(updates).eq("id", id).select().single();
+  if (error) throw new Error(error.message);
   return data;
-};
+}
 
-export const deleteAgent = async (id: string): Promise<void> => {
-  const supabase = createAdminClient();
-
-  const { error } = await supabase
-    .from("agents")
-    .delete()
-    .eq("id", id);
-
-  if (error) {
-    throw new Error(`Failed to delete agent: ${error.message}`);
-  }
-};
+export async function deleteAgent(id: string): Promise<void> {
+  const admin = createAdminClient();
+  const { error } = await admin.from("agents").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}

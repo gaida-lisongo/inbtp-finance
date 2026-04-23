@@ -73,14 +73,14 @@ export default class Authentication {
   async signUserAction(formData: FormData) {
     const email = formData.get("email") as string;
     const table = formData.get("table") as string;
-    const role = formData.get("role") as string;
 
     const admin = createAdminClient();
+    console.log("Table : ", table);
+    console.log("Email : ", email);
     const { data, error } = await admin
         .from(table)
         .select('*')
         .eq('email', email)
-        .eq('role', role)
         .single();
 
     if (error || !data) {
@@ -113,27 +113,8 @@ export default class Authentication {
     const data = await this.decrypt(session.value);
     return data.user;
   }
-
-  async setCurrentUser(user: any){
-    const session = (await cookies()).get("session");
-    if(!session){
-        return null;
-    }
-
-    const data = await this.decrypt(session.value);
-    data.user = user;
-    const newSession = await this.encrypt(data);
-    (await cookies()).set("session", newSession, {
-        expires: data.expires,
-        httpOnly: true,
-        secure: true,
-        sameSite: "lax",
-        path: "/",
-    });
-  }
-
+  
   async signOut() {
     (await cookies()).delete("session");
-    redirect("/signin");
   }
 }

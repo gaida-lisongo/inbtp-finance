@@ -1,6 +1,8 @@
-import Link from "next/link";
+"use client";
 
-import { signInAdminAction, signInStudentAction, signInTeacherAction } from "@/app/actions/auth";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import AssetImage from "@/components/common/AssetImage";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
@@ -8,6 +10,7 @@ import Button from "@/components/ui/button/Button";
 import { ChevronLeftIcon } from "@/icons";
 
 type AuthTab = "student" | "teacher" | "admin";
+type Step = 1 | 2 | 3;
 
 type SignInFormProps = {
   error?: string;
@@ -16,122 +19,76 @@ type SignInFormProps = {
   selectedTab: AuthTab;
 };
 
-const parseStructuredError = (value?: string) => {
-  if (!value) {
-    return null;
-  }
+export default function SignInForm({ error: externalError, message: externalMsg, nextPath, selectedTab }: SignInFormProps) {
+  const router = useRouter();
+  
+  // États du formulaire
+  const [step, setStep] = useState<Step>(1);
+  const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(externalError || null);
+  const [message, setMessage] = useState<string | null>(externalMsg || null);
 
-  if (!value.trim().startsWith("{")) {
-    return null;
-  }
+  // Mappage des tables BDD selon l'onglet
+  const tableMap = {
+    student: "students",
+    teacher: "agents",
+    admin: "agents", // ou ta table admin
+  };
 
-  try {
-    const parsed = JSON.parse(value);
+  // ÉTAPE 1 : Demander l'OTP
+  const handleRequestOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
 
-    if (!parsed || typeof parsed !== "object") {
-      return null;
+    try {
+      const res = await fetch(`/api/auth?email=${encodeURIComponent(email.toLowerCase())}`);
+      if (!res.ok) throw new Error("Utilisateur non trouvé ou erreur serveur");
+      
+      setStep(2);
+      setMessage("Code envoyé ! Vérifiez votre boîte mail (et vos spams).");
+    } catch (err: any) {
+      setError("Email introuvable. Prière de contacter la Cellule Numérique.");
+    } finally {
+      setLoading(false);
     }
+  };
 
-    const general = typeof parsed.general === "string" ? parsed.general.trim() : null;
-    const specifics: string[] = Array.isArray(parsed.speficique)
-      ? parsed.speficique.filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 0)
-      : Array.isArray(parsed.specifique)
-        ? parsed.specifique.filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 0)
-        : [];
+  // ÉTAPE 2 & 3 : Vérifier l'OTP et connecter
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true); // Étape 3 : On affiche le loader
+    setStep(3); 
+    setError(null);
 
-    if (!general && specifics.length === 0) {
-      return null;
+    try {
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          otp,
+          email: email.toLowerCase(),
+          table: tableMap[selectedTab]
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || "Code incorrect");
+
+      // Succès : Redirection via le client pour rafraîchir la session
+      router.push(nextPath);
+      router.refresh();
+    } catch (err: any) {
+      setError(err.message);
+      setStep(2); // Retour à la saisie si erreur
+    } finally {
+      setLoading(false);
     }
+  };
 
-    return [general, ...specifics.map((line: string) => `- ${line.trim()}`)]
-      .filter((line): line is string => Boolean(line && line.trim().length > 0))
-      .join("\n");
-  } catch {
-    return null;
-  }
-};
-
-const getErrorMessage = (error?: string) => {
-  const structured = parseStructuredError(error);
-
-  if (structured) {
-    return structured;
-  }
-
-  switch (error) {
-    case "access_denied":
-      return "Votre compte est connecte, mais il ne dispose pas d'un acces aux vues administratives.";
-    case "missing_credentials":
-      return "Renseignez votre email et votre mot de passe.";
-    case "student_not_found":
-      return "Aucun profil etudiant correspondant a cet email n'a ete trouve.";
-    case "student_already_linked":
-      return "Ce profil etudiant est deja rattache a un autre compte.";
-    case "student_email_conflict":
-      return "Plusieurs etudiants portent le meme email. Corrigez d'abord les donnees.";
-    case "teacher_not_found":
-      return "Aucun profil enseignant titulaire correspondant a cet email n'a ete trouve.";
-    case "teacher_already_linked":
-      return "Ce profil enseignant est deja rattache a un autre compte.";
-    case "teacher_email_conflict":
-      return "Plusieurs agents portent le meme email. Corrigez d'abord les donnees.";
-    case "teacher_already_registered":
-      return "Cet enseignant possede deja un compte. Utilisez plutot la connexion.";
-    case "admin_not_found":
-      return "Aucun compte administrateur/gestionnaire correspondant a cet email n'a ete trouve.";
-    case "admin_already_linked":
-      return "Ce compte administrateur est deja rattache a un autre utilisateur.";
-    case "admin_already_registered":
-      return "Cet administrateur possede deja un compte. Utilisez plutot la connexion.";
-    case "faculty_sso_restricted":
-      return "La connexion SSO est reservee aux administrateurs et gestionnaires de la faculte.";
-    case "Invalid login credentials":
-      return "Email ou mot de passe incorrect.";
-    case "Email not confirmed":
-      return "Votre email n'est pas encore confirme.";
-    case "auth_failed":
-      return "La session n'a pas pu etre finalisee.";
-    default:
-      return error;
-  }
-};
-
-const getMessage = (message?: string) => {
-  switch (message) {
-    case "signup_confirmation_sent":
-      return "Un email de confirmation a ete envoye. Ouvrez votre boite mail pour activer votre compte.";
-    case "student_email_confirmed":
-      return "Votre email etudiant a ete confirme. Vous pouvez maintenant vous connecter.";
-    case "teacher_email_confirmed":
-      return "Votre email enseignant a ete confirme. Vous pouvez maintenant vous connecter.";
-    case "admin_email_confirmed":
-      return "Votre email administrateur a ete confirme. Vous pouvez maintenant vous connecter.";
-    default:
-      return message;
-  }
-};
-
-const getTabHref = (tab: AuthTab, nextPath: string) =>
-  `/signin?tab=${tab}${nextPath !== "/" ? `&next=${encodeURIComponent(nextPath)}` : ""}`;
-
-const getSignUpHref = (tab: Exclude<AuthTab, "admin">, nextPath: string) =>
-  `/signup?tab=${tab}${nextPath !== "/" ? `&next=${encodeURIComponent(nextPath)}` : ""}`;
-
-const tabClassName = (isActive: boolean) =>
-  `flex-1 rounded-2xl px-4 py-3 text-center text-sm font-medium transition ${
-    isActive
-      ? "bg-[#272826] text-white shadow-theme-xs dark:bg-white dark:text-[#272826]"
-      : "text-gray-600 hover:bg-white dark:text-white/70 dark:hover:bg-white/8"
-  }`;
-
-export default function SignInForm({ error, message, nextPath, selectedTab }: SignInFormProps) {
-  const signUpHref = selectedTab === "teacher" ? getSignUpHref("teacher", nextPath) : getSignUpHref("student", nextPath);
-  const formAction =
-    selectedTab === "teacher"
-      ? signInTeacherAction
-      : selectedTab === "admin"
-        ? signInAdminAction
-        : signInStudentAction;
   const heading =
     selectedTab === "teacher"
       ? "Connexion enseignant"
@@ -145,137 +102,106 @@ export default function SignInForm({ error, message, nextPath, selectedTab }: Si
         ? "Utilisez votre email administrateur ou gestionnaire et votre mot de passe."
         : "Utilisez votre email institutionnel enregistre dans la base et votre mot de passe.";
 
+  const stepTitle = step === 1 ? "Étape 1" : step === 2 ? "Étape 2" : "Étape 3";
+  const stepDesc = step === 1 ? "Identification" : step === 2 ? "Vérification OTP" : "Finalisation";
+
   return (
-    <div className="flex w-full flex-1 flex-col justify-center px-5 py-8 sm:px-8 lg:w-1/2 lg:px-10 xl:px-14">
-      <div className="mx-auto mb-5 w-full max-w-xl animate-fade-up">
-        <Link
-          href="/"
-          className="inline-flex items-center text-sm font-medium text-gray-600 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white/90"
-        >
-          <ChevronLeftIcon />
-          Retour vers ELMESACAD
-        </Link>
-      </div>
+    <div className="flex w-full flex-1 flex-col px-5 sm:px-8">
+      {/* ... (Header identique) ... */}
 
       <div className="mx-auto flex w-full max-w-xl flex-1 flex-col justify-center">
-        <div className="animate-fade-up rounded-[32px] border border-white/60 bg-white/85 p-6 shadow-[0_30px_80px_rgba(39,40,38,0.10)] backdrop-blur-xl dark:border-white/10 dark:bg-[#272826]/72 sm:p-8 [animation-delay:120ms]">
-          <div className="mb-8 flex items-start justify-between gap-4">
-            <div>
-              <div className="mb-4 inline-flex items-center gap-3 rounded-full border border-[#f7a73d]/20 bg-[#f7a73d]/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-[#b56f14] dark:border-[#f7a73d]/15 dark:bg-[#f7a73d]/12 dark:text-[#ffd596]">
-                <AssetImage src="minLogo" alt="INBTP" width={18} height={18} className="h-[18px] w-[18px]" />
-                Acces securise
-              </div>
-              <h1 className="mb-2 text-title-sm font-semibold text-gray-900 dark:text-white sm:text-title-md">
+        <div className="animate-fade-up rounded-[32px] border border-white/60 bg-white/85 p-6 shadow-[0_30px_80px_rgba(39,40,38,0.10)] backdrop-blur-xl dark:border-white/10 dark:bg-[#272826]/72 sm:p-8">
+                  <div className="mb-8 flex flex-col gap-5 md:mb-9 md:flex-row md:items-center md:justify-between md:gap-0">
+          <div>
+              <h1 className="mb-2 mt-4 text-title-sm font-semibold text-gray-900 dark:text-white sm:text-title-md">
                 {heading}
               </h1>
               <p className="max-w-lg text-sm leading-7 text-gray-600 dark:text-white/70">{description}</p>
-            </div>
-            <div className="hidden rounded-3xl border border-[#058AC5]/15 bg-[#058AC5]/8 p-3 sm:block dark:border-white/10 dark:bg-white/5">
-              <AssetImage src="elmes" alt="ELMESACAD" width={52} height={52} className="h-[52px] w-[52px] object-contain" />
-            </div>
-          </div>
-
-          <div className="mb-6 grid gap-3 rounded-[26px] border border-gray-200/80 bg-[#f7f7f5] p-2 dark:border-white/10 dark:bg-black/15 sm:grid-cols-3">
-            <Link href={getTabHref("student", nextPath)} className={tabClassName(selectedTab === "student")}>
-              Etudiant
-            </Link>
-            <Link href={getTabHref("teacher", nextPath)} className={tabClassName(selectedTab === "teacher")}>
-              Enseignant
-            </Link>
-            <Link href={getTabHref("admin", nextPath)} className={tabClassName(selectedTab === "admin")}>
-              Admin
-            </Link>
-          </div>
-
-          <div className="mb-6 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-gray-200/80 bg-white/70 px-4 py-3 dark:border-white/8 dark:bg-white/5">
-              <p className="text-xs uppercase tracking-[0.24em] text-gray-500 dark:text-white/50">Etape 1</p>
-              <p className="mt-2 text-sm font-medium text-gray-900 dark:text-white/90">Choisir un profil</p>
-            </div>
-            <div className="rounded-2xl border border-gray-200/80 bg-white/70 px-4 py-3 dark:border-white/8 dark:bg-white/5">
-              <p className="text-xs uppercase tracking-[0.24em] text-gray-500 dark:text-white/50">Etape 2</p>
-              <p className="mt-2 text-sm font-medium text-gray-900 dark:text-white/90">Saisir les identifiants</p>
-            </div>
-            <div className="rounded-2xl border border-gray-200/80 bg-white/70 px-4 py-3 dark:border-white/8 dark:bg-white/5">
-              <p className="text-xs uppercase tracking-[0.24em] text-gray-500 dark:text-white/50">Etape 3</p>
-              <p className="mt-2 text-sm font-medium text-gray-900 dark:text-white/90">Acceder au workspace</p>
-            </div>
-          </div>
-
-          {error ? (
-            <div className="mb-5 rounded-2xl border border-error-200 bg-error-50 px-4 py-3 text-sm leading-6 text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-200">
-              {getErrorMessage(error)}
-            </div>
-          ) : null}
-
-          {message ? (
-            <div className="mb-5 rounded-2xl border border-success-200 bg-success-50 px-4 py-3 text-sm leading-6 text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-100">
-              {getMessage(message)}
-            </div>
-          ) : null}
-
-          <form action={formAction} className="space-y-5">
-            <input type="hidden" name="next" value={nextPath} />
-
-            <div className="grid gap-5">
-              <div>
-                <Label htmlFor={`${selectedTab}-email`} className="mb-2 text-sm font-semibold text-gray-800 dark:text-white/80">
-                  Email<span className="text-error-500">*</span>
-                </Label>
-                <Input
-                  id={`${selectedTab}-email`}
-                  name="email"
-                  type="email"
-                  placeholder="prenom.nom@inbtp.ac.cd"
-                  className="h-[52px] rounded-2xl border-gray-200 bg-white/80 dark:border-white/10 dark:bg-white/5"
-                />
               </div>
-
-              <div>
-                <Label htmlFor={`${selectedTab}-password`} className="mb-2 text-sm font-semibold text-gray-800 dark:text-white/80">
-                  Mot de passe<span className="text-error-500">*</span>
-                </Label>
-                <Input
-                  id={`${selectedTab}-password`}
-                  name="password"
-                  type="password"
-                  placeholder="Votre mot de passe"
-                  className="h-[52px] rounded-2xl border-gray-200 bg-white/80 dark:border-white/10 dark:bg-white/5"
-                />
+              <div className="hidden rounded-3xl border border-[#058AC5]/15 bg-[#058AC5]/8 p-3 sm:block dark:border-white/10 dark:bg-white/5">
+                <AssetImage src="elmes" alt="ELMESACAD" width={52} height={52} className="h-[52px] w-[52px] object-contain" />
               </div>
-            </div>
-
-            <Button type="submit" className="h-[52px] w-full justify-center rounded-2xl text-[15px] font-semibold">
-              {selectedTab === "teacher"
-                ? "Se connecter comme enseignant"
-                : selectedTab === "admin"
-                  ? "Se connecter comme administrateur"
-                  : "Se connecter comme etudiant"}
-            </Button>
-          </form>
-
-          <p className="mt-6 text-sm leading-7 text-gray-600 dark:text-white/70">
-            Vous n&apos;avez pas encore de mot de passe ?{" "}
-            <Link href={signUpHref} className="font-semibold text-[#058AC5] hover:text-[#046b99] dark:text-[#6ec7ea]">
-              {selectedTab === "teacher"
-                ? "Creer mon acces enseignant"
-                : selectedTab === "admin"
-                  ? "Creer mon acces administrateur"
-                  : "Creer mon acces etudiant"}
-            </Link>
-          </p>
         </div>
 
-        <div className="mt-6 animate-fade-up rounded-[28px] border border-gray-200/70 bg-white/70 p-5 backdrop-blur-md dark:border-white/10 dark:bg-white/4 [animation-delay:220ms]">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-500 dark:text-white/50">Workflow</p>
-              <p className="mt-2 text-base font-semibold text-gray-900 dark:text-white">Connexion structuree et progressive</p>
-            </div>
-            <span className="inline-flex h-3 w-3 rounded-full bg-[#5ECB44] animate-pulse-soft" />
+          {/* Tabs Navigation */}
+          <div className="mb-6 grid gap-3 rounded-[26px] border border-gray-200/80 bg-[#f7f7f5] p-2 dark:border-white/10 dark:bg-black/15 sm:grid-cols-3">
+            {(["student", "teacher", "admin"] as AuthTab[]).map((tab) => (
+               <Link 
+                key={tab}
+                href={`/signin?tab=${tab}${nextPath !== "/" ? `&next=${encodeURIComponent(nextPath)}` : ""}`}
+                className={`flex-1 rounded-2xl px-4 py-3 text-center text-sm font-medium transition ${
+                    selectedTab === tab ? "bg-[#272826] text-white shadow-theme-xs dark:bg-white dark:text-[#272826]" : "text-gray-600 dark:text-white/70"
+                }`}
+               >
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+               </Link>
+            ))}
           </div>
-          <p className="mt-3 text-sm leading-7 text-gray-600 dark:text-white/70">
-            L'ecran d'acces a ete repense pour donner une lecture immediate du profil, des statuts de transaction et de la volumetrie academique de l'annee active.
+
+          {/* Stepper Visuel */}
+          <div className="mb-6 grid gap-3 sm:grid-cols-3">
+            {[1, 2, 3].map((s) => (
+              <div key={s} className={`rounded-2xl border border-gray-200/80 px-4 py-3 transition ${step === s ? "bg-primary-50 border-primary-200 dark:bg-white/10" : "bg-white/70 dark:bg-white/5"}`}>
+                <p className={`text-xs uppercase tracking-[0.24em] ${step === s ? "text-primary-600" : "text-gray-500"}`}>Etape {s}</p>
+                <p className="mt-2 text-sm font-medium text-gray-900 dark:text-white/90">
+                    {s === 1 ? "Email" : s === 2 ? "OTP" : "Accès"}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Alertes */}
+          {error && <div className="mb-5 rounded-2xl border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-700">{error}</div>}
+          {message && <div className="mb-5 rounded-2xl border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700">{message}</div>}
+
+          {/* Formulaire dynamique */}
+          {step === 3 && loading ? (
+             <div className="flex flex-col items-center justify-center py-10 space-y-4">
+                <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
+                <p className="text-sm font-medium text-gray-600 dark:text-white/70">Vérification de vos informations en base de données...</p>
+             </div>
+          ) : (
+            <form onSubmit={step === 1 ? handleRequestOtp : handleVerifyOtp} className="space-y-5">
+              {step === 1 && (
+                <div className="animate-fade-in">
+                  <Label className="mb-2 block text-sm font-semibold">Email Institutionnel</Label>
+                  <Input
+                    required
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="votre.nom@inbtp.ac.cd"
+                    className="h-[52px] rounded-2xl"
+                  />
+                  <p className="mt-2 text-xs text-gray-500">Prière de contacter la Cellule Numérique pour votre mail.</p>
+                </div>
+              )}
+
+              {step === 2 && (
+                <div className="animate-fade-in">
+                  <Label className="mb-2 block text-sm font-semibold">Code OTP (4 chiffres)</Label>
+                  <Input
+                    required
+                    max="4"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    placeholder="0000"
+                    className="h-[52px] rounded-2xl text-center text-xl tracking-[1em]"
+                  />
+                  <p className="mt-2 text-xs text-gray-500">Vérifiez vos spams si vous ne recevez rien.</p>
+                  <button type="button" onClick={() => setStep(1)} className="mt-2 text-xs text-primary-600 underline">Changer d'email</button>
+                </div>
+              )}
+
+              <Button disabled={loading} type="submit" className="h-[52px] w-full justify-center rounded-2xl font-semibold">
+                {loading ? "Chargement..." : step === 1 ? "Recevoir le code" : "Vérifier et accéder"}
+              </Button>
+            </form>
+          )}
+
+          {/* Footer d'aide */}
+          <p className="mt-6 text-center text-sm text-gray-500">
+            Besoin d'aide ? <Link href="#" className="font-bold text-primary-600">Support technique</Link>
           </p>
         </div>
       </div>

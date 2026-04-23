@@ -54,6 +54,9 @@ export const getAuthLandingMetrics = async (): Promise<AuthLandingMetrics> => {
     .limit(1)
     .maybeSingle();
 
+  console.log("activeAnneeData", activeAnneeData);
+  console.log("activeAnneeError", activeAnneeError);
+
   if (activeAnneeError) {
     throw new Error(activeAnneeError.message);
   }

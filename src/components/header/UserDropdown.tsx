@@ -2,19 +2,22 @@
 
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 
-import { signOutAction } from "@/app/actions/auth";
 import AvatarText from "@/components/ui/avatar/AvatarText";
 import { Dropdown } from "@/components/ui/dropdown/Dropdown";
 import { DropdownItem } from "@/components/ui/dropdown/DropdownItem";
 import type { AuthenticatedUser } from "@/lib/utils/supabase/session";
+import Authentication from "@/lib/user/Authentication";
+import { useRouter } from "next/navigation";
 
 type UserDropdownProps = {
   user: AuthenticatedUser;
 };
 
 export default function UserDropdown({ user }: UserDropdownProps) {
+  console.log("user From  Layout : ", user)
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
 
   function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
@@ -24,6 +27,24 @@ export default function UserDropdown({ user }: UserDropdownProps) {
 
   function closeDropdown() {
     setIsOpen(false);
+  }
+
+  const signOutAction = async () => {
+    try {
+      const req = await fetch("/api/auth", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if(req.ok){
+        router.push("/signin");
+        router.refresh();
+      }
+    } catch (error) {
+      console.error("Une errueur est survenu lors de la deconnexion : ", error)
+    }
   }
 
   return (

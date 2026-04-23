@@ -1,20 +1,11 @@
 'use server'
-import { cookies } from "next/headers";
-import { type User } from "@supabase/supabase-js";
 
-import {
-  attachAdminUserByEmail,
-  attachTeacherUserByEmail,
-  findAgentRecordForUser,
-  isAdminAgentRole,
-  normalizeAgentRole,
-  type AccountType,
-  type AgentRole,
+import { 
+  type AccountType, 
 } from "@/lib/utils/supabase/agents";
-import { getCurrentLoginMode, type LoginMode } from "@/lib/utils/supabase/auth";
+import { isAdminAgentRole, normalizeAgentRole, type AgentRole } from "./agents-shared";
+import { getUser } from "@/app/actions/user";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
-import { createClient as createServerSupabaseClient } from "@/lib/utils/supabase/server";
-import { attachStudentUserByEmail } from "@/lib/utils/supabase/students";
 
 export type ActivePersona = "admin" | "student" | "teacher";
 
@@ -24,7 +15,7 @@ export type AuthenticatedUser = {
   name: string;
   avatarUrl: string | null;
   accountType: AccountType;
-  loginMode: LoginMode | null;
+  loginMode: any | null;
   activePersona: ActivePersona;
   agentId: string | null;
   role: AgentRole | null;
@@ -40,146 +31,60 @@ export type AuthenticatedUser = {
 const supabaseBucket = process.env.SUPABASE_BUCKET;
 const signedUrlExpiresInSeconds = 60 * 60;
 
-const getIdentityMetadata = (user: User) => {
-  const firstIdentity = user.identities?.[0];
-  return typeof firstIdentity?.identity_data === "object" && firstIdentity.identity_data
-    ? firstIdentity.identity_data
-    : null;
-};
-
-const getUserName = (user: User) => {
-  const metadata = user.user_metadata ?? {};
-  const identityMetadata = getIdentityMetadata(user);
-
-  const fullName =
-    metadata.full_name ??
-    metadata.name ??
-    identityMetadata?.full_name ??
-    identityMetadata?.name ??
-    identityMetadata?.display_name;
-
-  if (typeof fullName === "string" && fullName.trim().length > 0) {
-    return fullName.trim();
-  }
-
-  if (user.email) {
-    return user.email;
-  }
-
-  return "Utilisateur";
-};
-
-const getAvatarUrl = (user: User) => {
-  const metadata = user.user_metadata ?? {};
-  const identityMetadata = getIdentityMetadata(user);
-  const avatarUrl = metadata.avatar_url ?? identityMetadata?.avatar_url ?? identityMetadata?.picture;
-
-  return typeof avatarUrl === "string" && avatarUrl.length > 0 ? avatarUrl : null;
-};
-
-const isAbsoluteUrl = (value: string) => /^https?:\/\//i.test(value);
-
-const extractStoragePath = (value: string) => {
-  if (!supabaseBucket || !isAbsoluteUrl(value)) {
-    return value;
-  }
-
-  const publicSegment = `/storage/v1/object/public/${supabaseBucket}/`;
-  const signSegment = `/storage/v1/object/sign/${supabaseBucket}/`;
-
-  if (value.includes(publicSegment)) {
-    return value.split(publicSegment)[1]?.split("?")[0] ?? value;
-  }
-
-  if (value.includes(signSegment)) {
-    return value.split(signSegment)[1]?.split("?")[0] ?? value;
-  }
-
-  return value;
-};
-
+/**
+ * Résout l'URL de l'avatar (gère les URLs signées si nécessaire)
+ */
 const resolveAvatarUrl = async (avatarUrl: string | null) => {
-  if (!avatarUrl) {
+  if (!avatarUrl) return null;
+  if (!supabaseBucket || avatarUrl.startsWith('http')) return avatarUrl;
+
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin.storage
+      .from(supabaseBucket)
+      .createSignedUrl(avatarUrl, signedUrlExpiresInSeconds);
+
+    if (error || !data?.signedUrl) return null;
+    return data.signedUrl;
+  } catch {
     return null;
   }
-
-  if (!supabaseBucket || (isAbsoluteUrl(avatarUrl) && !avatarUrl.includes("/storage/v1/object/"))) {
-    return avatarUrl;
-  }
-
-  const admin = createAdminClient();
-  const { data, error } = await admin.storage
-    .from(supabaseBucket)
-    .createSignedUrl(extractStoragePath(avatarUrl), signedUrlExpiresInSeconds);
-
-  if (error || !data?.signedUrl) {
-    return null;
-  }
-
-  return data.signedUrl;
 };
 
-const resolveActivePersona = ({
-  loginMode,
-  hasAgent,
-  role,
-}: {
-  loginMode: LoginMode | null;
-  hasAgent: boolean;
-  role: AgentRole | null;
-}): ActivePersona => {
-  if (loginMode === "student_password") {
-    return "student";
-  }
-
-  if (loginMode === "teacher_password") {
-    return "teacher";
-  }
-
-  if (loginMode === "admin_password") {
-    return "admin";
-  }
-
-  if (loginMode === "faculty_sso") {
-    return isAdminAgentRole(role) ? "admin" : hasAgent ? "teacher" : "student";
-  }
-
-  if (hasAgent) {
-    return role === "titulaire" ? "teacher" : "admin";
-  }
-
+/**
+ * Détermine le Persona actif en fonction du rôle BDD
+ */
+const resolveActivePersona = (role: AgentRole | null): ActivePersona => {
+  if (!role) return "student";
+  if (role === "titulaire") return "teacher";
+  if (isAdminAgentRole(role)) return "admin";
   return "student";
 };
 
-const buildAuthenticatedUser = async (user: User, loginMode: LoginMode | null): Promise<AuthenticatedUser | null> => {
-  if (!user.email) {
-    return null;
-  }
+/**
+ * Transforme les données brutes du JWT en objet AuthenticatedUser structuré
+ */
+const buildAuthenticatedUser = async (userData: any): Promise<AuthenticatedUser | null> => {
+  if (!userData || !userData.email) return null;
 
-  const agentRecord = await findAgentRecordForUser(user);
-  const role = normalizeAgentRole(agentRecord?.role);
-  const activePersona = resolveActivePersona({
-    loginMode,
-    hasAgent: Boolean(agentRecord),
-    role,
-  });
-  const accountType: AccountType = activePersona === "student" ? "student" : "agent";
-  const canAccessAdmin = activePersona === "admin" && Boolean(agentRecord) && isAdminAgentRole(role);
+  const role = normalizeAgentRole(userData.role);
+  const activePersona = resolveActivePersona(role);
+  
   const isOrganizer = role === "organisateur";
   const isGestionnaire = role === "gestionnaire";
   const isTitulaire = role === "titulaire";
 
   return {
-    id: user.id,
-    email: user.email,
-    name: getUserName(user),
-    avatarUrl: await resolveAvatarUrl(getAvatarUrl(user)),
-    accountType,
-    loginMode,
+    id: userData.user_id || userData.id,
+    email: userData.email,
+    name: `${userData.prenom || ''} ${userData.nom || ''} ${userData.post_nom || ''}`.trim() || userData.email,
+    avatarUrl: await resolveAvatarUrl(userData.photo),
+    accountType: activePersona === "student" ? "student" : "agent",
+    loginMode: null, // Plus utilisé avec le système JWT custom
     activePersona,
-    agentId: agentRecord?.id ?? null,
+    agentId: userData.id || null,
     role,
-    canAccessAdmin,
+    canAccessAdmin: activePersona === "admin",
     canManageYears: isOrganizer,
     canManageAuthorizations: isOrganizer,
     canManageStudents: isGestionnaire,
@@ -189,70 +94,29 @@ const buildAuthenticatedUser = async (user: User, loginMode: LoginMode | null): 
   };
 };
 
+/**
+ * RÉCUPÉRATION DE LA SESSION (JWT)
+ * Remplace l'ancien appel à supabase.auth.getUser()
+ */
 export const getAuthenticatedUser = async (): Promise<AuthenticatedUser | null> => {
-  const cookieStore = await cookies();
-  const supabase = createServerSupabaseClient(cookieStore);
-  const { data: userData } = await supabase.auth.getUser();
-  const user = userData.user;
-  const loginMode = await getCurrentLoginMode();
+  try {
+    // 1. Récupère les données décryptées du cookie "session"
+    const userData = await getUser();
 
-  if (!user) {
+    if (!userData) return null;
+
+    // 2. Transforme en objet compatible avec l'application
+    return await buildAuthenticatedUser(userData);
+  } catch (error) {
+    console.error("Erreur lors de la récupération de l'utilisateur:", error);
     return null;
   }
-
-  const authenticatedUser = await buildAuthenticatedUser(user, loginMode);
-  return authenticatedUser;
 };
 
+/**
+ * SYNCHRONISATION (Obsolète mais conservée pour compatibilité signature)
+ * Dans ton nouveau système, l'utilisateur est déjà "sync" car tiré de la BDD
+ */
 export const syncAuthenticatedUser = async (): Promise<AuthenticatedUser | null> => {
-  const cookieStore = await cookies();
-  const supabase = createServerSupabaseClient(cookieStore);
-  const { data: userData } = await supabase.auth.getUser();
-  const user = userData.user;
-  const loginMode = await getCurrentLoginMode();
-
-  if (!user) {
-    return null;
-  }
-
-  const agentRecord = await findAgentRecordForUser(user);
-
-  if (user.email) {
-    if (loginMode === "teacher_password") {
-      await attachTeacherUserByEmail(user.email, user.id);
-    } else if (loginMode === "admin_password") {
-      await attachAdminUserByEmail(user.email, user.id);
-    } else if (loginMode === "student_password") {
-      await attachStudentUserByEmail(user.email, user.id);
-    } else if (!agentRecord && loginMode === null) {
-      await attachStudentUserByEmail(user.email, user.id);
-    }
-  }
-
-  const authenticatedUser = await buildAuthenticatedUser(user, loginMode);
-  const storedAvatarUrl = getAvatarUrl(user);
-
-  if (!authenticatedUser) {
-    return null;
-  }
-
-  const metadata = {
-    email: authenticatedUser.email,
-    full_name: authenticatedUser.name,
-    avatar_url: storedAvatarUrl,
-    last_sign_in_at: new Date().toISOString(),
-  };
-
-  const hasMissingMetadata =
-    user.user_metadata?.email !== authenticatedUser.email ||
-    user.user_metadata?.full_name !== authenticatedUser.name ||
-    user.user_metadata?.avatar_url !== storedAvatarUrl;
-
-  if (hasMissingMetadata) {
-    await supabase.auth.updateUser({
-      data: metadata,
-    });
-  }
-
-  return authenticatedUser;
+  return await getAuthenticatedUser();
 };
