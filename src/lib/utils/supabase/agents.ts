@@ -262,12 +262,13 @@ export const assertAdminCanAuthenticate = async (email: string) => {
   if (!normalizedEmail) {
     throw new Error("admin_email_required");
   }
-
+  console.log("normalizedEmail =====> ", normalizedEmail)
   const agent = await getAgentByNormalizedEmail(normalizedEmail);
-
+  console.log("AGENT =====> ", agent)
   if (!agent || !isAdminAgentRole(normalizeAgentRole(agent.role))) {
     throw new Error("admin_not_found");
   }
+  console.log("role =====> ", normalizeAgentRole(agent.role))
 
   return agent;
 };
