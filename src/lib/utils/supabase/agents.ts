@@ -3,7 +3,7 @@
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 import { type AgentRecord, AgentProfile } from "./agents-shared";
-export type AccountType = "agent" | "student";
+
 
 // --- Configuration & Constantes Internes (Non exportées) ---
 
@@ -21,34 +21,6 @@ const emptyToNull = (value: FormDataEntryValue | null) => {
 const buildDisplayName = (agent: Pick<AgentRecord, "prenom" | "post_nom" | "nom">, email: string) => {
   const name = [agent.prenom, agent.post_nom, agent.nom].filter(Boolean).join(" ").trim();
   return name.length > 0 ? name : email;
-};
-
-const isAbsoluteUrl = (value: string) => /^https?:\/\//i.test(value);
-
-const extractStoragePath = (value: string) => {
-  if (!supabaseBucket || !isAbsoluteUrl(value)) return value;
-  const publicSegment = `/storage/v1/object/public/${supabaseBucket}/`;
-  const signSegment = `/storage/v1/object/sign/${supabaseBucket}/`;
-
-  if (value.includes(publicSegment)) return value.split(publicSegment)[1]?.split("?")[0] ?? value;
-  if (value.includes(signSegment)) return value.split(signSegment)[1]?.split("?")[0] ?? value;
-  return value;
-};
-
-const resolvePhotoUrl = async (photo: string | null) => {
-  if (!photo) return null;
-  if (!supabaseBucket || (isAbsoluteUrl(photo) && !photo.includes(`/storage/v1/object/`))) return photo;
-
-  try {
-    const photoPath = extractStoragePath(photo);
-    const admin = createAdminClient();
-    const { data, error } = await admin.storage
-      .from(supabaseBucket)
-      .createSignedUrl(photoPath, signedUrlExpiresInSeconds);
-    return error || !data?.signedUrl ? null : data.signedUrl;
-  } catch {
-    return null;
-  }
 };
 
 const mapAgentProfile = async (agent: AgentRecord, email: string): Promise<AgentProfile> => {

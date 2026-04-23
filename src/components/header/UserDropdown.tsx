@@ -30,21 +30,6 @@ export default function UserDropdown({ user }: UserDropdownProps) {
   }
 
   const signOutAction = async () => {
-    try {
-      const req = await fetch("/api/auth", {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if(req.ok){
-        router.push("/signin");
-        router.refresh();
-      }
-    } catch (error) {
-      console.error("Une errueur est survenu lors de la deconnexion : ", error)
-    }
   }
 
   return (
