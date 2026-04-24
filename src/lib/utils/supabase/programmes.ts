@@ -1,5 +1,5 @@
+import { getCurrentAgentAccess } from "@/lib/utils/supabase/agents";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
-import { PermissionsType } from "@/store/useUserStore";
 
 export type ProgrammeRecord = {
   id: string;
@@ -36,13 +36,8 @@ const slugify = (value: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
-const getMailNickname = (slug: string, programmeId: string) => {
-  const normalizedSlug = slugify(slug).slice(0, 40);
-  const normalizedId = programmeId.replace(/[^a-z0-9]/gi, "").toLowerCase().slice(0, 12);
-  return `${normalizedSlug || "programme"}-${normalizedId}`;
-};
-
-const assertCanManageProgrammes = async (access: PermissionsType) => {
+const assertCanManageProgrammes = async () => {
+  const access = await getCurrentAgentAccess();
   if (!access.canManageProgramme) {
     throw new Error("access_denied");
   }
@@ -100,8 +95,8 @@ export const getProgrammeById = async (id: string) => {
   return data as ProgrammeRecord | null;
 };
 
-export const saveProgramme = async (formData: FormData, permissions: PermissionsType) => {
-  await assertCanManageProgrammes(permissions);
+export const saveProgramme = async (formData: FormData) => {
+  await assertCanManageProgrammes();
 
   const id = emptyToNull(formData.get("id"));
   const designation = emptyToNull(formData.get("designation"));
@@ -202,8 +197,36 @@ export const saveProgramme = async (formData: FormData, permissions: Permissions
 //   return linkedCount;
 // };
 
-export const deleteProgramme = async (id: string, permissions: PermissionsType) => {
-  await assertCanManageProgrammes(permissions);
+export const bulkAttachProgrammesToTeams = async (programmeIds: string[]) => {
+  await assertCanManageProgrammes();
+
+  const sanitizedProgrammeIds = Array.from(new Set(programmeIds.map((id) => id.trim()).filter(Boolean)));
+  if (sanitizedProgrammeIds.length === 0) {
+    throw new Error("programme_selection_required");
+  }
+
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("programmes").select("*").in("id", sanitizedProgrammeIds);
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const programmes = (data ?? []) as ProgrammeRecord[];
+  if (programmes.length === 0) {
+    throw new Error("programme_not_found");
+  }
+
+  // Compatibility shim during auth migration: preserve action contract without Teams API coupling.
+  const linkedCount = programmes.filter((programme) => Boolean(programme.groupe_id)).length;
+  if (linkedCount === 0) {
+    throw new Error("programme_bulk_team_noop");
+  }
+
+  return linkedCount;
+};
+
+export const deleteProgramme = async (id: string) => {
+  await assertCanManageProgrammes();
 
   const admin = createAdminClient();
   const { error } = await admin.from("programmes").delete().eq("id", id);

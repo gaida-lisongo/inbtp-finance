@@ -5,7 +5,7 @@ import type { StudentRecord } from "@/lib/utils/supabase/students-shared";
 import type { SessionRecord } from "@/lib/utils/supabase/appariteur";
 import type { ResearchRecord } from "@/lib/utils/supabase/recherche-shared";
 import { sendMail } from "@/utils/mail";
-import { UserType } from "@/store/useUserStore";
+import type { UserType } from "@/store/useUserStore";
 
 export type CommandeCategory = "documents" | "session" | "stages" | "sujets" | "laboratoire";
 export type PaymentChannel = "MOBILE_MONEY" | "CREDIT_CARD";
