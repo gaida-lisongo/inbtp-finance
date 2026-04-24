@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/utils/supabase/admin";
+import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 import type { CoursRecord, MatiereRecord, SemestreRecord, UniteRecord } from "@/lib/utils/supabase/enseignement";
 import type { ActivityCategory, ActivityRecord, CourseDetailRecord } from "@/lib/utils/supabase/student-course";
 

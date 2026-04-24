@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useRef, useState } from "react";
 import { useUserStore } from "@/store/useUserStore";
+import type { Notification } from "@/lib/utils/supabase/admin-notifications";
 
 // type AppHeaderProps = {
 //   user: AuthenticatedUser;

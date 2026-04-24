@@ -21,14 +21,14 @@ export default function AdminShell({ children }: AdminShellProps) {
   // const [ adminNotifications, setAdminNotifications ] = useState<AdminDashboardNotificationItem[]>([]);
 
   useEffect(() => {
-    if (codes && accountType) {
-      getAdminSidebarMenu({ accountType, codes })
+    if (codes && accountType && profile?.id) {
+      getAdminSidebarMenu({ accountType, codes, id: profile.id })
         .then((items: SidebarMenuItem[]) => setSidebarMenu(items))
         .catch((err: any) => {
           console.error("Erreur dans l'obtention du menu:", err);
         })
     }
-  }, [codes, accountType])
+  }, [codes, accountType, profile?.id])
 
   // useEffect(() => {
   //   if (profile) {

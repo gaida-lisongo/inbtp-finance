@@ -1,5 +1,6 @@
 import { getActiveAutorisationCodesForAgent } from "@/lib/utils/supabase/autorisations";
 import { getCurrentAgentAccess } from "@/lib/utils/supabase/agents";
+import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 import { sendMail } from "@/utils/mail";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 import type { StudentRecord } from "@/lib/utils/supabase/students-shared";
@@ -288,14 +289,15 @@ export const formatJsonField = (value: unknown) => {
 
 const assertCanManageApp = async () => {
   const access = await getCurrentAgentAccess();
+  const user = await getAuthenticatedUser();
 
-  if (!access.agent?.id) {
+  if (!user?.agentId) {
     throw new Error("access_denied");
   }
 
-  const activeCodes = await getActiveAutorisationCodesForAgent(access.agent.id);
+  const activeCodes = await getActiveAutorisationCodesForAgent(user.agentId);
 
-  if (!activeCodes.includes("APP")) {
+  if (!access.canAccessAdmin || !activeCodes.includes("APP")) {
     throw new Error("access_denied");
   }
 };

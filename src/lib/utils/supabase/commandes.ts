@@ -1,6 +1,7 @@
 import { PaymentService } from "@/lib/services/PaymentService";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 import { getDocumentCategory, type DocumentRecord } from "@/lib/utils/supabase/documents-shared";
+import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 import type { StudentRecord } from "@/lib/utils/supabase/students-shared";
 import type { SessionRecord } from "@/lib/utils/supabase/appariteur";
 import type { ResearchRecord } from "@/lib/utils/supabase/recherche-shared";
@@ -230,6 +231,19 @@ const getStudentDisplayName = (student: Pick<StudentRecord, "prenom" | "post_nom
   return [student.prenom, student.post_nom, student.nom].filter(Boolean).join(" ").trim() || "Etudiant";
 };
 
+const resolveCommandeUser = async (user?: UserType) => {
+  if (user) {
+    return user;
+  }
+
+  const authenticatedUser = await getAuthenticatedUser();
+  if (!authenticatedUser) {
+    throw new Error("auth_required");
+  }
+
+  return authenticatedUser as UserType;
+};
+
 // const resolveCurrentStudent = async ({user} : {user: UserType}) => {
 //   // const user = await getAuthenticatedUser();
 
@@ -327,10 +341,10 @@ const resolveCurrentStudent = async (user: UserType) => {
  */
 export const createCommandeDraft = async (
   input: CreateCommandeDraftInput, 
-  user: UserType // Injection ici
+  user?: UserType
 ): Promise<DraftCommandeResult> => {
-  
-  const student = await resolveCurrentStudent(user);
+  const resolvedUser = await resolveCommandeUser(user);
+  const student = await resolveCurrentStudent(resolvedUser);
   const resource = await getResourceSummary(input.category, input.resourceId);
   const amount = assertPositiveAmount(resource.amount);
 
@@ -382,10 +396,10 @@ export const createCommandeDraft = async (
  */
 export const confirmCommandePayment = async (
   input: ConfirmCommandePaymentInput,
-  user: UserType // Injection ici
+  user?: UserType
 ): Promise<ConfirmCommandeResult> => {
-  
-  const student = await resolveCurrentStudent(user);
+  const resolvedUser = await resolveCommandeUser(user);
+  const student = await resolveCurrentStudent(resolvedUser);
   const resource = await getResourceSummary(input.category, input.resourceId);
   const amount = assertPositiveAmount(resource.amount);
 
@@ -447,10 +461,10 @@ export const confirmCommandePayment = async (
  */
 export const validateStudentCommandePayment = async (
   input: { commandeId: string; category: CommandeCategory; resourceId: string },
-  user: UserType // Injection ici
+  user?: UserType
 ): Promise<PaymentValidationResult> => {
-  
-  const student = await resolveCurrentStudent(user);
+  const resolvedUser = await resolveCommandeUser(user);
+  const student = await resolveCurrentStudent(resolvedUser);
   const resource = await getResourceSummary(input.category, input.resourceId);
   const admin = createAdminClient();
 
@@ -491,7 +505,10 @@ export const validateStudentCommandePayment = async (
   };
 }
 
-export const getCurrentAuthenticatedStudent = async (user: UserType) => resolveCurrentStudent(user);
+export const getCurrentAuthenticatedStudent = async (user?: UserType) => {
+  const resolvedUser = await resolveCommandeUser(user);
+  return resolveCurrentStudent(resolvedUser);
+};
 
 const mapResearchCategoryToTable = (category: ResearchCategory) => {
   if (category === "laboratoire") {
@@ -929,9 +946,10 @@ const assertPositiveAmount = (amount: number | null) => {
 export const getCommandeCheckoutPageData = async (
   category: CommandeCategory,
   resourceId: string,
-  user: UserType,
+  user?: UserType,
 ): Promise<CommandePageData> => {
-  const [student, resource] = await Promise.all([resolveCurrentStudent(user), getResourceSummary(category, resourceId)]);
+  const resolvedUser = await resolveCommandeUser(user);
+  const [student, resource] = await Promise.all([resolveCurrentStudent(resolvedUser), getResourceSummary(category, resourceId)]);
 
   await assertStudentCanAccessResource(student.id, resource.programmeId);
 
@@ -966,7 +984,7 @@ export const getProductRenderMode = (category: CommandeCategory): ProductRenderM
 export const getProductPageData = async (
   category: CommandeCategory,
   resourceId: string,
-  user: UserType,
+  user?: UserType,
 ): Promise<ProductPageData> => {
   const checkoutData = await getCommandeCheckoutPageData(category, resourceId, user);
 
@@ -1137,9 +1155,10 @@ export const getProductPageData = async (
 
 export const createManualPaiementRequest = async (
   input: CreateManualPaiementRequestInput,
-  user: UserType
+  user?: UserType
 ): Promise<ManualPaiementRequestResult> => {
-  const student = await resolveCurrentStudent(user);
+  const resolvedUser = await resolveCommandeUser(user);
+  const student = await resolveCurrentStudent(resolvedUser);
   const resource = await getResourceSummary(input.category, input.resourceId);
   const amount = assertPositiveAmount(resource.amount);
 
