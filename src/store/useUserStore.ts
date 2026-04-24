@@ -21,6 +21,16 @@ export interface UserType {
   adresse: string | null;
 }
 
+export interface PermissionsType {
+  canManageAdmin: boolean;
+  canManageStudents: boolean;
+  canManageCharges: boolean;
+  canManageYears: boolean;
+  canManageAuthorizations: boolean;
+  canManageFiliere: boolean;
+  canManageProgramme: boolean;
+}
+
 export type AccountType = "organisateur" | "gestionnaire" | "student" | "titulaire";
 
 export type AutorisationCode = "CS" | "CE" | "CR" | "APP" | "SEC" | "T" | "J";
@@ -47,15 +57,7 @@ interface UserState {
   accountType: AccountType | null;
   profile: UserType | null;
   codes: {code: AutorisationCode, designation: string}[];
-  permissions: {
-    canManageAdmin: boolean;
-    canManageStudents: boolean;
-    canManageCharges: boolean;
-    canManageYears: boolean;
-    canManageAuthorizations: boolean;
-    canManageFiliere: boolean;
-    canManageProgramme: boolean;
-  } | null;
+  permissions: PermissionsType | null;
   isLoading: boolean;
   setProfile: (data: any) => Promise<void>; // Changé en n'importe quel objet venant de la DB
   setPermissions: (permissions: any) => void;
@@ -83,19 +85,17 @@ export const useUserStore = create<UserState>()(
 
       setCodes: async () => {
         try {
-          const res = await fetch(`/api/user?agentId=${get().profile?.id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' }
-          })
+          const res = await fetch(`/api/user?agentId=${get().profile?.id}`)
           
           if(!res.ok) throw new Error('Failed to sync codes');
 
           const { data } = await res.json();
-          const codes = data.map((row: {id: string, code: AutorisationCode, agent_id: string, is_active: 'oui' | 'non'}) => {
+          console.log("All data: ", data);
+          const codes = data.map((row: {designation: string, is_active: 'oui' | 'non'}) => {
             if(row.is_active === 'oui') {
               return {
-                code: row.code,
-                designation: AUTORISATION_LABELS[row.code],
+                code: row.designation as AutorisationCode,
+                designation: AUTORISATION_LABELS[row.designation],
               }
             }
             return null;

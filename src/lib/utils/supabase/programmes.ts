@@ -1,6 +1,5 @@
-import { getCurrentAgentAccess } from "@/lib/utils/supabase/agents";
-import { createMicrosoft365Team } from "@/lib/utils/microsoft-graph";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
+import { PermissionsType } from "@/store/useUserStore";
 
 export type ProgrammeRecord = {
   id: string;
@@ -43,9 +42,7 @@ const getMailNickname = (slug: string, programmeId: string) => {
   return `${normalizedSlug || "programme"}-${normalizedId}`;
 };
 
-const assertCanManageProgrammes = async () => {
-  const access = await getCurrentAgentAccess();
-
+const assertCanManageProgrammes = async (access: PermissionsType) => {
   if (!access.canManageProgramme) {
     throw new Error("access_denied");
   }
@@ -103,8 +100,8 @@ export const getProgrammeById = async (id: string) => {
   return data as ProgrammeRecord | null;
 };
 
-export const saveProgramme = async (formData: FormData) => {
-  await assertCanManageProgrammes();
+export const saveProgramme = async (formData: FormData, permissions: PermissionsType) => {
+  await assertCanManageProgrammes(permissions);
 
   const id = emptyToNull(formData.get("id"));
   const designation = emptyToNull(formData.get("designation"));
@@ -144,69 +141,69 @@ export const saveProgramme = async (formData: FormData) => {
   }
 };
 
-export const bulkAttachProgrammesToTeams = async (programmeIds: string[]) => {
-  const access = await assertCanManageProgrammes();
+// export const bulkAttachProgrammesToTeams = async (programmeIds: string[], permissions: PermissionsType) => {
+//   const access = await assertCanManageProgrammes(permissions);
 
-  const sanitizedProgrammeIds = Array.from(new Set(programmeIds.map((id) => id.trim()).filter(Boolean)));
+//   const sanitizedProgrammeIds = Array.from(new Set(programmeIds.map((id) => id.trim()).filter(Boolean)));
 
-  if (sanitizedProgrammeIds.length === 0) {
-    throw new Error("programme_selection_required");
-  }
+//   if (sanitizedProgrammeIds.length === 0) {
+//     throw new Error("programme_selection_required");
+//   }
 
-  const admin = createAdminClient();
-  const { data, error } = await admin.from("programmes").select("*").in("id", sanitizedProgrammeIds);
+//   const admin = createAdminClient();
+//   const { data, error } = await admin.from("programmes").select("*").in("id", sanitizedProgrammeIds);
 
-  if (error) {
-    throw new Error(error.message);
-  }
+//   if (error) {
+//     throw new Error(error.message);
+//   }
 
-  const programmes = (data ?? []) as ProgrammeRecord[];
+//   const programmes = (data ?? []) as ProgrammeRecord[];
 
-  if (programmes.length === 0) {
-    throw new Error("programme_not_found");
-  }
+//   if (programmes.length === 0) {
+//     throw new Error("programme_not_found");
+//   }
 
-  let linkedCount = 0;
-  const ownerEntraId = access.agent?.entra_id;
+//   let linkedCount = 0;
+//   const ownerEntraId = access.agent?.entra_id;
 
-  if (!ownerEntraId) {
-    throw new Error("programme_team_owner_missing");
-  }
+//   if (!ownerEntraId) {
+//     throw new Error("programme_team_owner_missing");
+//   }
 
-  for (const programme of programmes) {
-    if (programme.groupe_id) {
-      continue;
-    }
+//   for (const programme of programmes) {
+//     if (programme.groupe_id) {
+//       continue;
+//     }
 
-    if (!programme.slug) {
-      continue;
-    }
+//     if (!programme.slug) {
+//       continue;
+//     }
 
-    const team = await createMicrosoft365Team({
-      displayName: programme.designation || programme.slug,
-      description: programme.description,
-      mailNickname: getMailNickname(programme.slug, programme.id),
-      ownerEntraId,
-    });
+//     const team = await createMicrosoft365Team({
+//       displayName: programme.designation || programme.slug,
+//       description: programme.description,
+//       mailNickname: getMailNickname(programme.slug, programme.id),
+//       ownerEntraId,
+//     });
 
-    const { error: updateError } = await admin.from("programmes").update({ groupe_id: team.groupId }).eq("id", programme.id);
+//     const { error: updateError } = await admin.from("programmes").update({ groupe_id: team.groupId }).eq("id", programme.id);
 
-    if (updateError) {
-      throw new Error(updateError.message);
-    }
+//     if (updateError) {
+//       throw new Error(updateError.message);
+//     }
 
-    linkedCount += 1;
-  }
+//     linkedCount += 1;
+//   }
 
-  if (linkedCount === 0) {
-    throw new Error("programme_bulk_team_noop");
-  }
+//   if (linkedCount === 0) {
+//     throw new Error("programme_bulk_team_noop");
+//   }
 
-  return linkedCount;
-};
+//   return linkedCount;
+// };
 
-export const deleteProgramme = async (id: string) => {
-  await assertCanManageProgrammes();
+export const deleteProgramme = async (id: string, permissions: PermissionsType) => {
+  await assertCanManageProgrammes(permissions);
 
   const admin = createAdminClient();
   const { error } = await admin.from("programmes").delete().eq("id", id);

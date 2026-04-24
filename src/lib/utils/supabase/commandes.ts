@@ -1,11 +1,11 @@
 import { PaymentService } from "@/lib/services/PaymentService";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 import { getDocumentCategory, type DocumentRecord } from "@/lib/utils/supabase/documents-shared";
-import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 import type { StudentRecord } from "@/lib/utils/supabase/students-shared";
 import type { SessionRecord } from "@/lib/utils/supabase/appariteur";
 import type { ResearchRecord } from "@/lib/utils/supabase/recherche-shared";
 import { sendMail } from "@/utils/mail";
+import { UserType } from "@/store/useUserStore";
 
 export type CommandeCategory = "documents" | "session" | "stages" | "sujets" | "laboratoire";
 export type PaymentChannel = "MOBILE_MONEY" | "CREDIT_CARD";
@@ -230,48 +230,91 @@ const getStudentDisplayName = (student: Pick<StudentRecord, "prenom" | "post_nom
   return [student.prenom, student.post_nom, student.nom].filter(Boolean).join(" ").trim() || "Etudiant";
 };
 
-const resolveCurrentStudent = async () => {
-  const user = await getAuthenticatedUser();
+// const resolveCurrentStudent = async ({user} : {user: UserType}) => {
+//   // const user = await getAuthenticatedUser();
 
+//   if (!user) {
+//     throw new Error("auth_required");
+//   }
+
+//   const normalizedEmail = normalizeText(user.email)?.toLowerCase();
+
+//   if (!normalizedEmail) {
+//     throw new Error("student_not_found");
+//   }
+
+//   const admin = createAdminClient();
+//   const { data: studentByEmailRows, error: studentByEmailError } = await admin
+//     .from("students")
+//     .select("id, email, telephone, nom, post_nom, prenom, grade, user_id")
+//     .ilike("email", normalizedEmail)
+//     .limit(1);
+
+//   if (studentByEmailError) {
+//     throw new Error(studentByEmailError.message);
+//   }
+
+//   const studentByEmail = (studentByEmailRows ?? [])[0];
+
+//   if (studentByEmail) {
+//     return studentByEmail as Pick<StudentRecord, "id" | "email" | "telephone" | "nom" | "post_nom" | "prenom" | "grade">;
+//   }
+
+//   const { data: studentByUserIdRows, error: studentByUserIdError } = await admin
+//     .from("students")
+//     .select("id, email, telephone, nom, post_nom, prenom, grade, user_id")
+//     .eq("user_id", user.id)
+//     .limit(1);
+
+//   if (studentByUserIdError) {
+//     throw new Error(studentByUserIdError.message);
+//   }
+
+//   const studentByUserId = (studentByUserIdRows ?? [])[0];
+
+//   if (studentByUserId) {
+//     return studentByUserId as Pick<StudentRecord, "id" | "email" | "telephone" | "nom" | "post_nom" | "prenom" | "grade">;
+//   }
+
+//   throw new Error("student_not_found");
+// };
+
+const resolveCurrentStudent = async (user: UserType) => {
   if (!user) {
     throw new Error("auth_required");
   }
 
-  const normalizedEmail = normalizeText(user.email)?.toLowerCase();
-
+  const normalizedEmail = user.email?.trim().toLowerCase();
   if (!normalizedEmail) {
     throw new Error("student_not_found");
   }
 
   const admin = createAdminClient();
+  
+  // 1. Tentative par Email (plus fiable pour la synchronisation)
   const { data: studentByEmailRows, error: studentByEmailError } = await admin
     .from("students")
     .select("id, email, telephone, nom, post_nom, prenom, grade, user_id")
     .ilike("email", normalizedEmail)
     .limit(1);
 
-  if (studentByEmailError) {
-    throw new Error(studentByEmailError.message);
-  }
+  if (studentByEmailError) throw new Error(studentByEmailError.message);
 
   const studentByEmail = (studentByEmailRows ?? [])[0];
-
   if (studentByEmail) {
     return studentByEmail as Pick<StudentRecord, "id" | "email" | "telephone" | "nom" | "post_nom" | "prenom" | "grade">;
   }
 
+  // 2. Tentative par UserID si l'email ne match pas
   const { data: studentByUserIdRows, error: studentByUserIdError } = await admin
     .from("students")
     .select("id, email, telephone, nom, post_nom, prenom, grade, user_id")
     .eq("user_id", user.id)
     .limit(1);
 
-  if (studentByUserIdError) {
-    throw new Error(studentByUserIdError.message);
-  }
+  if (studentByUserIdError) throw new Error(studentByUserIdError.message);
 
   const studentByUserId = (studentByUserIdRows ?? [])[0];
-
   if (studentByUserId) {
     return studentByUserId as Pick<StudentRecord, "id" | "email" | "telephone" | "nom" | "post_nom" | "prenom" | "grade">;
   }
@@ -279,7 +322,176 @@ const resolveCurrentStudent = async () => {
   throw new Error("student_not_found");
 };
 
-export const getCurrentAuthenticatedStudent = async () => resolveCurrentStudent();
+/**
+ * Crée un brouillon de commande en utilisant l'utilisateur injecté
+ */
+export const createCommandeDraft = async (
+  input: CreateCommandeDraftInput, 
+  user: UserType // Injection ici
+): Promise<DraftCommandeResult> => {
+  
+  const student = await resolveCurrentStudent(user);
+  const resource = await getResourceSummary(input.category, input.resourceId);
+  const amount = assertPositiveAmount(resource.amount);
+
+  await assertStudentCanAccessResource(student.id, resource.programmeId);
+
+  const existingSuccessCommande = await getExistingSuccessCommande(student.id, input.category, input.resourceId);
+  if (existingSuccessCommande) {
+    throw new Error("commande_already_paid");
+  }
+
+  if (input.channel === "MOBILE_MONEY" && !input.phone) {
+    throw new Error("phone_required");
+  }
+
+  const admin = createAdminClient();
+  const latestPendingCommande = await getLatestPendingCommande(student.id, input.category, input.resourceId);
+  
+  const payload = {
+    product: resource.id,
+    categorie: input.category,
+    student_id: student.id,
+    orderNumber: null,
+    total: amount,
+    status: "pending",
+    description: buildCommandeDescription(resource, input.channel, input.description),
+  };
+
+  if (latestPendingCommande) {
+    const { data, error } = await admin
+      .from("commande")
+      .update(payload)
+      .eq("id", latestPendingCommande.id)
+      .select("*")
+      .single();
+
+    if (error) throw new Error(error.message);
+
+    return { commande: data as CommandeRecord, resource, student };
+  }
+
+  const { data, error } = await admin.from("commande").insert(payload).select("*").single();
+  if (error) throw new Error(error.message);
+
+  return { commande: data as CommandeRecord, resource, student };
+};
+
+/**
+ * Confirme le paiement avec injection de l'utilisateur
+ */
+export const confirmCommandePayment = async (
+  input: ConfirmCommandePaymentInput,
+  user: UserType // Injection ici
+): Promise<ConfirmCommandeResult> => {
+  
+  const student = await resolveCurrentStudent(user);
+  const resource = await getResourceSummary(input.category, input.resourceId);
+  const amount = assertPositiveAmount(resource.amount);
+
+  await assertStudentCanAccessResource(student.id, resource.programmeId);
+
+  const admin = createAdminClient();
+  const { data: commandeData, error: commandeError } = await admin
+    .from("commande")
+    .select("*")
+    .eq("id", input.commandeId)
+    .eq("student_id", student.id)
+    .maybeSingle();
+
+  if (commandeError) throw new Error(commandeError.message);
+  if (!commandeData) throw new Error("commande_not_found");
+
+  const commande = commandeData as CommandeRecord;
+  if (commande.status === "success") throw new Error("commande_already_paid");
+
+  // Logique FlexPay / PaymentService
+  const paymentService = PaymentService.getInstance();
+  const reference = commande.id;
+  
+  const paymentResponse = await paymentService.collect({
+    channel: input.channel,
+    amount,
+    currency: "USD",
+    reference,
+    phone: input.phone ?? "",
+    description: `Paiement ${resource.title}`
+  });
+
+  const resolvedOrderNumber = extractOrderNumber(paymentResponse.data) ?? reference;
+  
+  const { data: updatedCommande, error: updateError } = await admin
+    .from("commande")
+    .update({
+      orderNumber: resolvedOrderNumber,
+      status: "pending",
+      total: amount,
+    })
+    .eq("id", commande.id)
+    .select("*")
+    .single();
+
+  if (updateError) throw new Error(updateError.message);
+
+  return {
+    commande: updatedCommande as CommandeRecord,
+    message: paymentResponse.message ?? "La commande a été initiée.",
+    provider: paymentResponse.provider ?? null,
+    orderNumber: resolvedOrderNumber,
+    rawData: paymentResponse.data,
+  };
+};
+
+/**
+ * Validation finale du paiement
+ */
+export const validateStudentCommandePayment = async (
+  input: { commandeId: string; category: CommandeCategory; resourceId: string },
+  user: UserType // Injection ici
+): Promise<PaymentValidationResult> => {
+  
+  const student = await resolveCurrentStudent(user);
+  const resource = await getResourceSummary(input.category, input.resourceId);
+  const admin = createAdminClient();
+
+  const { data: commandeData, error: commandeError } = await admin
+    .from("commande")
+    .select("*")
+    .eq("id", input.commandeId)
+    .eq("student_id", student.id)
+    .maybeSingle();
+
+  if (!commandeData) throw new Error("commande_not_found");
+
+  const commande = commandeData as CommandeRecord;
+  const orderNumber = commande.orderNumber ?? commande.id;
+  
+  const paymentService = PaymentService.getInstance();
+  const paymentResponse = await paymentService.check(orderNumber);
+  const isSuccess = isPaymentResponseSuccessful(paymentResponse);
+
+  const { data: updatedCommande, error: updateError } = await admin
+    .from("commande")
+    .update({ status: isSuccess ? "success" : "no" })
+    .eq("id", commande.id)
+    .select("*")
+    .single();
+
+  if (updateError) throw new Error(updateError.message);
+
+  return {
+    success: isSuccess,
+    message: isSuccess ? "Paiement confirmé." : "Paiement non encore validé.",
+    commande: updatedCommande as CommandeRecord,
+    paymentResponse: paymentResponse.data ?? null,
+    category: input.category,
+    productId: input.resourceId,
+    productPath: getProductPath(input.category, input.resourceId),
+    commandePath: getCommandePath(input.category, input.resourceId),
+  };
+}
+
+export const getCurrentAuthenticatedStudent = async (user: UserType) => resolveCurrentStudent(user);
 
 const mapResearchCategoryToTable = (category: ResearchCategory) => {
   if (category === "laboratoire") {
@@ -601,31 +813,22 @@ const notifyOrganizersWhenCommandeSuccess = async (commande: CommandeRecord) => 
     console.error("notification insert failed", notificationInsertError);
   }
 
-  await sendMail({
-    to: recipients,
-    subject: `Commande ${orderRef} validee avec succes`,
-    html: `
-      <div style="font-family:Arial,sans-serif;background:#f5f7fb;padding:24px;color:#1f2937;">
-        <div style="max-width:680px;margin:0 auto;background:#ffffff;border-radius:16px;border:1px solid #e5e7eb;overflow:hidden;">
-          <div style="padding:20px 24px;background:#111827;color:#ffffff;">
-            <div style="font-size:12px;letter-spacing:0.14em;text-transform:uppercase;opacity:0.85;">Notification paiement</div>
-            <h1 style="margin:10px 0 0;font-size:22px;line-height:1.35;">Commande confirmee</h1>
-          </div>
-          <div style="padding:24px;">
-            <p style="margin:0 0 12px;font-size:15px;line-height:1.7;">
-              La commande <strong>${orderRef}</strong> est passee au statut <strong>success</strong>.
-            </p>
-            <p style="margin:0 0 10px;font-size:14px;line-height:1.7;">
-              Categorie: <strong>${categoryLabel}</strong>
-            </p>
-            <p style="margin:0 0 10px;font-size:14px;line-height:1.7;">
-              Montant: <strong>${amountLabel}</strong>
-            </p>
-          </div>
-        </div>
-      </div>
-    `,
-  });
+  try {
+    await fetch(`/api/mail/commande`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        recipients,
+        orderRef,
+        categoryLabel,
+        amountLabel
+      }),
+    });
+  } catch (error) {
+    console.error("Échec de l'appel API Mail:", error);
+    // On ne throw pas forcément l'erreur pour ne pas bloquer le workflow utilisateur
+    // si seul le mail de notification admin échoue.
+  }
 };
 
 const extractOrderNumber = (payload: unknown): string | null => {
@@ -726,8 +929,9 @@ const assertPositiveAmount = (amount: number | null) => {
 export const getCommandeCheckoutPageData = async (
   category: CommandeCategory,
   resourceId: string,
+  user: UserType,
 ): Promise<CommandePageData> => {
-  const [student, resource] = await Promise.all([resolveCurrentStudent(), getResourceSummary(category, resourceId)]);
+  const [student, resource] = await Promise.all([resolveCurrentStudent(user), getResourceSummary(category, resourceId)]);
 
   await assertStudentCanAccessResource(student.id, resource.programmeId);
 
@@ -762,8 +966,9 @@ export const getProductRenderMode = (category: CommandeCategory): ProductRenderM
 export const getProductPageData = async (
   category: CommandeCategory,
   resourceId: string,
+  user: UserType,
 ): Promise<ProductPageData> => {
-  const checkoutData = await getCommandeCheckoutPageData(category, resourceId);
+  const checkoutData = await getCommandeCheckoutPageData(category, resourceId, user);
 
   return {
     ...checkoutData,
@@ -774,166 +979,167 @@ export const getProductPageData = async (
   };
 };
 
-export const createCommandeDraft = async (input: CreateCommandeDraftInput): Promise<DraftCommandeResult> => {
-  const student = await resolveCurrentStudent();
-  const resource = await getResourceSummary(input.category, input.resourceId);
-  const amount = assertPositiveAmount(resource.amount);
+// export const createCommandeDraft = async (input: CreateCommandeDraftInput): Promise<DraftCommandeResult> => {
+//   const student = await resolveCurrentStudent();
+//   const resource = await getResourceSummary(input.category, input.resourceId);
+//   const amount = assertPositiveAmount(resource.amount);
 
-  await assertStudentCanAccessResource(student.id, resource.programmeId);
+//   await assertStudentCanAccessResource(student.id, resource.programmeId);
 
-  const existingSuccessCommande = await getExistingSuccessCommande(student.id, input.category, input.resourceId);
+//   const existingSuccessCommande = await getExistingSuccessCommande(student.id, input.category, input.resourceId);
 
-  if (existingSuccessCommande) {
-    throw new Error("commande_already_paid");
-  }
+//   if (existingSuccessCommande) {
+//     throw new Error("commande_already_paid");
+//   }
 
-  if (input.channel === "MOBILE_MONEY" && !normalizeText(input.phone)) {
-    throw new Error("phone_required");
-  }
+//   if (input.channel === "MOBILE_MONEY" && !normalizeText(input.phone)) {
+//     throw new Error("phone_required");
+//   }
 
-  const admin = createAdminClient();
-  const latestPendingCommande = await getLatestPendingCommande(student.id, input.category, input.resourceId);
-  const payload = {
-    product: resource.id,
-    categorie: input.category,
-    student_id: student.id,
-    orderNumber: null,
-    total: amount,
-    status: "pending",
-    description: buildCommandeDescription(resource, input.channel, input.description),
-  };
+//   const admin = createAdminClient();
+//   const latestPendingCommande = await getLatestPendingCommande(student.id, input.category, input.resourceId);
+//   const payload = {
+//     product: resource.id,
+//     categorie: input.category,
+//     student_id: student.id,
+//     orderNumber: null,
+//     total: amount,
+//     status: "pending",
+//     description: buildCommandeDescription(resource, input.channel, input.description),
+//   };
 
-  if (latestPendingCommande) {
-    const { data, error } = await admin
-      .from("commande")
-      .update(payload)
-      .eq("id", latestPendingCommande.id)
-      .select("*")
-      .single();
+//   if (latestPendingCommande) {
+//     const { data, error } = await admin
+//       .from("commande")
+//       .update(payload)
+//       .eq("id", latestPendingCommande.id)
+//       .select("*")
+//       .single();
 
-    if (error) {
-      throw new Error(error.message);
-    }
+//     if (error) {
+//       throw new Error(error.message);
+//     }
 
-    return {
-      commande: data as CommandeRecord,
-      resource,
-      student,
-    };
-  }
+//     return {
+//       commande: data as CommandeRecord,
+//       resource,
+//       student,
+//     };
+//   }
 
-  const { data, error } = await admin.from("commande").insert(payload).select("*").single();
+//   const { data, error } = await admin.from("commande").insert(payload).select("*").single();
 
-  if (error) {
-    throw new Error(error.message);
-  }
+//   if (error) {
+//     throw new Error(error.message);
+//   }
 
-  return {
-    commande: data as CommandeRecord,
-    resource,
-    student,
-  };
-};
+//   return {
+//     commande: data as CommandeRecord,
+//     resource,
+//     student,
+//   };
+// };
 
-export const confirmCommandePayment = async (input: ConfirmCommandePaymentInput): Promise<ConfirmCommandeResult> => {
-  const student = await resolveCurrentStudent();
-  const resource = await getResourceSummary(input.category, input.resourceId);
-  const amount = assertPositiveAmount(resource.amount);
+// export const confirmCommandePayment = async (input: ConfirmCommandePaymentInput): Promise<ConfirmCommandeResult> => {
+//   const student = await resolveCurrentStudent();
+//   const resource = await getResourceSummary(input.category, input.resourceId);
+//   const amount = assertPositiveAmount(resource.amount);
 
-  await assertStudentCanAccessResource(student.id, resource.programmeId);
+//   await assertStudentCanAccessResource(student.id, resource.programmeId);
 
-  const categoryAliases = getCommandeCategoryAliases(input.category);
-  const admin = createAdminClient();
-  const { data: commandeData, error: commandeError } = await admin
-    .from("commande")
-    .select("*")
-    .eq("id", input.commandeId)
-    .eq("student_id", student.id)
-    .in("categorie", categoryAliases)
-    .eq("product", input.resourceId)
-    .maybeSingle();
+//   const categoryAliases = getCommandeCategoryAliases(input.category);
+//   const admin = createAdminClient();
+//   const { data: commandeData, error: commandeError } = await admin
+//     .from("commande")
+//     .select("*")
+//     .eq("id", input.commandeId)
+//     .eq("student_id", student.id)
+//     .in("categorie", categoryAliases)
+//     .eq("product", input.resourceId)
+//     .maybeSingle();
 
-  if (commandeError) {
-    throw new Error(commandeError.message);
-  }
+//   if (commandeError) {
+//     throw new Error(commandeError.message);
+//   }
 
-  if (!commandeData) {
-    throw new Error("commande_not_found");
-  }
+//   if (!commandeData) {
+//     throw new Error("commande_not_found");
+//   }
 
-  const commande = commandeData as CommandeRecord;
+//   const commande = commandeData as CommandeRecord;
 
-  if (commande.status === "success") {
-    throw new Error("commande_already_paid");
-  }
+//   if (commande.status === "success") {
+//     throw new Error("commande_already_paid");
+//   }
 
-  if (input.channel === "MOBILE_MONEY") {
-    const phone = normalizeText(input.phone);
+//   if (input.channel === "MOBILE_MONEY") {
+//     const phone = normalizeText(input.phone);
 
-    if (!phone) {
-      throw new Error("phone_required");
-    }
-  }
+//     if (!phone) {
+//       throw new Error("phone_required");
+//     }
+//   }
 
-  const paymentService = PaymentService.getInstance();
-  const reference = commande.id;
-  const paymentResponse =
-    input.channel === "MOBILE_MONEY"
-      ? await paymentService.collect({
-          channel: "MOBILE_MONEY",
-          amount,
-          currency: "USD",
-          reference,
-          phone: normalizeText(input.phone) ?? "",
-        })
-      : await paymentService.collect({
-          channel: "CREDIT_CARD",
-          amount,
-          currency: "USD",
-          reference,
-          description: normalizeText(input.description) ?? `Paiement ${resource.title}`,
-        });
+//   const paymentService = PaymentService.getInstance();
+//   const reference = commande.id;
+//   const paymentResponse =
+//     input.channel === "MOBILE_MONEY"
+//       ? await paymentService.collect({
+//           channel: "MOBILE_MONEY",
+//           amount,
+//           currency: "USD",
+//           reference,
+//           phone: normalizeText(input.phone) ?? "",
+//         })
+//       : await paymentService.collect({
+//           channel: "CREDIT_CARD",
+//           amount,
+//           currency: "USD",
+//           reference,
+//           description: normalizeText(input.description) ?? `Paiement ${resource.title}`,
+//         });
 
-  const resolvedOrderNumber = extractOrderNumber(paymentResponse.data) ?? reference;
-  const description = buildCommandeDescription(resource, input.channel, input.description);
-  const { data: updatedCommande, error: updateError } = await admin
-    .from("commande")
-    .update({
-      orderNumber: resolvedOrderNumber,
-      status: "pending",
-      total: amount,
-      description,
-    })
-    .eq("id", commande.id)
-    .select("*")
-    .single();
+//   const resolvedOrderNumber = extractOrderNumber(paymentResponse.data) ?? reference;
+//   const description = buildCommandeDescription(resource, input.channel, input.description);
+//   const { data: updatedCommande, error: updateError } = await admin
+//     .from("commande")
+//     .update({
+//       orderNumber: resolvedOrderNumber,
+//       status: "pending",
+//       total: amount,
+//       description,
+//     })
+//     .eq("id", commande.id)
+//     .select("*")
+//     .single();
 
-  if (updateError) {
-    throw new Error(updateError.message);
-  }
+//   if (updateError) {
+//     throw new Error(updateError.message);
+//   }
 
-  await createOrUpdatePendingPaiement({
-    studentId: student.id,
-    category: input.category,
-    resource,
-    amount,
-    orderNumber: resolvedOrderNumber,
-    description,
-  });
+//   await createOrUpdatePendingPaiement({
+//     studentId: student.id,
+//     category: input.category,
+//     resource,
+//     amount,
+//     orderNumber: resolvedOrderNumber,
+//     description,
+//   });
 
-  return {
-    commande: updatedCommande as CommandeRecord,
-    message: paymentResponse.message ?? "La commande a ete initiee.",
-    provider: paymentResponse.provider ?? null,
-    orderNumber: resolvedOrderNumber,
-    rawData: paymentResponse.data,
-  };
-};
+//   return {
+//     commande: updatedCommande as CommandeRecord,
+//     message: paymentResponse.message ?? "La commande a ete initiee.",
+//     provider: paymentResponse.provider ?? null,
+//     orderNumber: resolvedOrderNumber,
+//     rawData: paymentResponse.data,
+//   };
+// };
 
 export const createManualPaiementRequest = async (
   input: CreateManualPaiementRequestInput,
+  user: UserType
 ): Promise<ManualPaiementRequestResult> => {
-  const student = await resolveCurrentStudent();
+  const student = await resolveCurrentStudent(user);
   const resource = await getResourceSummary(input.category, input.resourceId);
   const amount = assertPositiveAmount(resource.amount);
 
@@ -998,78 +1204,78 @@ export const createManualPaiementRequest = async (
   };
 };
 
-export const validateStudentCommandePayment = async (input: {
-  commandeId: string;
-  category: CommandeCategory;
-  resourceId: string;
-}): Promise<PaymentValidationResult> => {
-  const student = await resolveCurrentStudent();
-  const resource = await getResourceSummary(input.category, input.resourceId);
+// export const validateStudentCommandePayment = async (input: {
+//   commandeId: string;
+//   category: CommandeCategory;
+//   resourceId: string;
+// }): Promise<PaymentValidationResult> => {
+//   const student = await resolveCurrentStudent();
+//   const resource = await getResourceSummary(input.category, input.resourceId);
 
-  await assertStudentCanAccessResource(student.id, resource.programmeId);
+//   await assertStudentCanAccessResource(student.id, resource.programmeId);
 
-  const categoryAliases = getCommandeCategoryAliases(input.category);
-  const admin = createAdminClient();
-  const { data: commandeData, error: commandeError } = await admin
-    .from("commande")
-    .select("*")
-    .eq("id", input.commandeId)
-    .eq("student_id", student.id)
-    .in("categorie", categoryAliases)
-    .eq("product", input.resourceId)
-    .maybeSingle();
+//   const categoryAliases = getCommandeCategoryAliases(input.category);
+//   const admin = createAdminClient();
+//   const { data: commandeData, error: commandeError } = await admin
+//     .from("commande")
+//     .select("*")
+//     .eq("id", input.commandeId)
+//     .eq("student_id", student.id)
+//     .in("categorie", categoryAliases)
+//     .eq("product", input.resourceId)
+//     .maybeSingle();
 
-  if (commandeError) {
-    throw new Error(commandeError.message);
-  }
+//   if (commandeError) {
+//     throw new Error(commandeError.message);
+//   }
 
-  if (!commandeData) {
-    throw new Error("commande_not_found");
-  }
+//   if (!commandeData) {
+//     throw new Error("commande_not_found");
+//   }
 
-  const commande = commandeData as CommandeRecord;
-  const previousStatus = commande.status;
-  const orderNumber = normalizeText(commande.orderNumber) ?? commande.id;
-  const paymentService = PaymentService.getInstance();
-  const paymentResponse = await paymentService.check(orderNumber);
-  const isSuccess = isPaymentResponseSuccessful(paymentResponse);
-  const desiredStatus = isSuccess ? "success" : "no";
+//   const commande = commandeData as CommandeRecord;
+//   const previousStatus = commande.status;
+//   const orderNumber = normalizeText(commande.orderNumber) ?? commande.id;
+//   const paymentService = PaymentService.getInstance();
+//   const paymentResponse = await paymentService.check(orderNumber);
+//   const isSuccess = isPaymentResponseSuccessful(paymentResponse);
+//   const desiredStatus = isSuccess ? "success" : "no";
 
-  const { data: updatedCommande, error: updateError } = await admin
-    .from("commande")
-    .update({ status: desiredStatus })
-    .eq("id", commande.id)
-    .select("*")
-    .single();
+//   const { data: updatedCommande, error: updateError } = await admin
+//     .from("commande")
+//     .update({ status: desiredStatus })
+//     .eq("id", commande.id)
+//     .select("*")
+//     .single();
 
-  if (updateError) {
-    throw new Error(updateError.message);
-  }
+//   if (updateError) {
+//     throw new Error(updateError.message);
+//   }
 
-  const orderRef = normalizeText((updatedCommande as CommandeRecord).orderNumber) ?? (updatedCommande as CommandeRecord).id;
-  await updatePaiementStatusByOrderNumber(orderRef, isSuccess ? "success" : "no");
+//   const orderRef = normalizeText((updatedCommande as CommandeRecord).orderNumber) ?? (updatedCommande as CommandeRecord).id;
+//   await updatePaiementStatusByOrderNumber(orderRef, isSuccess ? "success" : "no");
 
-  if (isSuccess && previousStatus !== "success") {
-    try {
-      await notifyOrganizersWhenCommandeSuccess(updatedCommande as CommandeRecord);
-    } catch (notificationError) {
-      console.error("organizer notification failed", notificationError);
-    }
-  }
+//   if (isSuccess && previousStatus !== "success") {
+//     try {
+//       await notifyOrganizersWhenCommandeSuccess(updatedCommande as CommandeRecord);
+//     } catch (notificationError) {
+//       console.error("organizer notification failed", notificationError);
+//     }
+//   }
 
-  return {
-    success: isSuccess,
-    message: isSuccess
-      ? "Paiement confirme. La ressource est maintenant accessible."
-      : "Paiement non confirme pour le moment. Vous pouvez relancer la verification.",
-    commande: updatedCommande as CommandeRecord,
-    paymentResponse: paymentResponse.data ?? null,
-    category: input.category,
-    productId: input.resourceId,
-    productPath: getProductPath(input.category, input.resourceId),
-    commandePath: getCommandePath(input.category, input.resourceId),
-  };
-};
+//   return {
+//     success: isSuccess,
+//     message: isSuccess
+//       ? "Paiement confirme. La ressource est maintenant accessible."
+//       : "Paiement non confirme pour le moment. Vous pouvez relancer la verification.",
+//     commande: updatedCommande as CommandeRecord,
+//     paymentResponse: paymentResponse.data ?? null,
+//     category: input.category,
+//     productId: input.resourceId,
+//     productPath: getProductPath(input.category, input.resourceId),
+//     commandePath: getCommandePath(input.category, input.resourceId),
+//   };
+// };
 
 export const validateCommandePaymentByOrderNumber = async (orderNumber: string): Promise<PaymentValidationResult> => {
   const normalizedOrderNumber = normalizeText(orderNumber);

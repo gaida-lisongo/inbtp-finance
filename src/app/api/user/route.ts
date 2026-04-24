@@ -38,6 +38,19 @@ const resolvePhotoUrl = async (photo: string | null) => {
 //GET ALL USERS
 export const GET = async (request: NextRequest) => {
     try {
+        const agentId = request.nextUrl.searchParams.get("agentId");
+    
+        // Si agentId est présent, on veut les autorisations
+        if (agentId) {
+            const admin = createAdminClient();
+            const { data, error } = await admin
+                .from("autorisation")
+                .select("designation, is_active")
+                .eq("agent_id", agentId);
+            
+            if (error) return NextResponse.json({ message: error.message }, { status: 500 });
+            return NextResponse.json({ data });
+        }
         const table = request.nextUrl.searchParams.get("table");
         const offset = parseInt(request.nextUrl.searchParams.get("offset") || "0");
         const limit = parseInt(request.nextUrl.searchParams.get("limit") || "100");

@@ -5,12 +5,11 @@ import FacultyDashboardSnapshot from "@/components/education/FacultyDashboardSna
 import ParcoursDashboardSnapshot from "@/components/education/ParcoursDashboardSnapshot";
 import StudentDashboardSnapshot from "@/components/education/StudentDashboardSnapshot";
 import TeacherDashboardSnapshot from "@/components/teacher/TeacherDashboardSnapshot";
-import { getActiveAutorisationCodesForAgent } from "@/lib/utils/supabase/autorisations";
 import { getFacultyDashboardSnapshot } from "@/lib/utils/supabase/faculte-dashboard";
 import { getParcoursDashboardSnapshot } from "@/lib/utils/supabase/parcours-dashboard";
-import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 import { getStudentDashboardSnapshot } from "@/lib/utils/supabase/student-dashboard";
 import { getTeacherDashboardSnapshot } from "@/lib/utils/supabase/teacher-dashboard";
+import { getUser } from "../actions/user";
 
 export const metadata: Metadata = {
   title: "Dashboard | Plateforme academique",
@@ -18,9 +17,9 @@ export const metadata: Metadata = {
 };
 
 export default async function EducationDashboardPage() {
-  const user = await getAuthenticatedUser();
+  const user = await getUser();
 
-  if (user?.activePersona === "student") {
+  if (!user?.role) {
     const snapshot = await getStudentDashboardSnapshot();
 
     return (
@@ -35,8 +34,8 @@ export default async function EducationDashboardPage() {
     );
   }
 
-  if (user?.activePersona === "teacher") {
-    const snapshot = await getTeacherDashboardSnapshot(user.agentId ?? undefined);
+  if (user?.role === "titulaire") {
+    const snapshot = await getTeacherDashboardSnapshot(user.id ?? undefined);
 
     return (
       <div className="space-y-6">
@@ -50,8 +49,16 @@ export default async function EducationDashboardPage() {
     );
   }
 
-  if (user?.activePersona === "admin" && user.agentId) {
-    const activeCodes = await getActiveAutorisationCodesForAgent(user.agentId);
+  if (user?.role !== "titulaire" && user?.role && user.id) {
+    const req = await fetch(`${process.env.NEXT_PUBLIC_HOST_URL}/api/user?agentId=${user.id}`);
+    
+    if (!req.ok) {
+      throw new Error("Failed to fetch user data");
+    }
+
+    const {data} = await req.json();
+    const activeCodes = data.filter((item: any) => item.is_active === 'oui').map((item: any) => item.designation);
+    console.log("Active codes: ", activeCodes)
 
     if (activeCodes.includes("CS")) {
       const facultySnapshot = await getFacultyDashboardSnapshot();
