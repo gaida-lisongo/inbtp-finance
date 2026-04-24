@@ -2,13 +2,13 @@
 
 import React, { useState } from "react";
 
-import type { AuthenticatedUser } from "@/lib/utils/supabase/session";
 import type { Notification } from "@/lib/utils/supabase/admin-notifications";
 
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import NotificationItem from "../notification/NotificationItem";
 import { useRouter } from "next/navigation";
 import SchemaRealtimeSync from "../common/TableReatimeSync";
+import { AccountType } from "@/store/useUserStore";
 
 const teacherTables = ["notification_recours"];
 const gestionnaireTables = ["notification_payment"];
@@ -16,12 +16,12 @@ const organisateurTables = ["notification_stage", "notification_sujet", "notific
 
 export default function NotificationDropdown({
   notifcations,
-  user,
+  accountType,
   onNotificationsChange,
 }: {
   notifcations: Notification[];
-  user: AuthenticatedUser;
-  onNotificationsChange?: () => void;
+  accountType: AccountType;
+  onNotificationsChange: () => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const router = useRouter();
@@ -34,9 +34,9 @@ export default function NotificationDropdown({
     setIsOpen(false);
   }
 
-  const isTeacher = user.activePersona === "teacher";
-  const isOrganisateur = user.role === "organisateur";
-  const isGestionnaire = user.role === "gestionnaire";
+  const isTeacher = accountType === "titulaire";
+  const isOrganisateur = accountType === "organisateur";
+  const isGestionnaire = accountType === "gestionnaire";
   const pendingCount = notifcations.filter((item) => item.status !== true).length;
   const hasPendingItems = pendingCount > 0;
 

@@ -32,6 +32,8 @@ export default class Authentication {
     const otpSession = await this.encrypt({ otp, email });
 
     const expires = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
+    console.log('[GENERATING OTP]', otp);
     (await cookies()).set("otp_session", otpSession, {
         expires,
         httpOnly: true, // Empêche l'accès via document.cookie
@@ -49,6 +51,7 @@ export default class Authentication {
     `;
 
     await sendMail({ to: email, subject: "Votre code de connexion", html: bodyHtmlMail });
+    console.log('[OTP SENT TO]', email);
     return true;
   }
 

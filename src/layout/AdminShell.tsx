@@ -1,11 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 
-import type { SidebarMenuItem } from "@/lib/navigation/admin-sidebar";
-import type { AdminDashboardNotificationItem } from "@/lib/utils/supabase/admin-notifications";
-import type { AuthenticatedUser } from "@/lib/utils/supabase/session";
-import type { TeacherRecoursNotificationItem } from "@/lib/utils/supabase/teacher-notifications";
+import { getAdminSidebarMenu, type SidebarMenuItem } from "@/lib/navigation/admin-sidebar";
 import { useSidebar } from "@/context/SidebarContext";
 import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
@@ -14,20 +11,41 @@ import { useUserStore } from "@/store/useUserStore";
 
 type AdminShellProps = {
   children: React.ReactNode;
-  sidebarMenu: SidebarMenuItem[];
-  teacherNotifications?: {
-    items: TeacherRecoursNotificationItem[];
-    pendingCount: number;
-  };
-  adminNotifications?: {
-    items: AdminDashboardNotificationItem[];
-    pendingCount: number;
-  };
 };
 
-export default function AdminShell({ children, sidebarMenu, teacherNotifications, adminNotifications }: AdminShellProps) {
-  const { user, isLoading } = useUserStore();
+export default function AdminShell({ children }: AdminShellProps) {
+  const { profile, codes, accountType, isLoading } = useUserStore();
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
+  const [ sidebarMenu, setSidebarMenu ] = useState<SidebarMenuItem[]>([]);
+  // const [ teacherNotifications, setTeacherNotifications ] = useState<TeacherRecoursNotificationItem[]>([]);
+  // const [ adminNotifications, setAdminNotifications ] = useState<AdminDashboardNotificationItem[]>([]);
+
+  useEffect(() => {
+    if (codes && accountType) {
+      getAdminSidebarMenu({ accountType, codes })
+        .then((items: SidebarMenuItem[]) => setSidebarMenu(items))
+        .catch((err: any) => {
+          console.error("Erreur dans l'obtention du menu:", err);
+        })
+    }
+  }, [codes, accountType])
+
+  // useEffect(() => {
+  //   if (profile) {
+  //     accountType == 'titulaire' && getTeacherRecoursNotificationSnapshot(profile?.id ?? undefined)
+  //       .then(notifications => setTeacherNotifications((notifications?.items ?? []).slice(0, 5)))
+  //       .catch((err: any) => {
+  //         console.error("Erreur dans l'obtention des notifications:", err);
+  //       })
+
+  //     accountType !== 'titulaire' && accountType !== 'student' && getAdminDashboardNotificationSnapshot(profile?.id ?? undefined)
+  //       .then(notifications => setAdminNotifications((notifications?.items ?? []).slice(0, 5)))
+  //       .catch((err: any) => {
+  //         console.error("Erreur dans l'obtention des notifications:", err);
+  //       })
+        
+  //   }
+  // }, [profile])
 
   const mainContentMargin = isMobileOpen
     ? "ml-0"
@@ -35,7 +53,7 @@ export default function AdminShell({ children, sidebarMenu, teacherNotifications
       ? "lg:ml-[290px]"
       : "lg:ml-[90px]";
 
-  if (isLoading || !user) {
+  if (isLoading || !profile || !codes || !accountType) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-theme-primary"></div>
@@ -48,7 +66,7 @@ export default function AdminShell({ children, sidebarMenu, teacherNotifications
       <AppSidebar menuItems={sidebarMenu} />
       <Backdrop />
       <div className={`flex-1 transition-all duration-300 ease-in-out ${mainContentMargin}`}>
-        <AppHeader user={user} teacherNotifications={teacherNotifications} adminNotifications={adminNotifications} />
+        <AppHeader />
         <div className="p-4 mx-auto max-w-(--breakpoint-2xl) md:p-6">{children}</div>
       </div>
     </div>

@@ -46,7 +46,8 @@ export default function SignInForm({ error: externalError, message: externalMsg,
     try {
       const res = await fetch(`/api/auth?email=${encodeURIComponent(email.toLowerCase())}`);
       if (!res.ok) throw new Error("Utilisateur non trouvé ou erreur serveur");
-      
+      const data = await res.json();
+      console.log("User Data : ", data)
       setStep(2);
       setMessage("Code envoyé ! Vérifiez votre boîte mail (et vos spams).");
     } catch (err: any) {
@@ -107,21 +108,20 @@ export default function SignInForm({ error: externalError, message: externalMsg,
 
   return (
     <div className="flex w-full flex-1 flex-col px-5 sm:px-8">
-      {/* ... (Header identique) ... */}
 
       <div className="mx-auto flex w-full max-w-xl flex-1 flex-col justify-center">
         <div className="animate-fade-up rounded-[32px] border border-white/60 bg-white/85 p-6 shadow-[0_30px_80px_rgba(39,40,38,0.10)] backdrop-blur-xl dark:border-white/10 dark:bg-[#272826]/72 sm:p-8">
-                  <div className="mb-8 flex flex-col gap-5 md:mb-9 md:flex-row md:items-center md:justify-between md:gap-0">
-          <div>
+          <div className="mb-8 flex flex-col gap-5 md:mb-9 md:flex-row md:items-center md:justify-between md:gap-0">
+            <div>
               <h1 className="mb-2 mt-4 text-title-sm font-semibold text-gray-900 dark:text-white sm:text-title-md">
                 {heading}
               </h1>
-              <p className="max-w-lg text-sm leading-7 text-gray-600 dark:text-white/70">{description}</p>
-              </div>
-              <div className="hidden rounded-3xl border border-[#058AC5]/15 bg-[#058AC5]/8 p-3 sm:block dark:border-white/10 dark:bg-white/5">
+              <p className="max-w-lg te xt-sm leading-7 text-gray-600 dark:text-white/70">{description}</p>
+            </div>
+            <div className="hidden rounded-3xl border border-[#058AC5]/15 bg-[#058AC5]/8 p-3 sm:block dark:border-white/10 dark:bg-white/5">
                 <AssetImage src="elmes" alt="ELMESACAD" width={52} height={52} className="h-[52px] w-[52px] object-contain" />
-              </div>
-        </div>
+            </div>
+          </div>
 
           {/* Tabs Navigation */}
           <div className="mb-6 grid gap-3 rounded-[26px] border border-gray-200/80 bg-[#f7f7f5] p-2 dark:border-white/10 dark:bg-black/15 sm:grid-cols-3">

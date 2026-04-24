@@ -1,8 +1,6 @@
-import { redirect } from "next/navigation";
 import { Metadata } from "next";
 
 import ProfileEditor from "@/components/user-profile/ProfileEditor";
-import { getCurrentAgentProfile } from "@/lib/utils/supabase/agents";
 
 export const metadata: Metadata = {
   title: "Next.js Profile | TailAdmin - Next.js Dashboard Template",
@@ -18,11 +16,7 @@ type ProfilePageProps = {
 };
 
 export default async function Profile({ searchParams }: ProfilePageProps) {
-  const [agent, params] = await Promise.all([getCurrentAgentProfile(), searchParams]);
-
-  if (!agent) {
-    redirect("/signin?error=access_denied");
-  }
+  const params = await searchParams;
 
   return (
     <div className="space-y-6">
@@ -33,7 +27,7 @@ export default async function Profile({ searchParams }: ProfilePageProps) {
         </p>
       </div>
 
-      <ProfileEditor agent={agent} status={params.status} message={params.message} />
+      <ProfileEditor status={params.status} message={params.message} />
     </div>
   );
 }

@@ -1,6 +1,9 @@
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
 
+export type AutorisationCode = "CS" | "CE" | "CR" | "APP" | "SEC" | "T" | "J";
+
+
 const supabaseBucket = process.env.SUPABASE_BUCKET;
 const signedUrlExpiresInSeconds = 60 * 60;
 
@@ -182,5 +185,62 @@ export const POST = async (request: NextRequest) => {
     } catch (error: any) {
         console.error("Erreur Upload:", error);
         return NextResponse.json({ message: error.message || "Erreur lors de l'upload" }, { status: 500 });
+    }
+};
+
+//PATCH : RECUPERATION AUTORISATIONS DE L'UTILISATEUR
+export const PATCH = async (request: NextRequest) => {
+    try {
+        const agentId = request.nextUrl.searchParams.get("agentId");
+
+        const admin = createAdminClient();
+        const { data, error } = await admin
+            .from("autorisation")
+            .select("designation, is_active")
+            .eq("agent_id", agentId);
+
+        if (error) throw new Error(error.message);
+
+        return NextResponse.json({
+            message: `Autorisations de l'utilisateur recuperes avec succes`,
+            data: data,
+        }, { status: 200 });
+    } catch (error: any) {
+        console.error("Erreur : ", error);
+        return NextResponse.json(
+            {
+                message: "Une erreur est survenu lors de la recuperation des autorisations de l'utilisateur",
+            },
+            { status: 500 },
+        );
+    }
+};
+
+//DELETE: ERASE AUTORISATIONS
+export const DELETE = async (request: NextRequest) => {
+    try {
+        const {designation, agentId} = await request.json();
+
+        const admin = createAdminClient();
+        const { data, error } = await admin
+            .from("autorisation")
+            .delete()
+            .eq("agent_id", agentId)
+            .eq("designation", designation);
+
+        if (error) throw new Error(error.message);
+
+        return NextResponse.json({
+            message: `Autorisations de l'utilisateur effacees avec succes`,
+            data: data,
+        }, { status: 200 });
+    } catch (error: any) {
+        console.error("Erreur : ", error);
+        return NextResponse.json(
+            {
+                message: "Une erreur est survenu lors de l'effacement des autorisations de l'utilisateur",
+            },
+            { status: 500 },
+        );
     }
 };

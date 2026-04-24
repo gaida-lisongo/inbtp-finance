@@ -7,12 +7,15 @@ const auth = new Authentication();
 // Usage: /api/auth?email=test@example.com
 export async function GET(request: NextRequest) {
   const email = request.nextUrl.searchParams.get("email");
+
+  console.log("Email : ", email);
   if (!email) return NextResponse.json({ error: "Email requis" }, { status: 400 });
 
   try {
     await auth.generateOtp(email);
     return NextResponse.json({ message: "OTP envoyé par email" });
   } catch (error) {
+    console.error(error);
     return NextResponse.json({ error: "Erreur lors de l'envoi" }, { status: 500 });
   }
 }

@@ -1,13 +1,10 @@
-import { 
-  getAutorisationLabels, 
-  getActiveAutorisationCodesForAgent, 
-  type AutorisationCode 
-} from "@/lib/utils/supabase/autorisations";
+'use client';
+
 import { getProgrammes } from "@/lib/utils/supabase/programmes";
 import { createAdminClient } from "@/lib/utils/supabase/admin";
 import { getCurrentAuthenticatedStudent } from "@/lib/utils/supabase/commandes";
 import { getTeacherProgrammeMenuData } from "@/lib/utils/supabase/teacher-teaching";
-import type { AuthenticatedUser } from "@/lib/utils/supabase/session";
+import { AccountType, AutorisationCode } from "@/store/useUserStore";
 
 export type SidebarMenuSubItem = {
   name: string;
@@ -22,7 +19,10 @@ export type SidebarMenuItem = {
   subItems?: SidebarMenuSubItem[];
 };
 
-export const getAdminSidebarMenu = async (user: AuthenticatedUser): Promise<SidebarMenuItem[]> => {
+export const getAdminSidebarMenu = async ({
+  accountType,
+  codes
+}: {accountType: AccountType, codes: {code: AutorisationCode, designation: string}[]}): Promise<SidebarMenuItem[]> => {
   const items: SidebarMenuItem[] = [
     {
       name: "Dashboard",
@@ -32,7 +32,7 @@ export const getAdminSidebarMenu = async (user: AuthenticatedUser): Promise<Side
   ];
 
   // --- LOGIQUE ENSEIGNANT ---
-  if (user.activePersona === "teacher") {
+  if (accountType === "titulaire") {
     const years = await getTeacherProgrammeMenuData();
     items.push({
       name: "Enseignement",
@@ -49,7 +49,7 @@ export const getAdminSidebarMenu = async (user: AuthenticatedUser): Promise<Side
   }
 
   // --- LOGIQUE ÉTUDIANT ---
-  if (user.activePersona === "student") {
+  if (accountType === "student") {
     const admin = createAdminClient();
     const student = await getCurrentAuthenticatedStudent();
     
@@ -95,24 +95,21 @@ export const getAdminSidebarMenu = async (user: AuthenticatedUser): Promise<Side
   }
 
   // --- LOGIQUE GESTIONNAIRE / ADMIN ---
-  if (user.role === "gestionnaire") {
+  if (accountType === "gestionnaire") {
     items.push({ name: "Agents", path: "/agents", iconKey: "user" });
   }
 
-  if (!user.agentId) return items;
+  if (!accountType) return items;
 
   // Récupération des autorisations et des labels (via la nouvelle fonction async)
-  const [autorisationCodes, allLabels, programmes] = await Promise.all([
-    getActiveAutorisationCodesForAgent(user.agentId),
-    getAutorisationLabels(),
+  const [programmes] = await Promise.all([
     getProgrammes()
   ]);
 
   const activeYearId = programmes.find(p => p.annee_id && p.anneeActive)?.annee_id ?? null;
 
   // Boucle sur les codes d'autorisation pour construire le menu
-  for (const code of autorisationCodes) {
-    const label = allLabels[code] || code;
+  for (const {code, designation} of codes) {
     const yearsMap = new Map<string, SidebarMenuSubItem>();
 
     for (const p of programmes) {
@@ -135,7 +132,7 @@ export const getAdminSidebarMenu = async (user: AuthenticatedUser): Promise<Side
     }
 
     items.push({
-      name: label,
+      name: designation,
       iconKey: "folder",
       subItems: Array.from(yearsMap.values()).sort((a, b) => (b.name || "").localeCompare(a.name || "")),
     });

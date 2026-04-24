@@ -1,21 +1,21 @@
 import { NextResponse } from "next/server";
 
 import { getNotificationsGestionnaire, getNotificationsOrganisateur, updateNotification, deleteNotification } from "@/lib/utils/supabase/admin-notifications";
-import { getAuthenticatedUser } from "@/lib/utils/supabase/session";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const user = await getAuthenticatedUser();
+    const url = new URL(request.url);
+    const accountType = url.searchParams.get("accountType");
 
-    if (!user || user.activePersona !== "admin") {
+    if (!accountType) {
       return NextResponse.json([]);
     }
 
-    if (user.role === "gestionnaire") {
+    if (accountType === "gestionnaire") {
       return NextResponse.json(await getNotificationsGestionnaire());
     }
 
-    if (user.role === "organisateur") {
+    if (accountType === "organisateur") {
       return NextResponse.json(await getNotificationsOrganisateur());
     }
 

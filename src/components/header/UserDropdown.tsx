@@ -7,16 +7,13 @@ import React, { useMemo, useState } from "react";
 import AvatarText from "@/components/ui/avatar/AvatarText";
 import { Dropdown } from "@/components/ui/dropdown/Dropdown";
 import { DropdownItem } from "@/components/ui/dropdown/DropdownItem";
-import type { AuthenticatedUser } from "@/lib/utils/supabase/session";
-import Authentication from "@/lib/user/Authentication";
-import { useRouter } from "next/navigation";
+import { redirect, useRouter } from "next/navigation";
+import { useUserStore } from "@/store/useUserStore";
 
-type UserDropdownProps = {
-  user: AuthenticatedUser;
-};
 
-export default function UserDropdown({ user }: UserDropdownProps) {
-  console.log("user From  Layout : ", user)
+
+export default function UserDropdown() {
+  const { profile, accountType, permissions, logout } = useUserStore();
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
 
@@ -30,6 +27,13 @@ export default function UserDropdown({ user }: UserDropdownProps) {
   }
 
   const signOutAction = async () => {
+    try {
+      const resp = await logout()
+
+      if(resp) router.replace('/signin');
+    } catch (error) {
+      console.error("Error logging out:", error);
+    }
   }
 
   return (
@@ -39,23 +43,23 @@ export default function UserDropdown({ user }: UserDropdownProps) {
         className="flex items-center text-gray-700 dark:text-gray-400 dropdown-toggle"
       >
         <span className="mr-3 overflow-hidden rounded-full">
-          {user.avatarUrl ? (
+          {profile?.photo ? (
             <img
-              src={user.avatarUrl}
-              alt={user.name}
+              src={profile?.photo}
+              alt={profile?.prenom + " " + profile?.nom}
               className="h-11 w-11 rounded-full object-cover"
             />
           ) : (
-            <AvatarText name={user.name} className="h-11 w-11 text-sm" />
+            <AvatarText name={profile?.prenom + " " + profile?.nom} className="h-11 w-11 text-sm" />
           )}
         </span>
 
         <span className="mr-1 hidden text-right sm:block">
           <span className="block font-medium text-theme-sm text-gray-800 dark:text-white/90">
-            {user.name}
+            {profile?.prenom + " " + profile?.nom + " " + profile?.post_nom}
           </span>
           <span className="block text-theme-xs text-gray-500 dark:text-gray-400">
-            {user.email}
+            {profile?.email}
           </span>
         </span>
 
@@ -86,15 +90,15 @@ export default function UserDropdown({ user }: UserDropdownProps) {
       >
         <div className="border-b border-gray-200 pb-3 dark:border-gray-800">
           <span className="block font-medium text-gray-700 text-theme-sm dark:text-gray-200">
-            {user.name}
+            {profile?.prenom + " " + profile?.nom + " " + profile?.post_nom}
           </span>
           <span className="mt-0.5 block break-all text-theme-xs text-gray-500 dark:text-gray-400">
-            {user.email}
+            {profile?.email}
           </span>
         </div>
 
         <ul className="flex flex-col gap-1 py-3 border-b border-gray-200 dark:border-gray-800">
-          {user.canManageYears ? (
+          {permissions?.canManageYears ? (
             <li>
               <DropdownItem
                 onItemClick={closeDropdown}
@@ -122,7 +126,7 @@ export default function UserDropdown({ user }: UserDropdownProps) {
             </li>
           ) : null}
 
-          {user.canManageAuthorizations ? (
+          {permissions?.canManageAuthorizations ? (
             <li>
               <DropdownItem
                 onItemClick={closeDropdown}
@@ -150,7 +154,7 @@ export default function UserDropdown({ user }: UserDropdownProps) {
             </li>
           ) : null}
 
-          {user.canManageFiliere ? (
+          {permissions?.canManageFiliere ? (
             <li>
               <DropdownItem
                 onItemClick={closeDropdown}
@@ -178,7 +182,7 @@ export default function UserDropdown({ user }: UserDropdownProps) {
             </li>
           ) : null}
 
-          {user.canManageProgramme ? (
+          {permissions?.canManageProgramme ? (
             <li>
               <DropdownItem
                 onItemClick={closeDropdown}
@@ -206,7 +210,7 @@ export default function UserDropdown({ user }: UserDropdownProps) {
             </li>
           ) : null}
 
-          {user.role === "organisateur" ? (
+          {accountType === "organisateur" ? (
             <li>
               <DropdownItem
                 onItemClick={closeDropdown}
@@ -234,7 +238,7 @@ export default function UserDropdown({ user }: UserDropdownProps) {
             </li>
           ) : null}
 
-          {user.role === "gestionnaire" ? (
+          {accountType === "gestionnaire" ? (
             <li>
               <DropdownItem
                 onItemClick={closeDropdown}
@@ -262,7 +266,7 @@ export default function UserDropdown({ user }: UserDropdownProps) {
             </li>
           ) : null}
 
-          {user.activePersona === "student" ? (
+          {accountType === "student" ? (
             <li>
               <DropdownItem
                 onItemClick={closeDropdown}
@@ -289,8 +293,6 @@ export default function UserDropdown({ user }: UserDropdownProps) {
               </DropdownItem>
             </li>
           ) : null}
-        {
-          user.activePersona !== "student" ? (
           <li>
             <DropdownItem
               onItemClick={closeDropdown}
@@ -317,10 +319,7 @@ export default function UserDropdown({ user }: UserDropdownProps) {
             </DropdownItem>
           </li>
 
-          ) : null
-        }
-
-          {user.role === "organisateur" || user.role === "titulaire" ? (
+          {accountType === "organisateur" || accountType === "titulaire" ? (
             <li>
               <DropdownItem
                 onItemClick={closeDropdown}
@@ -348,7 +347,7 @@ export default function UserDropdown({ user }: UserDropdownProps) {
             </li>
           ) : null}
 
-          {user.role === "titulaire" ? (
+          {accountType === "titulaire" ? (
             <li>
               <DropdownItem
                 onItemClick={closeDropdown}

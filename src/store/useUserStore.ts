@@ -23,10 +23,30 @@ export interface UserType {
 
 export type AccountType = "organisateur" | "gestionnaire" | "student" | "titulaire";
 
+export type AutorisationCode = "CS" | "CE" | "CR" | "APP" | "SEC" | "T" | "J";
+
+
+const AUTORISATION_LABELS: Record<string, string> = {
+  CS: "Chef de Section",
+  CE: "Charge de l'enseignement",
+  CR: "Charge de la Recherche",
+  APP: "Appariteur",
+  SEC: "Secretaire",
+  T: "Titulaire",
+  J: "Jury",
+};
+
+const KNOWN_CODES = new Set(["CS", "CE", "CR", "APP", "SEC", "T", "J"]);
+export async function normalizeAutorisationCode(value: string | null | undefined): Promise<AutorisationCode | null> {
+  if (!value) return null;
+  const normalizedValue = value.trim().toUpperCase();
+  return KNOWN_CODES.has(normalizedValue) ? (normalizedValue as AutorisationCode) : null;
+}
+
 interface UserState {
   accountType: AccountType | null;
   profile: UserType | null;
-  codes: string[];
+  codes: {code: AutorisationCode, designation: string}[];
   permissions: {
     canManageAdmin: boolean;
     canManageStudents: boolean;
@@ -39,7 +59,7 @@ interface UserState {
   isLoading: boolean;
   setProfile: (data: any) => Promise<void>; // Changé en n'importe quel objet venant de la DB
   setPermissions: (permissions: any) => void;
-  setCodes: (codes: string[]) => void;
+  setCodes: () => Promise<void>;
   setAccountType: (role: string | null) => void;
   syncProfile: (payload: Partial<UserType>) => Promise<void>;
   syncPhoto: (formData: FormData) => Promise<void>;
@@ -61,7 +81,33 @@ export const useUserStore = create<UserState>()(
         set({ accountType });
       },
 
-      setCodes: (codes: string[]) => set({ codes }),
+      setCodes: async () => {
+        try {
+          const res = await fetch(`/api/user?agentId=${get().profile?.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' }
+          })
+          
+          if(!res.ok) throw new Error('Failed to sync codes');
+
+          const { data } = await res.json();
+          const codes = data.map((row: {id: string, code: AutorisationCode, agent_id: string, is_active: 'oui' | 'non'}) => {
+            if(row.is_active === 'oui') {
+              return {
+                code: row.code,
+                designation: AUTORISATION_LABELS[row.code],
+              }
+            }
+            return null;
+          }).filter((row: any) => row !== null);
+          console.log("codes", codes);
+          set({ codes })
+          
+        } catch (error) {
+          console.error("Error syncing codes:", error);
+          throw error;
+        }
+      },
 
       setProfile: async (user: any) => {
         if (!user) return;
@@ -92,16 +138,16 @@ export const useUserStore = create<UserState>()(
         }
       },
 
-      setPermissions: (permissions: any) => {
+      setPermissions: (role: string | null) => {
         set({
           permissions: {
-            canManageAdmin: !!permissions.canManageAdmin,
-            canManageStudents: !!permissions.canManageStudents,
-            canManageCharges: !!permissions.canManageCharges,
-            canManageYears: !!permissions.canManageYears,
-            canManageAuthorizations: !!permissions.canManageAuthorizations,
-            canManageFiliere: !!permissions.canManageFiliere,
-            canManageProgramme: !!permissions.canManageProgramme,
+            canManageAdmin: role != 'titulaire' || !role ? true : false ,
+            canManageYears: role == 'organisateur' && role ? true : false,
+            canManageAuthorizations: role == 'organisateur' && role ? true : false,
+            canManageStudents: role == 'gestionnaire' && role ? true : false,
+            canManageFiliere: role == 'gestionnaire' && role ? true : false,
+            canManageProgramme: role == 'gestionnaire' && role ? true : false,
+            canManageCharges: role == 'titulaire' && role ? true : false,
           },
         });
       },
